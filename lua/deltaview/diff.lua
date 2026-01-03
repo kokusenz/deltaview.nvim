@@ -46,10 +46,19 @@ end
 local get_diffed_files = function(branch_name)
     -- diffed files
     local diffed = vim.fn.system({'git', 'diff', branch_name ~= nil and branch_name or 'HEAD', '--name-only'})
+    if vim.v.shell_error ~= 0 then
+        print('ERROR: Failed to get diff files from git')
+        return {}
+    end
+
     -- new untracked files
     local untracked = ''
     if branch_name == nil then
         untracked = vim.fn.system({'git', 'ls-files', '-o', '--exclude-standard'})
+        if vim.v.shell_error ~= 0 then
+            print('ERROR: Failed to get untracked files from git')
+            untracked = ''
+        end
     end
 
     local files = {}
@@ -85,9 +94,15 @@ M.create_diff_menu_pane = function(diffing_function, branch_name)
         if filepath == nil then
             return
         end
-        -- TODO sometimes, files will be returned in a diff that do not exist, because they were removed. 
+        -- TODO sometimes, files will be returned in a diff that do not exist, because they were removed.
         -- account for that, in the labeling and the handling here; just print something instead of editing.
-        vim.cmd('e ' .. filepath)
+        local success, err = pcall(function()
+            vim.cmd('e ' .. vim.fn.fnameescape(filepath))
+        end)
+        if not success then
+            print('ERROR: Failed to open file: ' .. filepath)
+            return
+        end
         local cur_win = vim.api.nvim_get_current_win()
         M.create_diff_menu_pane(diffing_function, branch_name)
         -- shift focus back to window
@@ -108,6 +123,11 @@ M.run_diff_against = function(filepath, branch_name)
     end
     -- check if file is tracked to determine which git diff command to use
     local is_tracked = vim.fn.system({'git', 'ls-files', '--', filepath})
+    if vim.v.shell_error ~= 0 then
+        print('ERROR: Failed to check if file is tracked')
+        return
+    end
+
     local cmd
     local hunk_cmd
 
@@ -118,6 +138,10 @@ M.run_diff_against = function(filepath, branch_name)
     else
         -- tracked file
         local modified_files = vim.fn.system({'git', 'diff', branch_name ~= nil and branch_name or 'HEAD', '--name-only', '--', filepath})
+        if vim.v.shell_error ~= 0 then
+            print('ERROR: Failed to get modified files from git')
+            return
+        end
         if modified_files ~= nil and modified_files ~= '' then
             -- note that due to hard coded context ceiling (found no viable alternative), files above 3000 lines might not show all lines
             cmd = 'git diff -U3000 ' .. (branch_name ~= nil and branch_name or 'HEAD') .. ' -- ' .. vim.fn.shellescape(filepath)
@@ -157,6 +181,8 @@ M.display_diff_followcursor = function(cmd)
     local move_to_line_wrapper = function(line)
         if move_to_line ~= nil then
             move_to_line(line)
+        else
+            print('WARNING: move_to_line has not been initialized. No action will be performed')
         end
     end
 
@@ -169,17 +195,21 @@ M.display_diff_followcursor = function(cmd)
                 for key,value in ipairs(diff_buf_lines) do
                     -- on an empty line, we look for the line number instead. Line numbers show up in git delta, will be pattern matched.
                     if string.match(value, '⋮%s+' .. cur_cursor_pos[1]) ~= nil then
-                        if cur_line == '' or cur_line == nil then
-                            vim.api.nvim_win_set_cursor(0, { key , #value })
-                            last_valid_currentdiff_cursor_pos = { key, #value }
-                        else
-                            -- todo; if this is out of bounds, print not so aggressive message, and return to self; figure out why error
-                            print("row: " ..key)
-                            print("column: " .. (cur_cursor_pos[2] + (#value - #cur_line)))
-                            vim.api.nvim_win_set_cursor(0, { key , cur_cursor_pos[2] + (#value - #cur_line) })
-                            last_valid_currentdiff_cursor_pos = { key, cur_cursor_pos[2] + (#value - #cur_line) }
+                        local success, err = pcall(function()
+                            if cur_line == '' or cur_line == nil then
+                                vim.api.nvim_win_set_cursor(0, { key , #value })
+                                last_valid_currentdiff_cursor_pos = { key, #value }
+                            else
+                                vim.api.nvim_win_set_cursor(0, { key , cur_cursor_pos[2] + (#value - #cur_line) })
+                                last_valid_currentdiff_cursor_pos = { key, cur_cursor_pos[2] + (#value - #cur_line) }
+                            end
+                            vim.cmd('normal! zz')
+                        end)
+                        if not success then
+                            -- Cursor position might be out of bounds, set to safe default
+                            vim.api.nvim_win_set_cursor(0, { key, 0 })
+                            last_valid_currentdiff_cursor_pos = { key, 0 }
                         end
-                        vim.cmd('normal! zz')
                         break
                     end
                 end
@@ -201,7 +231,13 @@ M.display_diff_followcursor = function(cmd)
                 move_to_line = function(line)
                     for key,value in ipairs(diff_buf_lines) do
                         if string.match(value, '⋮%s+' .. line .. '%s*│') ~= nil then
-                            vim.api.nvim_win_set_cursor(0, { key, 0 })
+                            local success, err = pcall(function()
+                                vim.api.nvim_win_set_cursor(0, { key, 0 })
+                                vim.cmd('normal! zz')
+                            end)
+                            if not success then
+                                print('ERROR: Failed to move cursor to line ' .. line)
+                            end
                             return
                         end
                     end
@@ -211,9 +247,16 @@ M.display_diff_followcursor = function(cmd)
     })
 
     local return_to_cur_buffer = function()
-        vim.api.nvim_set_current_buf(cur_buf)
-        vim.api.nvim_win_set_cursor(0, {last_valid_currentdiff_cursor_pos[1], last_valid_currentdiff_cursor_pos[2]})
-        vim.cmd('normal! zz')
+        local success, err = pcall(function()
+            vim.api.nvim_set_current_buf(cur_buf)
+            if last_valid_currentdiff_cursor_pos ~= nil then
+                vim.api.nvim_win_set_cursor(0, {last_valid_currentdiff_cursor_pos[1], last_valid_currentdiff_cursor_pos[2]})
+            end
+            vim.cmd('normal! zz')
+        end)
+        if not success then
+            print('ERROR: Failed to return to original buffer')
+        end
     end
 
     vim.keymap.set('n', '<Esc>', function()
@@ -226,24 +269,32 @@ M.display_diff_followcursor = function(cmd)
         return_to_cur_buffer()
     end, { buffer = term_buf, noremap = true, silent = true })
 
-    --- @return number # current line string
+    --- @return number
     local get_current_line = function()
-        return last_valid_currentdiff_cursor_pos[1]
+        if last_valid_currentdiff_cursor_pos ~= nil then
+            return last_valid_currentdiff_cursor_pos[1]
+        end
+        return 1  -- default to line 1 if not set
     end
 
     --- @class DiffBufferFuncs
     --- @field get_current_line function
-    --- @field move_to_line function
+    --- @field move_to_line function 
     --- @field buf_id number
-    local res = { buf_id = term_buf, get_current_line = get_current_line, move_to_line = move_to_line_wrapper }
-    return res
+    local funcs = { buf_id = term_buf, get_current_line = get_current_line, move_to_line = move_to_line_wrapper }
+    return funcs
 end
 
---- sets up hunk navigation for the buffer the diff is diplayed on
---- @param hunk_cmd string git diff with 0 context to be able to properly parse for hunks 
+--- sets up hunk navigation for the buffer the diff is displayed on
+--- @param hunk_cmd string git diff with 0 context to be able to properly parse for hunks
 --- @param diff_buffer_funcs DiffBufferFuncs
 M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs)
     local output = vim.fn.system(hunk_cmd)
+    if vim.v.shell_error ~= 0 then
+        print('ERROR: Failed to get hunks from git diff')
+        return
+    end
+
     -- need target line numbers
     local matches = {}
     for line_after in string.gmatch(output, '@@%s%-%d+,%d+%s%+(%d+),%d+%s@@') do
@@ -252,11 +303,12 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs)
     -- create keybind to go to next hunk and prev hunk
     -- cycle through hunks
     -- scrollpeek indicator needs hunk count
+    -- todo: allow manual config of what key this should be in setup, <Tab> and <S-Tab> as fallbacks/defaults
     vim.keymap.set('n', '<Tab>', function()
         local cur_line = diff_buffer_funcs.get_current_line()
         for i = 1, #matches, 1 do
             local line = matches[i]
-            if line >= tonumber(cur_line) then
+            if line > tonumber(cur_line) then
                 -- this line is the target "next hunk"
                 -- because we iterate linearly, and all hunks should be ascending, we can assume the first line we find greater than cur_line is the next hunk
                 print(line)
@@ -270,7 +322,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs)
         local cur_line = diff_buffer_funcs.get_current_line()
         for i = #matches, 1, -1 do
             local line = matches[i]
-            if line <= tonumber(cur_line) then
+            if line < tonumber(cur_line) then
                 -- this line is the target "next hunk"
                 -- because we iterate linearly, and all hunks should be ascending, we can assume the first line we find greater than cur_line is the next hunk
                 print(line)
@@ -295,8 +347,13 @@ M.setup = function()
 
     vim.cmd([[cabbrev dm DiffMenu]])
     vim.api.nvim_create_user_command('DiffMenu', function(opts)
-        local branch_name = opts.args ~= '' and opts.args or nil
-        M.create_diff_menu_pane(M.run_diff_against, branch_name)
+        local success, err = pcall(function()
+            local branch_name = opts.args ~= '' and opts.args or nil
+            M.create_diff_menu_pane(M.run_diff_against, branch_name)
+        end)
+        if not success then
+            print('ERROR: Failed to create diff menu: ' .. tostring(err))
+        end
     end, {
         nargs = '?',
         desc = 'Open Diff Menu against a branch.'
