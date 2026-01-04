@@ -84,8 +84,6 @@ M.run_diff_against = function(filepath, ref)
     end
 
     -- dry run: test commands, terminate early if fail
-    -- Note: git diff returns 0 (no changes), 1 (changes found)
-    -- Any other exit code (including negative or >1) indicates an error
     local test_output = vim.fn.system(cmd)
     local exit_code = vim.v.shell_error
     if exit_code ~= 0 and exit_code ~= 1 then
@@ -100,7 +98,6 @@ M.run_diff_against = function(filepath, ref)
         return
     end
 
-    -- commands succeeded, proceed with display
     local cmd_ui = {}
     local diff_target_message = M.viewconfig.vs .. ' ' .. (M.diff_target_ref or 'HEAD')
     utils.append_cmd_ui(cmd_ui, diff_target_message)
@@ -109,8 +106,8 @@ M.run_diff_against = function(filepath, ref)
     M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs, cmd_ui)
 end
 
---- Display git diff output in a terminal buffer with cursor position syncing
---- Creates a terminal buffer running delta, syncs cursor position between source and diff
+--- display git diff output in a terminal buffer with cursor position syncing
+--- creates a terminal buffer running delta, syncs cursor position between source and diff
 --- @param cmd string The git diff command to execute
 --- @return table DiffBufferFuncs some exposed functionality to be able to interact with created terminal bufer
 M.display_diff_followcursor = function(cmd)
@@ -124,6 +121,9 @@ M.display_diff_followcursor = function(cmd)
 
     local term_buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_set_option_value('bufhidden', 'wipe', { buf = term_buf })
+
+    vim.api.nvim_buf_set_var(term_buf, 'is_deltaview', true)
+
     vim.api.nvim_set_current_buf(term_buf)
 
     local last_valid_currentdiff_cursor_pos
@@ -197,7 +197,7 @@ M.display_diff_followcursor = function(cmd)
     })
 
     local return_to_cur_buffer = function()
-        -- todo: figure out the best diff menu workflow. I often want to quit the whole diff menu and diff view setup, but I have to esc, ,, then esc again. Maybe one keybind for escaping both.
+        -- todo: figure out the best diff menu workflow. I often want to quit the whole diff menu and diff view setup, but I have to esc, ,, then esc again. Maybe one keybind for escaping both. Make this work like the unintrusive git status? everything goes away on select?
         local success, err = pcall(function()
             vim.api.nvim_set_current_buf(cur_buf)
             if last_valid_currentdiff_cursor_pos ~= nil then
@@ -278,7 +278,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         return nil
     end
 
-    -- hunk progress indicator
+    --- hunk progress indicator
     local hunk_scrollpeek = function()
         local cur_hunk = 1
         for i = 1, #matches + 1, 1 do
@@ -328,6 +328,16 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
 end
 
 M.setup = function(opts)
+    -- considerations for opts: 
+    -- set toggle keybind, (we should make DeltaView toggle by default, guess that's a todo)
+    -- make buffer come up as a split or floating buffer rather than a buffer you follow cursor with? idk kind of defeats the purpose
+    -- make buffer show up in fzf_lua or telescope git status preview
+    -- use fzf_lua picker or telescope picker
+    -- control whether dmenu uses number labels or letter labels
+    --     consider for dmenu sorting; we can go by diff loc size to begin with, but maybe even consider treesitter integration
+    --     for loc, we should go first is top loc (ignoring test files), but then everything in that directory no matter loc
+    --     if we go with dmenu goes away immediately after opening a diff, we show a cmd_ui that hints that we can do <C-n> or something to go to the next diff on the list...
+
     --- @class DeltaViewOpts
     --- @field use_nerdfonts boolean | nil
     --- @field keyconfig KeyConfig | nil
