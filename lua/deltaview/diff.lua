@@ -20,7 +20,7 @@ M.create_diff_menu_pane = function(diffing_function, ref)
     selector.ui_select(mods, {
         prompt = 'Modified Files',
         label_item = utils.label_filepath_item,
-        win_predefined='hsplit',
+        win_predefined = 'hsplit',
     }, function(filepath, selected_idx)
         if filepath == nil then
             return
@@ -59,7 +59,7 @@ M.programmatically_select_diff_from_menu = function(diffing_function, filepath, 
         return
     end
 
-    for key,value in ipairs(mods) do
+    for key, value in ipairs(mods) do
         if value == filepath then
             M.diffed_files.files = mods
             M.diffed_files.cur_idx = key
@@ -87,7 +87,7 @@ M.run_diff_against = function(filepath, ref)
         return
     end
     -- check if file is tracked to determine which git diff command to use
-    local is_tracked = vim.fn.system({'git', 'ls-files', '--', filepath})
+    local is_tracked = vim.fn.system({ 'git', 'ls-files', '--', filepath })
     if vim.v.shell_error ~= 0 then
         print('ERROR: Failed to check if file is tracked')
         return
@@ -102,7 +102,7 @@ M.run_diff_against = function(filepath, ref)
         hunk_cmd = 'git diff -U0 --no-index /dev/null ' .. vim.fn.shellescape(filepath)
     else
         -- tracked file
-        local modified_files = vim.fn.system({'git', 'diff', ref ~= nil and ref or 'HEAD', '--name-only', '--', filepath})
+        local modified_files = vim.fn.system({ 'git', 'diff', ref ~= nil and ref or 'HEAD', '--name-only', '--', filepath })
         if vim.v.shell_error ~= 0 then
             print('ERROR: Failed to get modified files from git')
             return
@@ -140,13 +140,13 @@ M.run_diff_against = function(filepath, ref)
 
     local adjacent_files = utils.get_adjacent_files(M.diffed_files)
     if adjacent_files ~= nil then
-        -- TODO: enable smart verbosity. If the user goes back, then show the back. If the user has only gone forward, show forward
-        -- show forward by default
-        local next_diff_message = adjacent_files.prev.name .. ' ' .. M.viewconfig.prev .. ' [' .. M.diffed_files.cur_idx .. '/' .. #M.diffed_files.files .. '] ' .. M.viewconfig.next .. ' ' .. adjacent_files.next.name
+        local next_diff_message = (M.show_verbose_nav and (vim.fn.fnamemodify(adjacent_files.prev.name, ':t') .. ' ' .. M.viewconfig.prev) or '') ..
+            ' [' .. M.diffed_files.cur_idx .. '/' .. #M.diffed_files.files .. '] ' .. M.viewconfig.next .. ' ' ..
+            vim.fn.fnamemodify(adjacent_files.next.name, ':t')
         utils.append_cmd_ui(cmd_ui, next_diff_message, false)
     end
 
-    local diff_buffer_funcs  = M.display_diff_followcursor(cmd)
+    local diff_buffer_funcs = M.display_diff_followcursor(cmd)
     M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs, cmd_ui)
 end
 
@@ -187,14 +187,14 @@ M.display_diff_followcursor = function(cmd)
             vim.schedule(function()
                 -- place cursor upon entry
                 local diff_buf_lines = vim.api.nvim_buf_get_lines(term_buf, 0, -1, false)
-                for key,value in ipairs(diff_buf_lines) do
+                for key, value in ipairs(diff_buf_lines) do
                     if string.match(value, '⋮%s+' .. cur_cursor_pos[1]) ~= nil then
                         local success, err = pcall(function()
                             if cur_line == '' or cur_line == nil then
-                                vim.api.nvim_win_set_cursor(0, { key , #value })
+                                vim.api.nvim_win_set_cursor(0, { key, #value })
                                 last_valid_currentdiff_cursor_pos = { key, #value }
                             else
-                                vim.api.nvim_win_set_cursor(0, { key , cur_cursor_pos[2] + (#value - #cur_line) })
+                                vim.api.nvim_win_set_cursor(0, { key, cur_cursor_pos[2] + (#value - #cur_line) })
                                 last_valid_currentdiff_cursor_pos = { key, cur_cursor_pos[2] + (#value - #cur_line) }
                             end
                             vim.cmd('normal! zz')
@@ -209,21 +209,25 @@ M.display_diff_followcursor = function(cmd)
                 end
 
                 -- update where cursor should be upon exit
-                vim.api.nvim_create_autocmd('CursorMoved', { buffer = term_buf, callback = function()
-                    local term_buf_cur_line = vim.api.nvim_get_current_line()
-                    local term_buf_cur_cursor_pos = vim.api.nvim_win_get_cursor(0)
-                    local matching_line_number = string.match(term_buf_cur_line, '⋮%s+(%d+)')
-                    local git_delta_linenumber_artifacts = string.match(term_buf_cur_line, '(.*│)')
-                    if matching_line_number ~= nil then
-                        last_valid_currentdiff_cursor_pos = { tonumber(matching_line_number), math.max(term_buf_cur_cursor_pos[2] - string.len(git_delta_linenumber_artifacts), 0) }
+                vim.api.nvim_create_autocmd('CursorMoved', {
+                    buffer = term_buf,
+                    callback = function()
+                        local term_buf_cur_line = vim.api.nvim_get_current_line()
+                        local term_buf_cur_cursor_pos = vim.api.nvim_win_get_cursor(0)
+                        local matching_line_number = string.match(term_buf_cur_line, '⋮%s+(%d+)')
+                        local git_delta_linenumber_artifacts = string.match(term_buf_cur_line, '(.*│)')
+                        if matching_line_number ~= nil then
+                            last_valid_currentdiff_cursor_pos = { tonumber(matching_line_number), math.max(
+                            term_buf_cur_cursor_pos[2] - string.len(git_delta_linenumber_artifacts), 0) }
+                        end
                     end
-                end})
+                })
 
                 -- expose functions to interact with term buffer
 
                 --- @param line number # target line number to move to; moves to line post diff, not pre diff
                 move_to_line = function(line)
-                    for key,value in ipairs(diff_buf_lines) do
+                    for key, value in ipairs(diff_buf_lines) do
                         if string.match(value, '⋮%s+' .. line .. '%s*│') ~= nil then
                             local success, err = pcall(function()
                                 vim.api.nvim_win_set_cursor(0, { key, 0 })
@@ -247,7 +251,8 @@ M.display_diff_followcursor = function(cmd)
         local success, err = pcall(function()
             vim.api.nvim_set_current_buf(cur_buf)
             if last_valid_currentdiff_cursor_pos ~= nil then
-                vim.api.nvim_win_set_cursor(0, {last_valid_currentdiff_cursor_pos[1], last_valid_currentdiff_cursor_pos[2]})
+                vim.api.nvim_win_set_cursor(0,
+                    { last_valid_currentdiff_cursor_pos[1], last_valid_currentdiff_cursor_pos[2] })
             end
             vim.cmd('normal! zz')
             vim.cmd('echo ""')
@@ -277,7 +282,7 @@ M.display_diff_followcursor = function(cmd)
     end
 
     --- @class DiffBufferFuncs table to expose functions to interact with the diff buffer
-    --- @field move_to_line function 
+    --- @field move_to_line function
     --- @field buf_id number
     local funcs = { buf_id = term_buf, move_to_line = move_to_line_wrapper }
     return funcs
@@ -322,7 +327,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         if cur_line_number == nil and cur_prev_line_number ~= nil then
             local diff_buf_lines = vim.api.nvim_buf_get_lines(diff_buffer_funcs.buf_id, 0, -1, false)
             local last_after_line_number = tonumber(1)
-            for _,value in ipairs(diff_buf_lines) do
+            for _, value in ipairs(diff_buf_lines) do
                 local before_line_number = string.match(value, '%s*(%d+)%s*⋮')
                 local after_line_number = string.match(value, '⋮%s+(%d+)')
                 if tonumber(after_line_number) ~= nil then
@@ -355,10 +360,13 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         end
     end
 
-    vim.api.nvim_create_autocmd('CursorMoved', { buffer = diff_buffer_funcs.buf_id, callback = function()
-        update_cur_line_number()
-        hunk_scrollpeek()
-    end})
+    vim.api.nvim_create_autocmd('CursorMoved', {
+        buffer = diff_buffer_funcs.buf_id,
+        callback = function()
+            update_cur_line_number()
+            hunk_scrollpeek()
+        end
+    })
 
     vim.keymap.set('n', M.keyconfig.next_hunk, function()
         for i = 1, #matches, 1 do
@@ -386,7 +394,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
 end
 
 M.setup = function(opts)
-    -- considerations for opts: 
+    -- considerations for opts:
     -- set toggle keybind, (we should make DeltaView toggle by default, guess that's a todo)
     -- make buffer come up as a split or floating buffer rather than a buffer you follow cursor with? idk kind of defeats the purpose
     -- make buffer show up in fzf_lua or telescope git status preview
@@ -399,6 +407,7 @@ M.setup = function(opts)
     --- @class DeltaViewOpts
     --- @field use_nerdfonts boolean | nil
     --- @field keyconfig KeyConfig | nil
+    --- @field show_verbose_nav boolean | nil Show both prev and next filenames (true) or just position + next (false, default)
     opts = opts or {}
     if opts.use_nerdfonts then
         M.viewconfig = M.nerdfont_viewconfig
@@ -407,6 +416,8 @@ M.setup = function(opts)
     if opts.keyconfig then
         M.keyconfig = opts.keyconfig
     end
+
+    M.show_verbose_nav = opts.show_verbose_nav or false
 
     vim.api.nvim_create_user_command('DeltaView', function(delta_view_opts)
         local success, err = pcall(function()
@@ -420,7 +431,8 @@ M.setup = function(opts)
         end
     end, {
         nargs = '?',
-        desc = 'Open Diff View against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
+        desc =
+        'Open Diff View against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
     })
 
     vim.api.nvim_create_user_command('DeltaMenu', function(diff_menu_opts)
@@ -433,7 +445,8 @@ M.setup = function(opts)
         end
     end, {
         nargs = '?',
-        desc = 'Open Diff Menu against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
+        desc =
+        'Open Diff Menu against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
     })
 end
 
@@ -467,12 +480,10 @@ M.keyconfig = {
     prev_diff = "[f"
 }
 
-M.diff_target_ref = nil
-
 --- enables the user to go to "next diff in menu" if the current diff was opened via the menu.
 --- @class DiffedFiles
 --- @field files table | nil
 --- @field cur_idx number | nil
-M.diffed_files = { files = nil, cur_idx = nil}
+M.diffed_files = { files = nil, cur_idx = nil }
 
 return M
