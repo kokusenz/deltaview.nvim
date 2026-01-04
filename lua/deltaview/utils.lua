@@ -66,24 +66,75 @@ M.label_filepath_item = function()
     end
 end
 
+--- WARNING: do not construct your own local_persisted_ui unless you've read append_cmd_ui
 --- uses vim.cmd to display a ui. Uses a table in the scope to be able to construct a ui.
 --- ex: I want two things in my ui. However, I only want this ui per diff buffer. In the function where I create my diff buffer, create a table. Because of closure, that scoped variable can be reused in other functions. A ui can be persisted, then any time I want to display it, I can.
 --- @param local_persisted_ui table the table declared in the scope where we want this ui to be shared
 --- @param ui string | nil the ui I want to display 
 M.display_cmd_ui = function(local_persisted_ui, ui)
     -- whatever want displayed to the user (not in statusline) we can put in here, and use vim.cmd to do it
-    local message = ""
-    for _,value in ipairs(local_persisted_ui) do
-        message = message .. value .. "    "
+    local start_message = ""
+    local end_message = ""
+    for key, append_start in pairs(local_persisted_ui) do
+        if key == nil or append_start == nil then
+            print('ERROR: cmd_ui')
+            return
+        end
+        if append_start == true then
+            start_message = start_message .. key .. "    "
+        else
+            end_message = end_message .. key .. "    "
+        end
     end
-    vim.cmd('echo "' .. message .. ui .. '"')
+    vim.cmd('echo "' .. start_message .. ui .. "    " .. end_message .. '"')
 end
 
 --- meant to be used alongside display_cmd_ui
+--- messages are first come first serve; earlier messages are on the left, whether it's on the start or end.
 --- @param local_persisted_ui table the table declared in the scope where we want this ui to be shared
 --- @param ui string the ui I want to display 
-M.append_cmd_ui = function(local_persisted_ui, ui)
-    table.insert(local_persisted_ui, ui or '')
+--- @param append_start boolean true if I want the message to display on the left, false if I want the message to display on the right
+M.append_cmd_ui = function(local_persisted_ui, ui, append_start)
+    local_persisted_ui[ui] = append_start
+end
+
+--- get the adjacent files (next and previous) for navigation with wrap-around
+--- @param diffed_files DiffedFiles table with files array and cur_idx
+--- @return table|nil Table with next and prev file info: { next = { name = string, index = number }, prev = { name = string, index = number } }
+M.get_adjacent_files = function(diffed_files)
+    if diffed_files.files == nil or diffed_files.cur_idx == nil then
+        return nil
+    end
+
+    local files = diffed_files.files
+    local current_index = diffed_files.cur_idx
+
+    if #files == 0 or #files == 1 then
+        return nil
+    end
+
+    -- Calculate next index with wrap-around
+    local next_index = current_index + 1
+    if next_index > #files then
+        next_index = 1
+    end
+
+    -- Calculate previous index with wrap-around
+    local prev_index = current_index - 1
+    if prev_index < 1 then
+        prev_index = #files
+    end
+
+    return {
+        next = {
+            name = files[next_index],
+            index = next_index
+        },
+        prev = {
+            name = files[prev_index],
+            index = prev_index
+        }
+    }
 end
 
 

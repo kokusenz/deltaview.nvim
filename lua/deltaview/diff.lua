@@ -2,7 +2,7 @@ local M = {}
 local selector = require('deltaview.selector')
 local utils = require('deltaview.utils')
 
---- Create an interactive menu pane for selecting and viewing diffs of modified files
+--- create an interactive menu pane for selecting and viewing diffs of modified files
 --- @param diffing_function function Function to call for displaying diffs, receives (filepath, ref)
 --- @param ref string|nil Optional git ref to compare against (defaults to HEAD). Can be branch, commit, tag, etc.
 M.create_diff_menu_pane = function(diffing_function, ref)
@@ -21,7 +21,7 @@ M.create_diff_menu_pane = function(diffing_function, ref)
         prompt = 'Modified Files',
         label_item = utils.label_filepath_item,
         win_predefined='hsplit',
-    }, function(filepath, _)
+    }, function(filepath, selected_idx)
         if filepath == nil then
             return
         end
@@ -32,12 +32,48 @@ M.create_diff_menu_pane = function(diffing_function, ref)
             print('ERROR: Failed to open file: ' .. filepath .. ' - file may have been removed.')
             return
         end
-        local cur_win = vim.api.nvim_get_current_win()
-        M.create_diff_menu_pane(diffing_function, ref)
-        -- shift focus back to window
-        vim.api.nvim_set_current_win(cur_win)
+
+        M.diffed_files.files = mods
+        M.diffed_files.cur_idx = selected_idx
         diffing_function(filepath, ref)
     end)
+end
+
+--- select from diff menu programmatically
+--- @param diffing_function function function to call for displaying diffs, receives (filepath, ref)
+--- @param filepath string filepath selected
+--- @param ref string|nil optional git ref to compare against (defaults to HEAD). Can be branch, commit, tag, etc.
+M.programmatically_select_diff_from_menu = function(diffing_function, filepath, ref)
+    if diffing_function == nil then
+        print('ERROR: must declare a function to diff the file')
+        return
+    end
+
+    if filepath == nil then
+        return
+    end
+
+    local mods = utils.get_diffed_files(ref)
+    if #mods == 0 then
+        print('No diffs to display')
+        return
+    end
+
+    for key,value in ipairs(mods) do
+        if value == filepath then
+            M.diffed_files.files = mods
+            M.diffed_files.cur_idx = key
+        end
+    end
+
+    local success, err = pcall(function()
+        vim.cmd('e ' .. vim.fn.fnameescape(filepath))
+    end)
+    if not success then
+        print('ERROR: Failed to open file: ' .. filepath .. ' - file may have been removed.')
+        return
+    end
+    diffing_function(filepath, ref)
 end
 
 --- Run a git diff for the specified file against a git ref
@@ -100,8 +136,16 @@ M.run_diff_against = function(filepath, ref)
 
     local cmd_ui = {}
     local diff_target_message = M.viewconfig.vs .. ' ' .. (M.diff_target_ref or 'HEAD')
-    utils.append_cmd_ui(cmd_ui, diff_target_message)
-    print(cmd_ui[0])
+    utils.append_cmd_ui(cmd_ui, diff_target_message, true)
+
+    local adjacent_files = utils.get_adjacent_files(M.diffed_files)
+    if adjacent_files ~= nil then
+        -- TODO: enable smart verbosity. If the user goes back, then show the back. If the user has only gone forward, show forward
+        -- show forward by default
+        local next_diff_message = adjacent_files.prev.name .. ' ' .. M.viewconfig.prev .. ' [' .. M.diffed_files.cur_idx .. '/' .. #M.diffed_files.files .. '] ' .. M.viewconfig.next .. ' ' .. adjacent_files.next.name
+        utils.append_cmd_ui(cmd_ui, next_diff_message, false)
+    end
+
     local diff_buffer_funcs  = M.display_diff_followcursor(cmd)
     M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs, cmd_ui)
 end
@@ -196,6 +240,8 @@ M.display_diff_followcursor = function(cmd)
         end
     })
 
+    vim.api.nvim_buf_set_name(term_buf, cmd)
+
     local return_to_cur_buffer = function()
         -- todo: figure out the best diff menu workflow. I often want to quit the whole diff menu and diff view setup, but I have to esc, ,, then esc again. Maybe one keybind for escaping both. Make this work like the unintrusive git status? everything goes away on select?
         local success, err = pcall(function()
@@ -217,6 +263,18 @@ M.display_diff_followcursor = function(cmd)
     vim.keymap.set('n', 'q', function()
         return_to_cur_buffer()
     end, { buffer = term_buf, noremap = true, silent = true })
+    local adjacent_files = utils.get_adjacent_files(M.diffed_files)
+    if adjacent_files ~= nil then
+        vim.keymap.set('n', M.keyconfig.next_diff, function()
+            return_to_cur_buffer()
+            M.programmatically_select_diff_from_menu(M.run_diff_against, adjacent_files.next.name, M.diff_target_ref)
+        end, { buffer = term_buf, noremap = true, silent = true })
+
+        vim.keymap.set('n', M.keyconfig.prev_diff, function()
+            return_to_cur_buffer()
+            M.programmatically_select_diff_from_menu(M.run_diff_against, adjacent_files.prev.name, M.diff_target_ref)
+        end, { buffer = term_buf, noremap = true, silent = true })
+    end
 
     --- @class DiffBufferFuncs table to expose functions to interact with the diff buffer
     --- @field move_to_line function 
@@ -343,9 +401,7 @@ M.setup = function(opts)
     --- @field keyconfig KeyConfig | nil
     opts = opts or {}
     if opts.use_nerdfonts then
-        M.viewconfig.dot = ""
-        M.viewconfig.circle = ""
-        M.viewconfig.vs = ""
+        M.viewconfig = M.nerdfont_viewconfig
     end
 
     if opts.keyconfig then
@@ -355,6 +411,8 @@ M.setup = function(opts)
     vim.api.nvim_create_user_command('DeltaView', function(delta_view_opts)
         local success, err = pcall(function()
             M.diff_target_ref = delta_view_opts.args ~= '' and delta_view_opts.args or nil
+            M.diffed_files.files = nil
+            M.diffed_files.cur_idx = nil
             M.run_diff_against(vim.fn.expand('%:p'), M.diff_target_ref)
         end)
         if not success then
@@ -386,7 +444,17 @@ end
 M.viewconfig = {
     dot = "·",
     circle = "•",
-    vs = "Comparing to"
+    vs = "comparing to",
+    next = "->",
+    prev = "<-"
+}
+
+M.nerdfont_viewconfig = {
+    dot = "",
+    circle = "",
+    vs = "",
+    next = "󰁕",
+    prev = "󰁎"
 }
 
 --- @class KeyConfig
@@ -394,9 +462,17 @@ M.viewconfig = {
 --- @field prev_hunk string
 M.keyconfig = {
     next_hunk = "<Tab>",
-    prev_hunk = "<S-Tab>"
+    prev_hunk = "<S-Tab>",
+    next_diff = "]f",
+    prev_diff = "[f"
 }
 
 M.diff_target_ref = nil
+
+--- enables the user to go to "next diff in menu" if the current diff was opened via the menu.
+--- @class DiffedFiles
+--- @field files table | nil
+--- @field cur_idx number | nil
+M.diffed_files = { files = nil, cur_idx = nil}
 
 return M
