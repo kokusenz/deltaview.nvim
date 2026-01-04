@@ -46,7 +46,7 @@ M.get_opts = function(win_predefined, prompt, height)
         relative = 'editor',
         width = width,
         height = height,
-        row = math.floor((vim.o.lines - height - 2)),  -- -2 for border
+        row = math.floor((vim.o.lines - height - 2)), -- -2 for border
         col = math.floor((vim.o.columns - width) / 2),
         style = 'minimal',
         border = 'rounded',
@@ -91,7 +91,7 @@ M.ui_select = function(items, opts, on_choice)
     end
 
     local buf = vim.api.nvim_create_buf(false, true)
-    -- wipe leaves no cache, as opposed to delete. bufhidden is when we click escape or :q  
+    -- wipe leaves no cache, as opposed to delete. bufhidden is when we click escape or :q
     vim.api.nvim_set_option_value('bufhidden', 'wipe', { buf = buf })
 
     -- creating buffer content
@@ -103,7 +103,7 @@ M.ui_select = function(items, opts, on_choice)
 
     local lines = {}
     for i, item in ipairs(items) do
-        lines[i] =  '    ' .. label_item(item) .. ': '.. format_item(item) .. '    '
+        lines[i] = '    ' .. label_item(item) .. ': ' .. format_item(item) .. '    '
     end
 
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
@@ -160,14 +160,14 @@ M.ui_select = function(items, opts, on_choice)
 
     -- Reset label generation for keybinding creation
     label_item = label_item_factory()
-    for idx,item in ipairs(items) do
+    for idx, item in ipairs(items) do
         local label = label_item(item)
         if #label > 1 then
             print('WARNING: keybinds wll not work if label is longer than one character')
         elseif label == 'j' or label == 'k' or label == '<Esc>' or label == '<CR>' then
             print('WARNING: cannot use reserved keys (j, k, Esc, CR) as label. keybind not set.')
         else
-            vim.keymap.set('n', ''..label, wrap(go_to_item, item, idx), opts_map)
+            vim.keymap.set('n', '' .. label, wrap(go_to_item, item, idx), opts_map)
         end
     end
 

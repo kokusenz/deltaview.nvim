@@ -218,7 +218,7 @@ M.display_diff_followcursor = function(cmd)
                         local git_delta_linenumber_artifacts = string.match(term_buf_cur_line, '(.*│)')
                         if matching_line_number ~= nil then
                             last_valid_currentdiff_cursor_pos = { tonumber(matching_line_number), math.max(
-                            term_buf_cur_cursor_pos[2] - string.len(git_delta_linenumber_artifacts), 0) }
+                                term_buf_cur_cursor_pos[2] - string.len(git_delta_linenumber_artifacts), 0) }
                         end
                     end
                 })
@@ -247,7 +247,6 @@ M.display_diff_followcursor = function(cmd)
     vim.api.nvim_buf_set_name(term_buf, cmd)
 
     local return_to_cur_buffer = function()
-        -- todo: figure out the best diff menu workflow. I often want to quit the whole diff menu and diff view setup, but I have to esc, ,, then esc again. Maybe one keybind for escaping both. Make this work like the unintrusive git status? everything goes away on select?
         local success, err = pcall(function()
             vim.api.nvim_set_current_buf(cur_buf)
             if last_valid_currentdiff_cursor_pos ~= nil then
@@ -255,7 +254,6 @@ M.display_diff_followcursor = function(cmd)
                     { last_valid_currentdiff_cursor_pos[1], last_valid_currentdiff_cursor_pos[2] })
             end
             vim.cmd('normal! zz')
-            vim.cmd('echo ""')
         end)
         if not success then
             print('ERROR: Failed to return to original buffer')
@@ -265,9 +263,17 @@ M.display_diff_followcursor = function(cmd)
     vim.keymap.set('n', '<Esc>', function()
         return_to_cur_buffer()
     end, { buffer = term_buf, noremap = true, silent = true })
+
     vim.keymap.set('n', 'q', function()
         return_to_cur_buffer()
     end, { buffer = term_buf, noremap = true, silent = true })
+
+    if M.dv_toggle_keybind ~= nil and M.dv_toggle_keybind ~= '' then
+        vim.keymap.set('n', M.dv_toggle_keybind, function()
+            return_to_cur_buffer()
+        end, { buffer = term_buf, noremap = true, silent = true })
+    end
+
     local adjacent_files = utils.get_adjacent_files(M.diffed_files)
     if adjacent_files ~= nil then
         vim.keymap.set('n', M.keyconfig.next_diff, function()
@@ -342,7 +348,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
     end
 
     --- hunk progress indicator
-    local hunk_scrollpeek = function()
+    local render_hunk_progress_cmd_ui = function()
         local cur_hunk = 1
         for i = 1, #matches + 1, 1 do
             if i == #matches + 1 or (matches[i] > (cur_line_number or get_line_number_before_negative_hunk())) then
@@ -364,7 +370,15 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         buffer = diff_buffer_funcs.buf_id,
         callback = function()
             update_cur_line_number()
-            hunk_scrollpeek()
+            render_hunk_progress_cmd_ui()
+        end
+    })
+
+    vim.api.nvim_create_autocmd('BufLeave', {
+        buffer = diff_buffer_funcs.buf_id,
+        callback = function()
+            -- clear cmd_ui
+            vim.cmd('echo ""')
         end
     })
 
@@ -396,8 +410,6 @@ end
 M.setup = function(opts)
     -- considerations for opts:
     -- set toggle keybind, (we should make DeltaView toggle by default, guess that's a todo)
-    -- make buffer come up as a split or floating buffer rather than a buffer you follow cursor with? idk kind of defeats the purpose
-    -- make buffer show up in fzf_lua or telescope git status preview
     -- use fzf_lua picker or telescope picker
     -- control whether dmenu uses number labels or letter labels
     --     consider for dmenu sorting; we can go by diff loc size to begin with, but maybe even consider treesitter integration
@@ -405,6 +417,8 @@ M.setup = function(opts)
     --     if we go with dmenu goes away immediately after opening a diff, we show a cmd_ui that hints that we can do <C-n> or something to go to the next diff on the list...
 
     --- @class DeltaViewOpts
+    --- @field dv_toggle_keybind string | nil if defined, will create keybind that runs DeltaView, and exits Diff buffer if open
+    --- @field dm_toggle_keybind string | nil if defined, will create keybind that runs DeltaMenu
     --- @field use_nerdfonts boolean | nil
     --- @field keyconfig KeyConfig | nil
     --- @field show_verbose_nav boolean | nil Show both prev and next filenames (true) or just position + next (false, default)
@@ -418,6 +432,8 @@ M.setup = function(opts)
     end
 
     M.show_verbose_nav = opts.show_verbose_nav or false
+    M.dv_toggle_keybind = opts.dv_toggle_keybind or nil
+    M.dm_toggle_keybind = opts.dm_toggle_keybind or nil
 
     vim.api.nvim_create_user_command('DeltaView', function(delta_view_opts)
         local success, err = pcall(function()
@@ -435,6 +451,12 @@ M.setup = function(opts)
         'Open Diff View against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
     })
 
+    if M.dv_toggle_keybind ~= nil and M.dv_toggle_keybind ~= '' then
+        vim.keymap.set('n', M.dv_toggle_keybind, function()
+            vim.cmd('DeltaView')
+        end)
+    end
+
     vim.api.nvim_create_user_command('DeltaMenu', function(diff_menu_opts)
         local success, err = pcall(function()
             M.diff_target_ref = diff_menu_opts.args ~= '' and diff_menu_opts.args or nil
@@ -448,6 +470,12 @@ M.setup = function(opts)
         desc =
         'Open Diff Menu against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
     })
+
+    if M.dm_toggle_keybind ~= nil and M.dm_toggle_keybind ~= '' then
+        vim.keymap.set('n', M.dm_toggle_keybind, function()
+            vim.cmd('DeltaMenu')
+        end)
+    end
 end
 
 --- @class ViewConfig
