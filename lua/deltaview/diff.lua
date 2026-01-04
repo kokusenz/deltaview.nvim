@@ -10,7 +10,12 @@ M.create_diff_menu_pane = function(diffing_function, ref)
         print('ERROR: must declare a function to diff the file')
         return
     end
+
     local mods = utils.get_diffed_files(ref)
+    if #mods == 0 then
+        print('No diffs to display')
+        return
+    end
     -- TODO: allow integration with fzf-lua and telescope pickers. opt into it with opts. Custom picker as a fallback
     selector.ui_select(mods, {
         prompt = 'Modified Files',
@@ -78,8 +83,30 @@ M.run_diff_against = function(filepath, ref)
         return
     end
 
+    -- dry run: test commands, terminate early if fail
+    -- Note: git diff returns 0 (no changes), 1 (changes found)
+    -- Any other exit code (including negative or >1) indicates an error
+    local test_output = vim.fn.system(cmd)
+    local exit_code = vim.v.shell_error
+    if exit_code ~= 0 and exit_code ~= 1 then
+        print('ERROR: git diff failed (exit ' .. exit_code .. '): ' .. vim.trim(test_output))
+        return
+    end
+
+    test_output = vim.fn.system(hunk_cmd)
+    exit_code = vim.v.shell_error
+    if exit_code ~= 0 and exit_code ~= 1 then
+        print('ERROR: git diff failed (exit ' .. exit_code .. '): ' .. vim.trim(test_output))
+        return
+    end
+
+    -- commands succeeded, proceed with display
+    local cmd_ui = {}
+    local diff_target_message = M.viewconfig.vs .. ' ' .. (M.diff_target_ref or 'HEAD')
+    utils.append_cmd_ui(cmd_ui, diff_target_message)
+    print(cmd_ui[0])
     local diff_buffer_funcs  = M.display_diff_followcursor(cmd)
-    M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs)
+    M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs, cmd_ui)
 end
 
 --- Display git diff output in a terminal buffer with cursor position syncing
@@ -170,6 +197,7 @@ M.display_diff_followcursor = function(cmd)
     })
 
     local return_to_cur_buffer = function()
+        -- todo: figure out the best diff menu workflow. I often want to quit the whole diff menu and diff view setup, but I have to esc, ,, then esc again. Maybe one keybind for escaping both.
         local success, err = pcall(function()
             vim.api.nvim_set_current_buf(cur_buf)
             if last_valid_currentdiff_cursor_pos ~= nil then
@@ -189,9 +217,6 @@ M.display_diff_followcursor = function(cmd)
     vim.keymap.set('n', 'q', function()
         return_to_cur_buffer()
     end, { buffer = term_buf, noremap = true, silent = true })
-    vim.keymap.set('n', '<leader>dl', function()
-        return_to_cur_buffer()
-    end, { buffer = term_buf, noremap = true, silent = true })
 
     --- @class DiffBufferFuncs table to expose functions to interact with the diff buffer
     --- @field move_to_line function 
@@ -203,9 +228,10 @@ end
 --- sets up hunk navigation for the buffer the diff is displayed on. keymaps for moving between hunks, visual indicator for hunk progress
 --- @param hunk_cmd string a git diff command with 0 context to be able to properly parse for hunks
 --- @param diff_buffer_funcs DiffBufferFuncs
-M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs)
+--- @param cmd_ui table the existing cmd ui to append to
+M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
     local output = vim.fn.system(hunk_cmd)
-    if vim.v.shell_error ~= 0 then
+    if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
         print('ERROR: Failed to get hunks from git diff')
         return
     end
@@ -223,7 +249,6 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs)
         local before_line_number = string.match(term_buf_cur_line, '%s*(%d+)%s*⋮')
         local after_line_number = string.match(term_buf_cur_line, '⋮%s+(%d+)')
         cur_prev_line_number = tonumber(before_line_number)
-        print(cur_prev_line_number)
         -- both cur_prev_line_number and cur_line_number should not be nil at the same time.
         -- fallback: if cur_prev_line_number is nil, then avoid updating cur_line_number if after_line_number also nil
         if cur_prev_line_number == nil then
@@ -264,11 +289,11 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs)
         end
 
         if cur_hunk == 1 then
-            vim.cmd('echo "' .. M.viewconfig.dot:rep(#matches) .. '"')
+            utils.display_cmd_ui(cmd_ui, M.viewconfig.dot:rep(#matches))
         else
             local left = cur_hunk - 2
             local right = #matches - (cur_hunk - 1)
-            vim.cmd('echo "' .. M.viewconfig.dot:rep(left) .. M.viewconfig.circle .. M.viewconfig.dot:rep(right) .. '"')
+            utils.display_cmd_ui(cmd_ui, M.viewconfig.dot:rep(left) .. M.viewconfig.circle .. M.viewconfig.dot:rep(right))
         end
     end
 
@@ -302,26 +327,6 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs)
     end, { buffer = diff_buffer_funcs.buf_id, noremap = true, silent = true })
 end
 
---- uses vim.cmd to display a ui. Uses a table in the scope to be able to construct a ui.
---- ex: I want two things in my ui. However, I only want this ui per diff buffer. In the function where I create my diff buffer, create a table. Because of closure, that scoped variable can be reused in other functions. A ui can be persisted, then any time I want to display it, I can.
---- @param local_persisted_ui table the table declared in the scope where we want this ui to be shared
---- @param ui string | nil the ui I want to display 
-M.display_cmd_ui = function(local_persisted_ui, ui)
-    -- whatever want displayed to the user (not in statusline) we can put in here, and use vim.cmd to do it
-    local message = ""
-    for _,value in ipairs(local_persisted_ui) do
-        message = message .. value .. " "
-    end
-    vim.cmd('echo "' .. message .. ui or "" .. '"')
-end
-
---- meant to be used alongside display_cmd_ui
---- @param local_persisted_ui table the table declared in the scope where we want this ui to be shared
---- @param ui string the ui I want to display 
-M.append_cmd_ui = function(local_persisted_ui, ui)
-    table.insert(local_persisted_ui, ui)
-end
-
 M.setup = function(opts)
     --- @class DeltaViewOpts
     --- @field use_nerdfonts boolean | nil
@@ -330,19 +335,12 @@ M.setup = function(opts)
     if opts.use_nerdfonts then
         M.viewconfig.dot = ""
         M.viewconfig.circle = ""
+        M.viewconfig.vs = ""
     end
 
     if opts.keyconfig then
         M.keyconfig = opts.keyconfig
     end
-
-    vim.keymap.set('n', '<leader>dm', function()
-        M.create_diff_menu_pane(M.run_diff_against, M.diff_target_ref)
-    end)
-
-    vim.keymap.set('n', '<leader>dl', function()
-        M.run_diff_against(vim.fn.expand('%:p'), M.diff_target_ref)
-    end)
 
     vim.api.nvim_create_user_command('DeltaView', function(delta_view_opts)
         local success, err = pcall(function()
@@ -350,15 +348,14 @@ M.setup = function(opts)
             M.run_diff_against(vim.fn.expand('%:p'), M.diff_target_ref)
         end)
         if not success then
-            print('ERROR: Failed to create diff menu: ' .. tostring(err))
+            print('ERROR: Failed to create diff view: ' .. tostring(err))
         end
     end, {
         nargs = '?',
-        desc = 'Open Diff View against HEAD.'
+        desc = 'Open Diff View against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
     })
 
-    vim.cmd([[cabbrev dm DiffMenu]])
-    vim.api.nvim_create_user_command('DiffMenu', function(diff_menu_opts)
+    vim.api.nvim_create_user_command('DeltaMenu', function(diff_menu_opts)
         local success, err = pcall(function()
             M.diff_target_ref = diff_menu_opts.args ~= '' and diff_menu_opts.args or nil
             M.create_diff_menu_pane(M.run_diff_against, M.diff_target_ref)
@@ -368,16 +365,18 @@ M.setup = function(opts)
         end
     end, {
         nargs = '?',
-        desc = 'Open Diff Menu against a git ref (branch, commit, tag, etc).'
+        desc = 'Open Diff Menu against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
     })
 end
 
 --- @class ViewConfig
 --- @field dot string
 --- @field circle string
+--- @field vs string
 M.viewconfig = {
     dot = "·",
-    circle = "•"
+    circle = "•",
+    vs = "Comparing to"
 }
 
 --- @class KeyConfig

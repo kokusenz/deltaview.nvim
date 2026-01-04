@@ -66,4 +66,25 @@ M.label_filepath_item = function()
     end
 end
 
+--- uses vim.cmd to display a ui. Uses a table in the scope to be able to construct a ui.
+--- ex: I want two things in my ui. However, I only want this ui per diff buffer. In the function where I create my diff buffer, create a table. Because of closure, that scoped variable can be reused in other functions. A ui can be persisted, then any time I want to display it, I can.
+--- @param local_persisted_ui table the table declared in the scope where we want this ui to be shared
+--- @param ui string | nil the ui I want to display 
+M.display_cmd_ui = function(local_persisted_ui, ui)
+    -- whatever want displayed to the user (not in statusline) we can put in here, and use vim.cmd to do it
+    local message = ""
+    for _,value in ipairs(local_persisted_ui) do
+        message = message .. value .. "    "
+    end
+    vim.cmd('echo "' .. message .. ui .. '"')
+end
+
+--- meant to be used alongside display_cmd_ui
+--- @param local_persisted_ui table the table declared in the scope where we want this ui to be shared
+--- @param ui string the ui I want to display 
+M.append_cmd_ui = function(local_persisted_ui, ui)
+    table.insert(local_persisted_ui, ui or '')
+end
+
+
 return M
