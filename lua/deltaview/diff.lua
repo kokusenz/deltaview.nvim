@@ -1,78 +1,6 @@
--- Homemade git diff viewing experience. makes keybinds for git status, viewing a diff of a file while on it, and exposes a command to compare against a branch
-
--- TODO, ideas for future implementation
--- keybinds to jump between hunks (either using git delta syntax parsing or using git diff porcelain outputs)
--- ideally, remove manual syntax parsing/pattern finding. Investigate any metadata coming out of git-delta that we can use
--- some sort of staging functionality? There are many plugins that handle this already, may not be necessary unless I plan on completely tossing git/fzf plugins.
-
 local M = {}
 local selector = require('deltaview.selector')
-
---- Check if a path is a valid file path for diffing (not a directory or empty)
---- @param path string|nil The file path to validate
---- @return boolean True if the path is a diffable file, false otherwise
-local is_diffable_filepath = function(path)
-    if path == nil or string.sub(path, -1) == "/" or path == '' then
-        return false
-    end
-    return true
-end
-
---- Factory function that creates a label extractor for file paths
---- Extracts unique single-character labels from filenames (not full paths)
---- @return function A function that takes a filepath and returns a single-character label
-local label_filepath_item = function()
-    local used_labels = {}
-    return function(item)
-        -- extract just the filename (everything after the last forward slash)
-        local filename = item:match("([^/]+)$") or item
-        local i = 1
-        while i <= #filename do
-            local char = string.lower(filename:sub(i, i))
-            if used_labels[char] == nil then
-                used_labels[char] = true
-                return char
-            end
-            i = i + 1
-        end
-        -- fallback if all characters are used
-        return tostring(i)
-    end
-end
-
---- Get list of modified and untracked files
---- @param branch_name string|nil Branch to compare against (defaults to HEAD if nil). If nil, includes untracked files
---- @return table Array of file paths that have been modified or are untracked
-local get_diffed_files = function(branch_name)
-    -- diffed files
-    local diffed = vim.fn.system({'git', 'diff', branch_name ~= nil and branch_name or 'HEAD', '--name-only'})
-    if vim.v.shell_error ~= 0 then
-        print('ERROR: Failed to get diff files from git')
-        return {}
-    end
-
-    -- new untracked files
-    local untracked = ''
-    if branch_name == nil then
-        untracked = vim.fn.system({'git', 'ls-files', '-o', '--exclude-standard'})
-        if vim.v.shell_error ~= 0 then
-            print('ERROR: Failed to get untracked files from git')
-            untracked = ''
-        end
-    end
-
-    local files = {}
-    local seen = {}
-
-    for match in (diffed .. untracked):gmatch('[^\n]+') do
-        if not seen[match] and match ~= '' then
-            seen[match] = true
-            table.insert(files, match)
-        end
-    end
-
-    return files
-end
+local utils = require('deltaview.utils')
 
 --- Create an interactive menu pane for selecting and viewing diffs of modified files
 --- @param diffing_function function Function to call for displaying diffs, receives (filepath, branch_name)
@@ -82,13 +10,13 @@ M.create_diff_menu_pane = function(diffing_function, branch_name)
         print('ERROR: must declare a function to diff the file')
         return
     end
-    local mods = get_diffed_files(branch_name)
+    local mods = utils.get_diffed_files(branch_name)
     -- note that label_item, win_predefined are custom opts on a custom vim-ui-select
     -- A vanilla vim.ui.select will simply label these with numbers, and show them where they want to.
     -- We are labeling these with letters, and showing them in a horizontal split.
     selector.ui_select(mods, {
         prompt = 'Modified Files',
-        label_item = label_filepath_item,
+        label_item = utils.label_filepath_item,
         win_predefined='hsplit',
     }, function(filepath, _)
         if filepath == nil then
@@ -116,7 +44,7 @@ end
 --- @param filepath string The file path to diff
 --- @param branch_name string|nil Optional branch to compare against (defaults to HEAD)
 M.run_diff_against = function(filepath, branch_name)
-    local is_diffable = is_diffable_filepath(filepath)
+    local is_diffable = utils.is_diffable_filepath(filepath)
     if is_diffable == false then
         print('WARNING: cannot run diff on a directory')
         return
