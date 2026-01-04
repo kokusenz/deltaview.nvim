@@ -1,11 +1,11 @@
 local M = {}
 
 --- Get list of modified and untracked files
---- @param branch_name string|nil Branch to compare against (defaults to HEAD if nil). If nil, includes untracked files
+--- @param ref string|nil Git ref to compare against (defaults to HEAD if nil). If nil, includes untracked files
 --- @return table Array of file paths that have been modified or are untracked
-M.get_diffed_files = function(branch_name)
+M.get_diffed_files = function(ref)
     -- diffed files
-    local diffed = vim.fn.system({'git', 'diff', branch_name ~= nil and branch_name or 'HEAD', '--name-only'})
+    local diffed = vim.fn.system({'git', 'diff', ref ~= nil and ref or 'HEAD', '--name-only'})
     if vim.v.shell_error ~= 0 then
         print('ERROR: Failed to get diff files from git')
         return {}
@@ -13,7 +13,7 @@ M.get_diffed_files = function(branch_name)
 
     -- new untracked files
     local untracked = ''
-    if branch_name == nil then
+    if ref == nil then
         untracked = vim.fn.system({'git', 'ls-files', '-o', '--exclude-standard'})
         if vim.v.shell_error ~= 0 then
             print('ERROR: Failed to get untracked files from git')

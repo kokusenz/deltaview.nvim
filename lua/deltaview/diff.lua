@@ -3,17 +3,15 @@ local selector = require('deltaview.selector')
 local utils = require('deltaview.utils')
 
 --- Create an interactive menu pane for selecting and viewing diffs of modified files
---- @param diffing_function function Function to call for displaying diffs, receives (filepath, branch_name)
---- @param branch_name string|nil Optional branch to compare against (defaults to HEAD)
-M.create_diff_menu_pane = function(diffing_function, branch_name)
+--- @param diffing_function function Function to call for displaying diffs, receives (filepath, ref)
+--- @param ref string|nil Optional git ref to compare against (defaults to HEAD). Can be branch, commit, tag, etc.
+M.create_diff_menu_pane = function(diffing_function, ref)
     if diffing_function == nil then
         print('ERROR: must declare a function to diff the file')
         return
     end
-    local mods = utils.get_diffed_files(branch_name)
-    -- note that label_item, win_predefined are custom opts on a custom vim-ui-select
-    -- A vanilla vim.ui.select will simply label these with numbers, and show them where they want to.
-    -- We are labeling these with letters, and showing them in a horizontal split.
+    local mods = utils.get_diffed_files(ref)
+    -- TODO: allow integration with fzf-lua and telescope pickers. opt into it with opts. Custom picker as a fallback
     selector.ui_select(mods, {
         prompt = 'Modified Files',
         label_item = utils.label_filepath_item,
@@ -22,28 +20,26 @@ M.create_diff_menu_pane = function(diffing_function, branch_name)
         if filepath == nil then
             return
         end
-        -- TODO sometimes, files will be returned in a diff that do not exist, because they were removed.
-        -- account for that, in the labeling and the handling here; just print something instead of editing.
         local success, err = pcall(function()
             vim.cmd('e ' .. vim.fn.fnameescape(filepath))
         end)
         if not success then
-            print('ERROR: Failed to open file: ' .. filepath)
+            print('ERROR: Failed to open file: ' .. filepath .. ' - file may have been removed.')
             return
         end
         local cur_win = vim.api.nvim_get_current_win()
-        M.create_diff_menu_pane(diffing_function, branch_name)
+        M.create_diff_menu_pane(diffing_function, ref)
         -- shift focus back to window
         vim.api.nvim_set_current_win(cur_win)
-        diffing_function(filepath, branch_name)
+        diffing_function(filepath, ref)
     end)
 end
 
---- Run a git diff for the specified file against a branch
+--- Run a git diff for the specified file against a git ref
 --- Handles both tracked and untracked files
 --- @param filepath string The file path to diff
---- @param branch_name string|nil Optional branch to compare against (defaults to HEAD)
-M.run_diff_against = function(filepath, branch_name)
+--- @param ref string|nil Optional git ref to compare against (defaults to HEAD). Can be branch, commit, tag, etc.
+M.run_diff_against = function(filepath, ref)
     local is_diffable = utils.is_diffable_filepath(filepath)
     if is_diffable == false then
         print('WARNING: cannot run diff on a directory')
@@ -65,15 +61,15 @@ M.run_diff_against = function(filepath, branch_name)
         hunk_cmd = 'git diff -U0 --no-index /dev/null ' .. vim.fn.shellescape(filepath)
     else
         -- tracked file
-        local modified_files = vim.fn.system({'git', 'diff', branch_name ~= nil and branch_name or 'HEAD', '--name-only', '--', filepath})
+        local modified_files = vim.fn.system({'git', 'diff', ref ~= nil and ref or 'HEAD', '--name-only', '--', filepath})
         if vim.v.shell_error ~= 0 then
             print('ERROR: Failed to get modified files from git')
             return
         end
         if modified_files ~= nil and modified_files ~= '' then
             -- note that due to hard coded context ceiling (found no viable alternative), files above 3000 lines might not show all lines
-            cmd = 'git diff -U3000 ' .. (branch_name ~= nil and branch_name or 'HEAD') .. ' -- ' .. vim.fn.shellescape(filepath)
-            hunk_cmd = 'git diff -U0 ' .. (branch_name ~= nil and branch_name or 'HEAD') .. ' -- ' .. vim.fn.shellescape(filepath)
+            cmd = 'git diff -U3000 ' .. (ref ~= nil and ref or 'HEAD') .. ' -- ' .. vim.fn.shellescape(filepath)
+            hunk_cmd = 'git diff -U0 ' .. (ref ~= nil and ref or 'HEAD') .. ' -- ' .. vim.fn.shellescape(filepath)
         end
     end
 
@@ -180,6 +176,7 @@ M.display_diff_followcursor = function(cmd)
                 vim.api.nvim_win_set_cursor(0, {last_valid_currentdiff_cursor_pos[1], last_valid_currentdiff_cursor_pos[2]})
             end
             vim.cmd('normal! zz')
+            vim.cmd('echo ""')
         end)
         if not success then
             print('ERROR: Failed to return to original buffer')
@@ -256,6 +253,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs)
         return nil
     end
 
+    -- hunk progress indicator
     local hunk_scrollpeek = function()
         local cur_hunk = 1
         for i = 1, #matches + 1, 1 do
@@ -302,7 +300,26 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs)
         -- if we couldn't find a hunk (eg. we are before the first hunk) loop back around to the last hunk
         diff_buffer_funcs.move_to_line(matches[#matches])
     end, { buffer = diff_buffer_funcs.buf_id, noremap = true, silent = true })
+end
 
+--- uses vim.cmd to display a ui. Uses a table in the scope to be able to construct a ui.
+--- ex: I want two things in my ui. However, I only want this ui per diff buffer. In the function where I create my diff buffer, create a table. Because of closure, that scoped variable can be reused in other functions. A ui can be persisted, then any time I want to display it, I can.
+--- @param local_persisted_ui table the table declared in the scope where we want this ui to be shared
+--- @param ui string | nil the ui I want to display 
+M.display_cmd_ui = function(local_persisted_ui, ui)
+    -- whatever want displayed to the user (not in statusline) we can put in here, and use vim.cmd to do it
+    local message = ""
+    for _,value in ipairs(local_persisted_ui) do
+        message = message .. value .. " "
+    end
+    vim.cmd('echo "' .. message .. ui or "" .. '"')
+end
+
+--- meant to be used alongside display_cmd_ui
+--- @param local_persisted_ui table the table declared in the scope where we want this ui to be shared
+--- @param ui string the ui I want to display 
+M.append_cmd_ui = function(local_persisted_ui, ui)
+    table.insert(local_persisted_ui, ui)
 end
 
 M.setup = function(opts)
@@ -320,25 +337,38 @@ M.setup = function(opts)
     end
 
     vim.keymap.set('n', '<leader>dm', function()
-        M.create_diff_menu_pane(M.run_diff_against)
+        M.create_diff_menu_pane(M.run_diff_against, M.diff_target_ref)
     end)
 
     vim.keymap.set('n', '<leader>dl', function()
-        M.run_diff_against(vim.fn.expand('%:p'))
+        M.run_diff_against(vim.fn.expand('%:p'), M.diff_target_ref)
     end)
 
-    vim.cmd([[cabbrev dm DiffMenu]])
-    vim.api.nvim_create_user_command('DiffMenu', function(diff_menu_opts)
+    vim.api.nvim_create_user_command('DeltaView', function(delta_view_opts)
         local success, err = pcall(function()
-            local branch_name = diff_menu_opts.args ~= '' and diff_menu_opts.args or nil
-            M.create_diff_menu_pane(M.run_diff_against, branch_name)
+            M.diff_target_ref = delta_view_opts.args ~= '' and delta_view_opts.args or nil
+            M.run_diff_against(vim.fn.expand('%:p'), M.diff_target_ref)
         end)
         if not success then
             print('ERROR: Failed to create diff menu: ' .. tostring(err))
         end
     end, {
         nargs = '?',
-        desc = 'Open Diff Menu against a branch.'
+        desc = 'Open Diff View against HEAD.'
+    })
+
+    vim.cmd([[cabbrev dm DiffMenu]])
+    vim.api.nvim_create_user_command('DiffMenu', function(diff_menu_opts)
+        local success, err = pcall(function()
+            M.diff_target_ref = diff_menu_opts.args ~= '' and diff_menu_opts.args or nil
+            M.create_diff_menu_pane(M.run_diff_against, M.diff_target_ref)
+        end)
+        if not success then
+            print('ERROR: Failed to create diff menu: ' .. tostring(err))
+        end
+    end, {
+        nargs = '?',
+        desc = 'Open Diff Menu against a git ref (branch, commit, tag, etc).'
     })
 end
 
@@ -357,5 +387,7 @@ M.keyconfig = {
     next_hunk = "<Tab>",
     prev_hunk = "<S-Tab>"
 }
+
+M.diff_target_ref = nil
 
 return M
