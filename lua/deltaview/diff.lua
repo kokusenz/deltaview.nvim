@@ -121,7 +121,6 @@ M.display_diff_followcursor = function(cmd)
                 -- place cursor upon entry
                 local diff_buf_lines = vim.api.nvim_buf_get_lines(term_buf, 0, -1, false)
                 for key,value in ipairs(diff_buf_lines) do
-                    -- on an empty line, we look for the line number instead. Line numbers show up in git delta, will be pattern matched.
                     if string.match(value, '⋮%s+' .. cur_cursor_pos[1]) ~= nil then
                         local success, err = pcall(function()
                             if cur_line == '' or cur_line == nil then
@@ -197,24 +196,15 @@ M.display_diff_followcursor = function(cmd)
         return_to_cur_buffer()
     end, { buffer = term_buf, noremap = true, silent = true })
 
-    --- @return number
-    local get_current_line = function()
-        if last_valid_currentdiff_cursor_pos ~= nil then
-            return last_valid_currentdiff_cursor_pos[1]
-        end
-        return 1  -- default to line 1 if not set
-    end
-
-    --- @class DiffBufferFuncs
-    --- @field get_current_line function
+    --- @class DiffBufferFuncs table to expose functions to interact with the diff buffer
     --- @field move_to_line function 
     --- @field buf_id number
-    local funcs = { buf_id = term_buf, get_current_line = get_current_line, move_to_line = move_to_line_wrapper }
+    local funcs = { buf_id = term_buf, move_to_line = move_to_line_wrapper }
     return funcs
 end
 
---- sets up hunk navigation for the buffer the diff is displayed on
---- @param hunk_cmd string git diff with 0 context to be able to properly parse for hunks
+--- sets up hunk navigation for the buffer the diff is displayed on. keymaps for moving between hunks, visual indicator for hunk progress
+--- @param hunk_cmd string a git diff command with 0 context to be able to properly parse for hunks
 --- @param diff_buffer_funcs DiffBufferFuncs
 M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs)
     local output = vim.fn.system(hunk_cmd)
@@ -223,48 +213,112 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs)
         return
     end
 
-    -- need target line numbers
     local matches = {}
-    for line_after in string.gmatch(output, '@@%s%-%d+,%d+%s%+(%d+),%d+%s@@') do
+    for line_after in string.gmatch(output, '@@ %-%d+,?%d* %+(%d+),?%d* @@') do
         table.insert(matches, tonumber(line_after))
     end
-    -- create keybind to go to next hunk and prev hunk
-    -- cycle through hunks
-    -- scrollpeek indicator needs hunk count
-    -- todo: allow manual config of what key this should be in setup, <Tab> and <S-Tab> as fallbacks/defaults
-    vim.keymap.set('n', '<Tab>', function()
-        local cur_line = diff_buffer_funcs.get_current_line()
+
+    local cur_line_number = tonumber(1)
+    local cur_prev_line_number = nil
+
+    local update_cur_line_number = function()
+        local term_buf_cur_line = vim.api.nvim_get_current_line()
+        local before_line_number = string.match(term_buf_cur_line, '%s*(%d+)%s*⋮')
+        local after_line_number = string.match(term_buf_cur_line, '⋮%s+(%d+)')
+        cur_prev_line_number = tonumber(before_line_number)
+        print(cur_prev_line_number)
+        -- both cur_prev_line_number and cur_line_number should not be nil at the same time.
+        -- fallback: if cur_prev_line_number is nil, then avoid updating cur_line_number if after_line_number also nil
+        if cur_prev_line_number == nil then
+            if tonumber(after_line_number) ~= nil then
+                cur_line_number = tonumber(after_line_number)
+            end
+        else
+            cur_line_number = tonumber(after_line_number)
+        end
+    end
+
+    local get_line_number_before_negative_hunk = function()
+        if cur_line_number == nil and cur_prev_line_number ~= nil then
+            local diff_buf_lines = vim.api.nvim_buf_get_lines(diff_buffer_funcs.buf_id, 0, -1, false)
+            local last_after_line_number = tonumber(1)
+            for _,value in ipairs(diff_buf_lines) do
+                local before_line_number = string.match(value, '%s*(%d+)%s*⋮')
+                local after_line_number = string.match(value, '⋮%s+(%d+)')
+                if tonumber(after_line_number) ~= nil then
+                    last_after_line_number = tonumber(after_line_number)
+                end
+                if tonumber(before_line_number) == cur_prev_line_number then
+                    return last_after_line_number
+                end
+            end
+        end
+        return nil
+    end
+
+    local hunk_scrollpeek = function()
+        local cur_hunk = 1
+        for i = 1, #matches + 1, 1 do
+            if i == #matches + 1 or (matches[i] > (cur_line_number or get_line_number_before_negative_hunk())) then
+                cur_hunk = i
+                break
+            end
+        end
+
+        if cur_hunk == 1 then
+            vim.cmd('echo "' .. M.viewconfig.dot:rep(#matches) .. '"')
+        else
+            local left = cur_hunk - 2
+            local right = #matches - (cur_hunk - 1)
+            vim.cmd('echo "' .. M.viewconfig.dot:rep(left) .. M.viewconfig.circle .. M.viewconfig.dot:rep(right) .. '"')
+        end
+    end
+
+    vim.api.nvim_create_autocmd('CursorMoved', { buffer = diff_buffer_funcs.buf_id, callback = function()
+        update_cur_line_number()
+        hunk_scrollpeek()
+    end})
+
+    vim.keymap.set('n', M.keyconfig.next_hunk, function()
         for i = 1, #matches, 1 do
             local line = matches[i]
-            if line > tonumber(cur_line) then
-                -- this line is the target "next hunk"
-                -- because we iterate linearly, and all hunks should be ascending, we can assume the first line we find greater than cur_line is the next hunk
-                print(line)
+            if (cur_line_number or get_line_number_before_negative_hunk()) < line then
                 diff_buffer_funcs.move_to_line(line)
                 return
             end
         end
+        -- if we couldn't find a hunk (eg. we are past the last hunk) loop back around to the first hunk
+        diff_buffer_funcs.move_to_line(matches[1])
     end, { buffer = diff_buffer_funcs.buf_id, noremap = true, silent = true })
 
-    vim.keymap.set('n', '<S-Tab>', function()
-        local cur_line = diff_buffer_funcs.get_current_line()
+    vim.keymap.set('n', M.keyconfig.prev_hunk, function()
         for i = #matches, 1, -1 do
             local line = matches[i]
-            if line < tonumber(cur_line) then
-                -- this line is the target "next hunk"
-                -- because we iterate linearly, and all hunks should be ascending, we can assume the first line we find greater than cur_line is the next hunk
-                print(line)
+            if (cur_line_number or get_line_number_before_negative_hunk()) > line then
                 diff_buffer_funcs.move_to_line(line)
                 return
             end
         end
+        -- if we couldn't find a hunk (eg. we are before the first hunk) loop back around to the last hunk
+        diff_buffer_funcs.move_to_line(matches[#matches])
     end, { buffer = diff_buffer_funcs.buf_id, noremap = true, silent = true })
+
 end
 
---- Setup keymaps and commands for diff functionality
---- Keymaps: <leader>dm for diff menu, <leader>dl for diff current file
---- Commands: :DiffMenu [branch] to compare against a branch
-M.setup = function()
+M.setup = function(opts)
+    --- @class DeltaViewOpts
+    --- @field use_nerdfonts boolean | nil
+    --- @field keyconfig KeyConfig | nil
+    opts = opts or {}
+    if opts.use_nerdfonts then
+        M.viewconfig.dot = ""
+        M.viewconfig.circle = ""
+    end
+
+    if opts.keyconfig then
+        M.keyconfig = opts.keyconfig
+    end
+
     vim.keymap.set('n', '<leader>dm', function()
         M.create_diff_menu_pane(M.run_diff_against)
     end)
@@ -274,9 +328,9 @@ M.setup = function()
     end)
 
     vim.cmd([[cabbrev dm DiffMenu]])
-    vim.api.nvim_create_user_command('DiffMenu', function(opts)
+    vim.api.nvim_create_user_command('DiffMenu', function(diff_menu_opts)
         local success, err = pcall(function()
-            local branch_name = opts.args ~= '' and opts.args or nil
+            local branch_name = diff_menu_opts.args ~= '' and diff_menu_opts.args or nil
             M.create_diff_menu_pane(M.run_diff_against, branch_name)
         end)
         if not success then
@@ -287,5 +341,21 @@ M.setup = function()
         desc = 'Open Diff Menu against a branch.'
     })
 end
+
+--- @class ViewConfig
+--- @field dot string
+--- @field circle string
+M.viewconfig = {
+    dot = "·",
+    circle = "•"
+}
+
+--- @class KeyConfig
+--- @field next_hunk string
+--- @field prev_hunk string
+M.keyconfig = {
+    next_hunk = "<Tab>",
+    prev_hunk = "<S-Tab>"
+}
 
 return M

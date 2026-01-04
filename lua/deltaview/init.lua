@@ -1,1 +1,3 @@
-require('deltaview.diff').setup()
+require('deltaview.diff').setup({
+    use_nerdfonts = true
+})
