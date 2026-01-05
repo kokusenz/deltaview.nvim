@@ -11,12 +11,13 @@ M.create_diff_menu_pane = function(diffing_function, ref)
         return
     end
 
-    local mods = utils.get_diffed_files(ref)
+    local mods = utils.get_filenames_from_sortedfiles(utils.get_diffed_files(ref))
+
     if #mods == 0 then
         print('DeltaView: No diffs to display')
         return
     end
-    -- TODO: allow integration with fzf-lua and telescope pickers. opt into it with opts. Custom picker as a fallback
+    -- TODO: allow integration with fzf-lua and telescope pickers. opt into it with opts
     selector.ui_select(mods, {
         prompt = 'DeltaView Menu  |  ' .. M.viewconfig.vs .. ' ' .. (ref or 'HEAD'),
         label_item = utils.label_filepath_item,
@@ -53,7 +54,7 @@ M.programmatically_select_diff_from_menu = function(diffing_function, filepath, 
         return
     end
 
-    local mods = utils.get_diffed_files(ref)
+    local mods = utils.get_filenames_from_sortedfiles(utils.get_diffed_files(ref))
     if #mods == 0 then
         print('DeltaView: No diffs to display')
         return

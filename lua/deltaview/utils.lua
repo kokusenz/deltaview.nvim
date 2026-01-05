@@ -2,7 +2,7 @@ local M = {}
 
 --- Get list of modified and untracked files
 --- @param ref string|nil Git ref to compare against (defaults to HEAD if nil). If nil, includes untracked files
---- @return table list of file paths that have been modified or are untracked
+--- @return SortedFiles list of file paths that have been modified or are untracked
 M.get_diffed_files = function(ref)
     -- diffed files
     local diffed = vim.fn.system({'git', 'diff', ref ~= nil and ref or 'HEAD', '--name-only'})
@@ -13,7 +13,7 @@ M.get_diffed_files = function(ref)
 
     -- new untracked files
     local untracked = ''
-    if ref == nil then
+    if ref == nil or ref == 'HEAD' then
         untracked = vim.fn.system({'git', 'ls-files', '-o', '--exclude-standard'})
         if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
             print('ERROR: Failed to get untracked files from git')
@@ -36,7 +36,7 @@ end
 
 --- @param files table list of diffed files
 --- @param ref string | nil target ref
---- @return table sorted files
+--- @return SortedFiles sorted files
 M.sort_diffed_files = function(files, ref)
     local dirstat = vim.fn.system({'git', 'diff', ref ~= nil and ref or 'HEAD', '-X', '--dirstat=lines,0'})
     if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
@@ -55,12 +55,16 @@ M.sort_diffed_files = function(files, ref)
 
     local files_w_stats = {}
     for _, file in ipairs(files) do
-        local numstat = vim.fn.system({'git', 'diff', '--numstat', '--', ref ~= nil and ref or 'HEAD', '--', file})
+        local numstat = vim.fn.system({'git', 'diff', '--numstat', ref ~= nil and ref or 'HEAD', '--', file})
         if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
             print('ERROR: Failed to lines of code for a diffed file')
             return {}
         end
         local added, removed = string.match(numstat, "(%d+)%s+(%d+)%s+")
+        if not added or not removed then
+            print('DEBUG: No match for file: ' .. file)
+            print('DEBUG: numstat output: "' .. numstat .. '"')
+        end
         --- @class DiffNumstat
         --- @field added number
         --- @field removed number
@@ -89,9 +93,21 @@ M.sort_diffed_files = function(files, ref)
         return dir_stats[dir_path] or 0
     end
 
+    -- Build sorted_files with metadata: { name, added, removed }
+    --- @class SortedFile
+    --- @field name string
+    --- @field added number
+    --- @field removed number
+
+    --- @alias SortedFiles SortedFile[]
     local sorted_files = {}
     for _, file in ipairs(files) do
-        table.insert(sorted_files, file)
+        local stats = files_w_stats[file]
+        table.insert(sorted_files, {
+            name = file,
+            added = tonumber(stats.added) or 0,
+            removed = tonumber(stats.removed) or 0
+        })
     end
 
     -- sort files according to the hierarchical algorithm:
@@ -99,8 +115,10 @@ M.sort_diffed_files = function(files, ref)
     -- 2. subdirectories by dirstat % (highest first)
     -- 3. files in same directory by total line changes (highest first)
     table.sort(sorted_files, function(a, b)
-        local a_dirs = get_parent_dirs(a)
-        local b_dirs = get_parent_dirs(b)
+        local a_file = a.name
+        local b_file = b.name
+        local a_dirs = get_parent_dirs(a_file)
+        local b_dirs = get_parent_dirs(b_file)
 
         -- compare directory by directory from top-level down
         local max_depth = math.max(#a_dirs, #b_dirs)
@@ -130,17 +148,15 @@ M.sort_diffed_files = function(files, ref)
 
         -- files are in the same directory at all levels
         -- sort by total line changes (additions + deletions)
-        local a_stats = files_w_stats[a]
-        local b_stats = files_w_stats[b]
-        local a_changes = (a_stats and tonumber(a_stats.added) or 0) + (a_stats and tonumber(a_stats.removed) or 0)
-        local b_changes = (b_stats and tonumber(b_stats.added) or 0) + (b_stats and tonumber(b_stats.removed) or 0)
+        local a_changes = a.added + a.removed
+        local b_changes = b.added + b.removed
 
         if a_changes ~= b_changes then
             return a_changes > b_changes  -- more changes first
         end
 
         -- alphabetical if tie
-        return a < b
+        return a_file < b_file
     end)
 
     return sorted_files
@@ -225,13 +241,13 @@ M.get_adjacent_files = function(diffed_files)
         return nil
     end
 
-    -- Calculate next index with wrap-around
+    -- calculate next index with wrap-around
     local next_index = current_index + 1
     if next_index > #files then
         next_index = 1
     end
 
-    -- Calculate previous index with wrap-around
+    -- calculate previous index with wrap-around
     local prev_index = current_index - 1
     if prev_index < 1 then
         prev_index = #files
@@ -247,6 +263,19 @@ M.get_adjacent_files = function(diffed_files)
             index = prev_index
         }
     }
+end
+
+--- @param sorted_files SortedFiles
+--- @return table list of file names
+M.get_filenames_from_sortedfiles = function(sorted_files)
+    local files = {}
+    for _, value in ipairs(sorted_files) do
+        table.insert(files, value.name)
+        print('name: ' .. value.added)
+        print('added: ' .. value.added)
+        print('removed: ' .. value.removed)
+    end
+    return files
 end
 
 
