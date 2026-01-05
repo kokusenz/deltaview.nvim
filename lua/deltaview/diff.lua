@@ -13,12 +13,12 @@ M.create_diff_menu_pane = function(diffing_function, ref)
 
     local mods = utils.get_diffed_files(ref)
     if #mods == 0 then
-        print('No diffs to display')
+        print('DeltaView: No diffs to display')
         return
     end
     -- TODO: allow integration with fzf-lua and telescope pickers. opt into it with opts. Custom picker as a fallback
     selector.ui_select(mods, {
-        prompt = 'Modified Files',
+        prompt = 'DeltaView Menu  |  ' .. M.viewconfig.vs .. ' ' .. (ref or 'HEAD'),
         label_item = utils.label_filepath_item,
         win_predefined = 'hsplit',
     }, function(filepath, selected_idx)
@@ -55,7 +55,7 @@ M.programmatically_select_diff_from_menu = function(diffing_function, filepath, 
 
     local mods = utils.get_diffed_files(ref)
     if #mods == 0 then
-        print('No diffs to display')
+        print('DeltaView: No diffs to display')
         return
     end
 
@@ -411,7 +411,7 @@ M.setup = function(opts)
     -- considerations for opts:
     -- set toggle keybind, (we should make DeltaView toggle by default, guess that's a todo)
     -- use fzf_lua picker or telescope picker
-    -- control whether dmenu uses number labels or letter labels
+    -- control whether dmenu uses my custom picker or vimui select or fzf#run?
     --     consider for dmenu sorting; we can go by diff loc size to begin with, but maybe even consider treesitter integration
     --     for loc, we should go first is top loc (ignoring test files), but then everything in that directory no matter loc
     --     if we go with dmenu goes away immediately after opening a diff, we show a cmd_ui that hints that we can do <C-n> or something to go to the next diff on the list...
@@ -437,7 +437,7 @@ M.setup = function(opts)
 
     vim.api.nvim_create_user_command('DeltaView', function(delta_view_opts)
         local success, err = pcall(function()
-            M.diff_target_ref = delta_view_opts.args ~= '' and delta_view_opts.args or nil
+            M.diff_target_ref = (delta_view_opts.args ~= '' and delta_view_opts.args ~= nil) and delta_view_opts.args or M.diff_target_ref
             M.diffed_files.files = nil
             M.diffed_files.cur_idx = nil
             M.run_diff_against(vim.fn.expand('%:p'), M.diff_target_ref)
@@ -457,9 +457,9 @@ M.setup = function(opts)
         end)
     end
 
-    vim.api.nvim_create_user_command('DeltaMenu', function(diff_menu_opts)
+    vim.api.nvim_create_user_command('DeltaMenu', function(delta_menu_opts)
         local success, err = pcall(function()
-            M.diff_target_ref = diff_menu_opts.args ~= '' and diff_menu_opts.args or nil
+            M.diff_target_ref = (delta_menu_opts.args ~= '' and delta_menu_opts.args ~= nil) and delta_menu_opts.args or M.diff_target_ref
             M.create_diff_menu_pane(M.run_diff_against, M.diff_target_ref)
         end)
         if not success then

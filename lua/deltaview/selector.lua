@@ -121,6 +121,9 @@ M.ui_select = function(items, opts, on_choice)
 
 
     local win_opts = M.get_opts(opts.win_predefined, opts.prompt, #lines)
+    if opts.win_predefined == 'hsplit' then
+        vim.api.nvim_buf_set_name(buf, opts.prompt)
+    end
 
     local win = vim.api.nvim_open_win(buf, true, opts.win_opts or win_opts)
     vim.api.nvim_set_option_value('cursorline', true, { win = win })

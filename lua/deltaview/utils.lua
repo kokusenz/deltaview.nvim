@@ -2,20 +2,20 @@ local M = {}
 
 --- Get list of modified and untracked files
 --- @param ref string|nil Git ref to compare against (defaults to HEAD if nil). If nil, includes untracked files
---- @return table Array of file paths that have been modified or are untracked
+--- @return table list of file paths that have been modified or are untracked
 M.get_diffed_files = function(ref)
     -- diffed files
     local diffed = vim.fn.system({'git', 'diff', ref ~= nil and ref or 'HEAD', '--name-only'})
-    if vim.v.shell_error ~= 0 then
+    if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
         print('ERROR: Failed to get diff files from git')
-        return {}
+        diffed = ''
     end
 
     -- new untracked files
     local untracked = ''
     if ref == nil then
         untracked = vim.fn.system({'git', 'ls-files', '-o', '--exclude-standard'})
-        if vim.v.shell_error ~= 0 then
+        if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
             print('ERROR: Failed to get untracked files from git')
             untracked = ''
         end
@@ -26,15 +26,127 @@ M.get_diffed_files = function(ref)
 
     for match in (diffed .. untracked):gmatch('[^\n]+') do
         if not seen[match] and match ~= '' then
-            seen[match] = true
             table.insert(files, match)
         end
     end
 
-    return files
+    local sortedfiles = M.sort_diffed_files(files, ref)
+    return sortedfiles
 end
 
---- Check if a path is a valid file path for diffing (not a directory or empty)
+--- @param files table list of diffed files
+--- @param ref string | nil target ref
+--- @return table sorted files
+M.sort_diffed_files = function(files, ref)
+    local dirstat = vim.fn.system({'git', 'diff', ref ~= nil and ref or 'HEAD', '-X', '--dirstat=lines,0'})
+    if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
+        print('ERROR: Failed to get diff files from git')
+        return {}
+    end
+
+    -- parse dirstat to get directory percentages: "percentage% dirname/"
+    local dir_stats = {}
+    for line in dirstat:gmatch('[^\n]+') do
+        local percentage, dirname = line:match('%s*([%d%.]+)%%%s+(.+)')
+        if percentage and dirname then
+            dir_stats[dirname] = tonumber(percentage)
+        end
+    end
+
+    local files_w_stats = {}
+    for _, file in ipairs(files) do
+        local numstat = vim.fn.system({'git', 'diff', '--numstat', '--', ref ~= nil and ref or 'HEAD', '--', file})
+        if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
+            print('ERROR: Failed to lines of code for a diffed file')
+            return {}
+        end
+        local added, removed = string.match(numstat, "(%d+)%s+(%d+)%s+")
+        --- @class DiffNumstat
+        --- @field added number
+        --- @field removed number
+        local parsed_numstat = {added = added, removed = removed }
+        files_w_stats[file] = parsed_numstat
+    end
+
+    local function get_parent_dirs(filepath)
+        local dirs = {}
+        local parts = {}
+
+        for part in filepath:gmatch('[^/]+') do
+            table.insert(parts, part)
+        end
+
+        -- Build directory paths at each level (e.g., "lua/", "lua/deltaview/")
+        for i = 1, #parts - 1 do
+            local dir_path = table.concat(parts, '/', 1, i) .. '/'
+            table.insert(dirs, dir_path)
+        end
+
+        return dirs
+    end
+
+    local function get_dir_percentage(dir_path)
+        return dir_stats[dir_path] or 0
+    end
+
+    local sorted_files = {}
+    for _, file in ipairs(files) do
+        table.insert(sorted_files, file)
+    end
+
+    -- sort files according to the hierarchical algorithm:
+    -- 1. top-level directory by dirstat % (highest first)
+    -- 2. subdirectories by dirstat % (highest first)
+    -- 3. files in same directory by total line changes (highest first)
+    table.sort(sorted_files, function(a, b)
+        local a_dirs = get_parent_dirs(a)
+        local b_dirs = get_parent_dirs(b)
+
+        -- compare directory by directory from top-level down
+        local max_depth = math.max(#a_dirs, #b_dirs)
+
+        for depth = 1, max_depth do
+            local a_dir = a_dirs[depth]
+            local b_dir = b_dirs[depth]
+
+            -- if one path has no more directories at this depth
+            if not a_dir and b_dir then
+                return false  -- b is deeper, comes after
+            elseif a_dir and not b_dir then
+                return true   -- a is deeper, comes after
+            elseif a_dir and b_dir and a_dir ~= b_dir then
+                -- different directories at this level - sort by dirstat percentage
+                local a_pct = get_dir_percentage(a_dir)
+                local b_pct = get_dir_percentage(b_dir)
+
+                if a_pct ~= b_pct then
+                    return a_pct > b_pct
+                end
+
+                -- if percentages are equal, sort alphabetically for consistency
+                return a_dir < b_dir
+            end
+        end
+
+        -- files are in the same directory at all levels
+        -- sort by total line changes (additions + deletions)
+        local a_stats = files_w_stats[a]
+        local b_stats = files_w_stats[b]
+        local a_changes = (a_stats and tonumber(a_stats.added) or 0) + (a_stats and tonumber(a_stats.removed) or 0)
+        local b_changes = (b_stats and tonumber(b_stats.added) or 0) + (b_stats and tonumber(b_stats.removed) or 0)
+
+        if a_changes ~= b_changes then
+            return a_changes > b_changes  -- more changes first
+        end
+
+        -- alphabetical if tie
+        return a < b
+    end)
+
+    return sorted_files
+end
+
+--- check if a path is a valid file path for diffing (not a directory or empty)
 --- @param path string|nil The file path to validate
 --- @return boolean True if the path is a diffable file, false otherwise
 M.is_diffable_filepath = function(path)
@@ -44,8 +156,8 @@ M.is_diffable_filepath = function(path)
     return true
 end
 
---- Factory function that creates a label extractor for file paths
---- Extracts unique single-character labels from filenames (not full paths)
+--- factory function that creates a label extractor for file paths
+--- extracts unique single-character labels from filenames (not full paths)
 --- @return function A function that takes a filepath and returns a single-character label
 M.label_filepath_item = function()
     local used_labels = {}
