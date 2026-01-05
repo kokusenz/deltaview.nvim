@@ -271,9 +271,9 @@ M.get_filenames_from_sortedfiles = function(sorted_files)
     local files = {}
     for _, value in ipairs(sorted_files) do
         table.insert(files, value.name)
-        print('name: ' .. value.added)
-        print('added: ' .. value.added)
-        print('removed: ' .. value.removed)
+        --print('name: ' .. value.added)
+        --print('added: ' .. value.added)
+        --print('removed: ' .. value.removed)
     end
     return files
 end
