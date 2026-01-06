@@ -14,4 +14,9 @@ M.is_deltaview_buffer = function(bufnr)
     return ok and is_deltaview == true
 end
 
+--- use the DeltaView picker as default vim ui select ui. Comes with the default labeling strategy, keybinds, and the expanded opts to use.
+M.register_ui_select = function()
+    vim.ui.select = require('deltaview.selector').ui_select
+end
+
 return M

@@ -46,27 +46,32 @@ M.create_diff_menu_pane = function(diffing_function, ref)
         M.diffed_files.cur_idx = selected_idx
         diffing_function(filepath, ref)
     end
-    if #mods >= M.fzf_threshold and vim.fn.exists('*fzf#run') then
-        -- TODO: allow integration with fzf-lua and telescope pickers
-        vim.fn['fzf#run'](vim.fn['fzf#wrap']({
-            source = mods,
-            sink = on_select,
-            options = {
-                '--exact',
-                '--prompt', 'DeltaView Menu > ',
-                '--preview', 'if [ -z "$(git ls-files -- {})" ]; then git diff --no-index /dev/null {}; else git diff ' .. (ref or 'HEAD') .. ' -- {}; fi | delta --paging=never',
-                '--border-label', 'comparing to ' .. (ref or 'HEAD')
-            },
-            window = { width = 0.8, height = 0.9, border = 'rounded' }
-        }))
-    else
-        selector.ui_select(mods, {
-            prompt = 'DeltaView Menu  |  ' .. M.viewconfig.vs .. ' ' .. (ref or 'HEAD'),
-            label_item = utils.label_filepath_item,
-            win_predefined = 'hsplit',
-            additional_data = changes_data
-        }, on_select)
+    if #mods >= M.fzf_threshold then
+        if vim.fn.exists('*fzf#run') and vim.fn.exists('*fzf#wrap') then
+            -- TODO: allow integration with fzf-lua and telescope pickers
+            vim.fn['fzf#run'](vim.fn['fzf#wrap']({
+                source = mods,
+                sink = on_select,
+                options = {
+                    '--exact',
+                    '--layout', 'reverse',
+                    '--prompt', 'DeltaView Menu > ',
+                    '--preview', 'if [ -z "$(git ls-files -- {})" ]; then git diff --no-index /dev/null {}; else git diff ' .. (ref or 'HEAD') .. ' -- {}; fi | delta --paging=never',
+                    '--border-label', 'comparing to ' .. (ref or 'HEAD')
+                },
+                window = { width = 0.8, height = 0.9, border = 'rounded' }
+            }))
+            return
+        else
+            print('WARNING: fzf#run was attempted to be used, but is unavailable. Default picker will be used.')
+        end
     end
+    selector.ui_select(mods, {
+        prompt = 'DeltaView Menu  |  ' .. M.viewconfig.vs .. ' ' .. (ref or 'HEAD'),
+        label_item = utils.label_filepath_item,
+        win_predefined = 'hsplit',
+        additional_data = changes_data
+    }, on_select)
 end
 
 --- select from diff menu programmatically
@@ -440,13 +445,6 @@ end
 
 M.setup = function(opts)
     -- considerations for opts:
-    -- set toggle keybind, (we should make DeltaView toggle by default, guess that's a todo)
-    -- use fzf_lua picker or telescope picker
-    -- control whether dmenu uses my custom picker or vimui select or fzf#run?
-    --     consider for dmenu sorting; we can go by diff loc size to begin with, but maybe even consider treesitter integration
-    --     for loc, we should go first is top loc (ignoring test files), but then everything in that directory no matter loc
-    --     if we go with dmenu goes away immediately after opening a diff, we show a cmd_ui that hints that we can do <C-n> or something to go to the next diff on the list...
-
     --- @class DeltaViewOpts
     --- @field dv_toggle_keybind string | nil if defined, will create keybind that runs DeltaView, and exits Diff buffer if open
     --- @field dm_toggle_keybind string | nil if defined, will create keybind that runs DeltaMenu
@@ -547,6 +545,6 @@ M.keyconfig = {
 --- @field cur_idx number | nil
 M.diffed_files = { files = nil, cur_idx = nil }
 
-M.fzf_threshold = 10
+M.fzf_threshold = 6
 
 return M

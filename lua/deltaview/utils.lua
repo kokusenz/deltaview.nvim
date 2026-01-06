@@ -58,10 +58,7 @@ M.sort_diffed_files = function(files, ref)
             return {}
         end
         local added, removed = string.match(numstat, "(%d+)%s+(%d+)%s+")
-        if not added or not removed then
-            print('DEBUG: No match for file: ' .. file)
-            print('DEBUG: numstat output: "' .. numstat .. '"')
-        end
+
         --- @class DiffNumstat
         --- @field added number
         --- @field removed number
@@ -268,9 +265,6 @@ M.get_filenames_from_sortedfiles = function(sorted_files)
     local files = {}
     for _, value in ipairs(sorted_files) do
         table.insert(files, value.name)
-        --print('name: ' .. value.added)
-        --print('added: ' .. value.added)
-        --print('removed: ' .. value.removed)
     end
     return files
 end
