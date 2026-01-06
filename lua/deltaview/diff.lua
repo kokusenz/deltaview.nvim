@@ -61,7 +61,11 @@ M.create_diff_menu_pane = function(diffing_function, ref)
                 },
                 window = { width = 0.8, height = 0.9, border = 'rounded' }
             }))
-            return
+            if vim.v.shell_error ~= 0 then
+                print('ERROR: fzf#run was attempted to be used, but is unavailable. Default picker will be used.')
+            else
+                return
+            end
         else
             print('WARNING: fzf#run was attempted to be used, but is unavailable. Default picker will be used.')
         end
