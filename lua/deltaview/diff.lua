@@ -47,8 +47,8 @@ M.create_diff_menu_pane = function(diffing_function, ref)
         diffing_function(filepath, ref)
     end
     if #mods >= M.fzf_threshold then
-        if vim.fn.exists('*fzf#run') and vim.fn.exists('*fzf#wrap') then
             -- TODO: allow integration with fzf-lua and telescope pickers
+        local success, err = pcall(function()
             vim.fn['fzf#run'](vim.fn['fzf#wrap']({
                 source = mods,
                 sink = on_select,
@@ -61,13 +61,11 @@ M.create_diff_menu_pane = function(diffing_function, ref)
                 },
                 window = { width = 0.8, height = 0.9, border = 'rounded' }
             }))
-            if vim.v.shell_error ~= 0 then
-                print('ERROR: fzf#run was attempted to be used, but is unavailable. Default picker will be used.')
-            else
-                return
-            end
+        end)
+        if success then
+            return
         else
-            print('WARNING: fzf#run was attempted to be used, but is unavailable. Default picker will be used.')
+            print('WARNING: fzf#run failed: ' .. tostring(err) .. '. Using default picker.')
         end
     end
     selector.ui_select(mods, {
