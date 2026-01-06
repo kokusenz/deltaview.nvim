@@ -12,13 +12,10 @@ M.get_diffed_files = function(ref)
     end
 
     -- new untracked files
-    local untracked = ''
-    if ref == nil or ref == 'HEAD' then
-        untracked = vim.fn.system({'git', 'ls-files', '-o', '--exclude-standard'})
-        if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
-            print('ERROR: Failed to get untracked files from git')
-            untracked = ''
-        end
+    local untracked = vim.fn.system({'git', 'ls-files', '-o', '--exclude-standard'})
+    if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
+        print('ERROR: Failed to get untracked files from git')
+        untracked = ''
     end
 
     local files = {}

@@ -5,7 +5,7 @@ local M = {}
 ---   - prompt (string, optional, standard wtih vim-ui-select): Title displayed in the window
 ---   - kind (string, optional, standard with vim-ui-select): Arbitrary hint string (standard vim.ui.select)
 ---   - format_item (function, optional, standard with vim-ui-select): Function to format items for display, defaults to tostring
----   - label_item (function, optional): Factory function that returns a label extractor
+---   - label_item (function, optional): Factory function that returns a label extractor.
 ---   - additional_data (table, optional): additional data to display; table of lists, with keys as item (string) and value is list of strings
 ---   - win_opts (table, optional): Custom window options to override defaults
 ---   - win_predefined (string, optional): Window position: 'center', 'bottom', or 'hsplit'

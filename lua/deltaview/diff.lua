@@ -22,16 +22,18 @@ M.create_diff_menu_pane = function(diffing_function, ref)
     for _, value in ipairs(diffed_files) do
         changes_data[value.name] = {'+' .. value.added .. ',-' .. value.removed}
     end
-    -- TODO: allow integration with fzf-lua and telescope pickers. opt into it with opts
-    selector.ui_select(mods, {
-        prompt = 'DeltaView Menu  |  ' .. M.viewconfig.vs .. ' ' .. (ref or 'HEAD'),
-        label_item = utils.label_filepath_item,
-        win_predefined = 'hsplit',
-        additional_data = changes_data
-    }, function(filepath, selected_idx)
+    local on_select = function(filepath, selected_idx)
         if filepath == nil then
             return
         end
+        if selected_idx == nil then
+            for key, value in ipairs(mods) do
+                if value == filepath then
+                    selected_idx = key
+                end
+            end
+        end
+
         local success, err = pcall(function()
             vim.cmd('e ' .. vim.fn.fnameescape(filepath))
         end)
@@ -43,7 +45,28 @@ M.create_diff_menu_pane = function(diffing_function, ref)
         M.diffed_files.files = mods
         M.diffed_files.cur_idx = selected_idx
         diffing_function(filepath, ref)
-    end)
+    end
+    if #mods >= M.fzf_threshold and vim.fn.exists('*fzf#run') then
+        -- TODO: allow integration with fzf-lua and telescope pickers
+        vim.fn['fzf#run'](vim.fn['fzf#wrap']({
+            source = mods,
+            sink = on_select,
+            options = {
+                '--exact',
+                '--prompt', 'DeltaView Menu > ',
+                '--preview', 'if [ -z "$(git ls-files -- {})" ]; then git diff --no-index /dev/null {}; else git diff ' .. (ref or 'HEAD') .. ' -- {}; fi | delta --paging=never',
+                '--border-label', 'comparing to ' .. (ref or 'HEAD')
+            },
+            window = { width = 0.8, height = 0.9, border = 'rounded' }
+        }))
+    else
+        selector.ui_select(mods, {
+            prompt = 'DeltaView Menu  |  ' .. M.viewconfig.vs .. ' ' .. (ref or 'HEAD'),
+            label_item = utils.label_filepath_item,
+            win_predefined = 'hsplit',
+            additional_data = changes_data
+        }, on_select)
+    end
 end
 
 --- select from diff menu programmatically
@@ -430,6 +453,7 @@ M.setup = function(opts)
     --- @field use_nerdfonts boolean | nil
     --- @field keyconfig KeyConfig | nil
     --- @field show_verbose_nav boolean | nil Show both prev and next filenames (true) or just position + next (false, default)
+    --- @field fzf_threshold number | nil if the number of diffed files is equal to or greater than this threshold, it will show up in a fuzzy finding picker. Default to 10. Set to 1 or 0 if you would always like a fuzzy picker
     opts = opts or {}
     if opts.use_nerdfonts then
         M.viewconfig = M.nerdfont_viewconfig
@@ -442,6 +466,7 @@ M.setup = function(opts)
     M.show_verbose_nav = opts.show_verbose_nav or false
     M.dv_toggle_keybind = opts.dv_toggle_keybind or nil
     M.dm_toggle_keybind = opts.dm_toggle_keybind or nil
+    M.fzf_threshold = opts.fzf_threshold or M.fzf_threshold
 
     vim.api.nvim_create_user_command('DeltaView', function(delta_view_opts)
         local success, err = pcall(function()
@@ -521,5 +546,7 @@ M.keyconfig = {
 --- @field files table | nil
 --- @field cur_idx number | nil
 M.diffed_files = { files = nil, cur_idx = nil }
+
+M.fzf_threshold = 10
 
 return M
