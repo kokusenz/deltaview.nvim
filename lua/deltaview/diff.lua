@@ -48,20 +48,51 @@ M.create_diff_menu_pane = function(diffing_function, ref)
         diffing_function(filepath, ref)
     end
 
+    local deltaview_quickselect_menu = function()
+        selector.ui_select(mods, {
+            prompt = 'DeltaView Menu  |  ' .. M.viewconfig.vs .. ' ' .. (ref or 'HEAD'),
+            label_item = utils.label_filepath_item,
+            win_predefined = 'hsplit',
+            additional_data = changes_data
+        }, on_select)
+    end
+
     if #mods >= M.fzf_threshold then
             -- TODO: allow integration with fzf-lua and telescope pickers
             -- TODO: allow quick switching between fuzzy picker and quick select
+
+        local on_select_with_key = function(result)
+            if result == nil or #result == 0 then
+                return
+            end
+
+            -- First element is the key pressed (or empty if Enter was pressed)
+            local key = result[1]
+
+            -- If ctrl-s was pressed, show the quickselect menu with all files
+            if key == M.keyconfig.fzf_toggle then
+                deltaview_quickselect_menu()
+                return
+            end
+
+            -- Otherwise, handle normal selection (Enter key)
+            -- result[2] contains the selected item
+            if result[2] then
+                on_select(result[2], nil)
+            end
+        end
+
         local success, err = pcall(function()
             vim.fn['fzf#run'](vim.fn['fzf#wrap']({
                 source = mods,
-                sink = on_select,
+                ['sink*'] = on_select_with_key,
                 options = {
-                    '--exact',
                     '--style', 'minimal',
                     '--layout', 'reverse',
                     '--prompt', 'DeltaView Menu > ',
                     '--preview', 'if [ -z "$(git ls-files -- {})" ]; then git diff --no-index /dev/null {}; else git diff ' .. (ref or 'HEAD') .. ' -- {}; fi | delta --paging=never',
-                    '--border-label', 'comparing to ' .. (ref or 'HEAD')
+                    '--border-label', 'comparing to ' .. (ref or 'HEAD'),
+                    '--expect', M.keyconfig.fzf_toggle,
                 },
                 window = { width = 0.8, height = 0.9, border = 'rounded' }
             }))
@@ -72,12 +103,7 @@ M.create_diff_menu_pane = function(diffing_function, ref)
             print('WARNING: fzf#run failed: ' .. tostring(err) .. '. Using default picker.')
         end
     end
-    selector.ui_select(mods, {
-        prompt = 'DeltaView Menu  |  ' .. M.viewconfig.vs .. ' ' .. (ref or 'HEAD'),
-        label_item = utils.label_filepath_item,
-        win_predefined = 'hsplit',
-        additional_data = changes_data
-    }, on_select)
+    deltaview_quickselect_menu()
 end
 
 --- select from diff menu programmatically
@@ -539,18 +565,20 @@ M.nerdfont_viewconfig = {
 
 --- @class KeyConfig
 --- @field dv_toggle_keybind string | nil if defined, will create keybind that runs DeltaView, and exits Diff buffer if open
---- @field dm_toggle_keybind string | nil if defined, will create keybind that runs DeltaMenu
+--- @field dm_toggle_keybind string | nil if defined, will create keybind that runs DeltaView Menu
 --- @field next_hunk string skip to next hunk in diff.
 --- @field prev_hunk string skip to prev hunk in diff.
 --- @field next_diff string when diff was opened from DeltaMenu, open next file in the menu
 --- @field prev_diff string when diff was opened from DeltaMenu, open prev file in the menu
+--- @field fzf_toggle string when DeltaView Menu is opened in fzf mode (eg. when count exceeds the threshold), can switch back to default quick select.
 M.keyconfig = {
     dm_toggle_keybind = "<leader>dm",
     dv_toggle_keybind = "<leader>dl",
     next_hunk = "<Tab>",
     prev_hunk = "<S-Tab>",
     next_diff = "]f",
-    prev_diff = "[f"
+    prev_diff = "[f",
+    fzf_toggle = "alt-;"
 }
 
 --- enables the user to go to "next diff in menu" if the current diff was opened via the menu.
