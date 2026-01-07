@@ -104,49 +104,44 @@ M.sort_diffed_files = function(files, ref)
         })
     end
 
-    -- sort files according to the hierarchical algorithm:
-    -- 1. top-level directory by dirstat % (highest first)
-    -- 2. subdirectories by dirstat % (highest first)
-    -- 3. files in same directory by total line changes (highest first)
+   -- helper function to get the most specific directory with dirstat data
+    local function get_most_specific_dir(filepath)
+        local dirs = get_parent_dirs(filepath)
+        -- iterate from deepest to shallowest
+        for i = #dirs, 1, -1 do
+            local dir_path = dirs[i]
+            if dir_stats[dir_path] then
+                return dir_path
+            end
+        end
+        return nil
+    end
+
+    -- sort files by directory weight
+    -- 1. by most specific directory's dirstat % (highest first)
+    -- 2. files in same directory by total line changes (highest first)
+    -- 3. alphabetically for ties
     table.sort(sorted_files, function(a, b)
         local a_file = a.name
         local b_file = b.name
-        local a_dirs = get_parent_dirs(a_file)
-        local b_dirs = get_parent_dirs(b_file)
 
-        -- compare directory by directory from top-level down
-        local max_depth = math.max(#a_dirs, #b_dirs)
+        -- get the most specific directory for each file
+        local a_dir = get_most_specific_dir(a_file)
+        local b_dir = get_most_specific_dir(b_file)
+        local a_pct = get_dir_percentage(a_dir)
+        local b_pct = get_dir_percentage(b_dir)
 
-        for depth = 1, max_depth do
-            local a_dir = a_dirs[depth]
-            local b_dir = b_dirs[depth]
-
-            -- if one path has no more directories at this depth
-            if not a_dir and b_dir then
-                return false  -- b is deeper, comes after
-            elseif a_dir and not b_dir then
-                return true   -- a is deeper, comes after
-            elseif a_dir and b_dir and a_dir ~= b_dir then
-                -- different directories at this level - sort by dirstat percentage
-                local a_pct = get_dir_percentage(a_dir)
-                local b_pct = get_dir_percentage(b_dir)
-
-                if a_pct ~= b_pct then
-                    return a_pct > b_pct
-                end
-
-                -- if percentages are equal, sort alphabetically for consistency
-                return a_dir < b_dir
-            end
+        -- compare by directory percentage
+        if a_pct ~= b_pct then
+            return a_pct > b_pct
         end
 
-        -- files are in the same directory at all levels
-        -- sort by total line changes (additions + deletions)
+        -- if in same directory (or same percentage), sort by total line changes
         local a_changes = a.added + a.removed
         local b_changes = b.added + b.removed
 
         if a_changes ~= b_changes then
-            return a_changes > b_changes  -- more changes first
+            return a_changes > b_changes
         end
 
         -- alphabetical if tie

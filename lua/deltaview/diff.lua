@@ -22,6 +22,7 @@ M.create_diff_menu_pane = function(diffing_function, ref)
     for _, value in ipairs(diffed_files) do
         changes_data[value.name] = {'+' .. value.added .. ',-' .. value.removed}
     end
+
     local on_select = function(filepath, selected_idx)
         if filepath == nil then
             return
@@ -46,14 +47,17 @@ M.create_diff_menu_pane = function(diffing_function, ref)
         M.diffed_files.cur_idx = selected_idx
         diffing_function(filepath, ref)
     end
+
     if #mods >= M.fzf_threshold then
             -- TODO: allow integration with fzf-lua and telescope pickers
+            -- TODO: allow quick switching between fuzzy picker and quick select
         local success, err = pcall(function()
             vim.fn['fzf#run'](vim.fn['fzf#wrap']({
                 source = mods,
                 sink = on_select,
                 options = {
                     '--exact',
+                    '--style', 'minimal',
                     '--layout', 'reverse',
                     '--prompt', 'DeltaView Menu > ',
                     '--preview', 'if [ -z "$(git ls-files -- {})" ]; then git diff --no-index /dev/null {}; else git diff ' .. (ref or 'HEAD') .. ' -- {}; fi | delta --paging=never',
@@ -155,6 +159,12 @@ M.run_diff_against = function(filepath, ref)
     if cmd == nil then
         print('WARNING: file is not modified. No diff to display')
         return
+    end
+
+    -- check if buf with name already exists
+    local existing_buf = vim.fn.bufnr(cmd)
+    if existing_buf ~= -1 and vim.api.nvim_buf_is_valid(existing_buf) then
+        vim.api.nvim_buf_delete(existing_buf, { force = true })
     end
 
     -- dry run: test commands, terminate early if fail
@@ -306,8 +316,8 @@ M.display_diff_followcursor = function(cmd)
         return_to_cur_buffer()
     end, { buffer = term_buf, noremap = true, silent = true })
 
-    if M.dv_toggle_keybind ~= nil and M.dv_toggle_keybind ~= '' then
-        vim.keymap.set('n', M.dv_toggle_keybind, function()
+    if M.keyconfig.dv_toggle_keybind ~= nil and M.keyconfig.dv_toggle_keybind ~= '' then
+        vim.keymap.set('n', M.keyconfig.dv_toggle_keybind, function()
             return_to_cur_buffer()
         end, { buffer = term_buf, noremap = true, silent = true })
     end
@@ -448,8 +458,6 @@ end
 M.setup = function(opts)
     -- considerations for opts:
     --- @class DeltaViewOpts
-    --- @field dv_toggle_keybind string | nil if defined, will create keybind that runs DeltaView, and exits Diff buffer if open
-    --- @field dm_toggle_keybind string | nil if defined, will create keybind that runs DeltaMenu
     --- @field use_nerdfonts boolean | nil
     --- @field keyconfig KeyConfig | nil
     --- @field show_verbose_nav boolean | nil Show both prev and next filenames (true) or just position + next (false, default)
@@ -464,8 +472,6 @@ M.setup = function(opts)
     end
 
     M.show_verbose_nav = opts.show_verbose_nav or false
-    M.dv_toggle_keybind = opts.dv_toggle_keybind or nil
-    M.dm_toggle_keybind = opts.dm_toggle_keybind or nil
     M.fzf_threshold = opts.fzf_threshold or M.fzf_threshold
 
     vim.api.nvim_create_user_command('DeltaView', function(delta_view_opts)
@@ -484,8 +490,8 @@ M.setup = function(opts)
         'Open Diff View against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
     })
 
-    if M.dv_toggle_keybind ~= nil and M.dv_toggle_keybind ~= '' then
-        vim.keymap.set('n', M.dv_toggle_keybind, function()
+    if M.keyconfig.dv_toggle_keybind ~= nil and M.keyconfig.dv_toggle_keybind ~= '' then
+        vim.keymap.set('n', M.keyconfig.dv_toggle_keybind, function()
             vim.cmd('DeltaView')
         end)
     end
@@ -504,8 +510,8 @@ M.setup = function(opts)
         'Open Diff Menu against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
     })
 
-    if M.dm_toggle_keybind ~= nil and M.dm_toggle_keybind ~= '' then
-        vim.keymap.set('n', M.dm_toggle_keybind, function()
+    if M.keyconfig.dm_toggle_keybind ~= nil and M.keyconfig.dm_toggle_keybind ~= '' then
+        vim.keymap.set('n', M.keyconfig.dm_toggle_keybind, function()
             vim.cmd('DeltaMenu')
         end)
     end
@@ -532,9 +538,15 @@ M.nerdfont_viewconfig = {
 }
 
 --- @class KeyConfig
---- @field next_hunk string
---- @field prev_hunk string
+--- @field dv_toggle_keybind string | nil if defined, will create keybind that runs DeltaView, and exits Diff buffer if open
+--- @field dm_toggle_keybind string | nil if defined, will create keybind that runs DeltaMenu
+--- @field next_hunk string skip to next hunk in diff.
+--- @field prev_hunk string skip to prev hunk in diff.
+--- @field next_diff string when diff was opened from DeltaMenu, open next file in the menu
+--- @field prev_diff string when diff was opened from DeltaMenu, open prev file in the menu
 M.keyconfig = {
+    dm_toggle_keybind = "<leader>dm",
+    dv_toggle_keybind = "<leader>dl",
     next_hunk = "<Tab>",
     prev_hunk = "<S-Tab>",
     next_diff = "]f",

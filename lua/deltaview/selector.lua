@@ -177,7 +177,7 @@ M.get_opts = function(win_predefined, prompt, height)
     local hsplit_win_opts = {
         split = 'below',
         win = 0,
-        height = height,
+        height = require('deltaview.diff').fzf_threshold or 6,
     }
 
     if win_predefined == 'bottom' then
