@@ -11,6 +11,13 @@ M.create_diff_menu_pane = function(diffing_function, ref)
         return
     end
 
+    -- check if cwd matches git root
+    -- TODO: allow diff menu to work when cwd does not match the git root.
+    if not utils.is_cwd_git_root() then
+        print('ERROR: Current working directory must be the git repository root to use DeltaView Menu.')
+        return
+    end
+
     local diffed_files = utils.get_diffed_files(ref)
     local mods = utils.get_filenames_from_sortedfiles(diffed_files)
 
@@ -58,24 +65,19 @@ M.create_diff_menu_pane = function(diffing_function, ref)
     end
 
     if #mods >= M.fzf_threshold then
-            -- TODO: allow integration with fzf-lua and telescope pickers
-            -- TODO: allow quick switching between fuzzy picker and quick select
-
+        -- TODO: allow integration with fzf-lua and telescope pickers; use those pickers if available
         local on_select_with_key = function(result)
             if result == nil or #result == 0 then
                 return
             end
 
-            -- First element is the key pressed (or empty if Enter was pressed)
             local key = result[1]
 
-            -- If ctrl-s was pressed, show the quickselect menu with all files
             if key == M.keyconfig.fzf_toggle then
                 deltaview_quickselect_menu()
                 return
             end
 
-            -- Otherwise, handle normal selection (Enter key)
             -- result[2] contains the selected item
             if result[2] then
                 on_select(result[2], nil)

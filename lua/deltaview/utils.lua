@@ -1,5 +1,17 @@
 local M = {}
 
+--- check if current working directory matches git root directory
+--- @return boolean True if cwd matches git root
+M.is_cwd_git_root = function()
+    local git_root = vim.fn.system({'git', 'rev-parse', '--show-toplevel'})
+    if vim.v.shell_error ~= 0 then
+        return false
+    end
+    git_root = vim.trim(git_root)
+    local cwd = vim.fn.getcwd()
+    return cwd == git_root
+end
+
 --- Get list of modified and untracked files
 --- @param ref string|nil Git ref to compare against (defaults to HEAD if nil). If nil, includes untracked files
 --- @return SortedFiles list of file paths that have been modified or are untracked
