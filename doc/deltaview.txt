@@ -1,0 +1,73 @@
+*deltaview.txt*  delta diff inside neovim as an inline diff view
+
+Author: kokusenz
+License: MIT
+
+==============================================================================
+CONTENTS                                                  *deltaview-contents*
+
+    1. Introduction ........................ |deltaview-introduction|
+    2. Setup ............................... |deltaview-setup|
+    3. Commands ............................ |deltaview-commands|
+    4. Configuration ....................... |deltaview-config|
+
+==============================================================================
+INTRODUCTION                                          *deltaview-introduction*
+
+Current inline/unified diff viewers in neovim tend to use virtual lines to display negative changes. Cursors cannot land on virtual lines, and a large scope of negative changes will be skipped over when scrolling through a file, making it an unintuitive and flawed way to view a diff.
+
+This plugin takes a less intrusive approach; display the delta pager output in a terminal buffer. These buffers are temporary and integrate seamlessly within a coding experience, using configurable keybinds to quickly swap in and out. Have you ever felt like you needed your lsp while reviewing a PR in your browser? Review the changes in neovim, using deltaview.nvim, and follow the code with your keyboard instead of your eyes.
+
+If you aren't looking for an inline diff view, or are just looking for a code review tool that is mature and feature rich, [codediff.nvim](https://github.com/esmuellert/codediff.nvim/blob/main/README.md) may be a better fit for you. This is a tool for those who prefer inline diff views.
+
+This code does not do anything impressive with regards to generating diffs, it simply integrates the inline diff view that delta provides into neovim.
+
+
+==============================================================================
+SETUP/CONFIGURATION                                               *deltaview-setup*, *deltaview-configuration*
+
+No configuration is needed by default. If you want to change the configured defaults, you must put the setup in the `after/plugin/` directory. These are the options
+
+setup>lua
+require('deltaview').setup({
+  -- Enable nerd font icons for a prettier UI
+  use_nerdfonts = true,
+
+  -- Show both previous and next filenames when navigating
+  -- false: shows "[2/5] -> next.lua"
+  -- true: shows "<- prev.lua [2/5] -> next.lua"
+  show_verbose_nav = false,
+
+  -- Number of files threshold for switching to fzf
+  -- When the number of modified files >= this value, use fzf instead of quickselect
+  -- Set to 0 or 1 to always use fzf
+  fzf_threshold = 6,
+
+  -- Custom keybindings
+  keyconfig = {
+    -- Global keybind to toggle DeltaMenu
+    dm_toggle_keybind = "<leader>dm",
+
+    -- Global keybind to toggle DeltaView (and exit diff if open)
+    dv_toggle_keybind = "<leader>dl",
+
+    -- Navigate between hunks in a diff
+    next_hunk = "<Tab>",
+    prev_hunk = "<S-Tab>",
+
+    -- Navigate between files (when opened from DeltaMenu)
+    next_diff = "]f",
+    prev_diff = "[f",
+
+    -- Change diff menu view to quickselect (when in fzf mode)
+    fzf_toggle = "alt-;",
+  }
+})
+
+==============================================================================
+COMMANDS                                                  *deltaview-commands*
+
+                                                                *:DeltaView*
+:DeltaView [ref]        Opens the delta diff view on the buffer you are on. Uses the last ref that was used, or HEAD by default if ref is omitted.
+                                                                *:DeltaMenu*
+:DeltaMenu [ref]        Opens the delta diff menu of the git directory. Uses the last ref that was used, or HEAD by default if ref is omitted.

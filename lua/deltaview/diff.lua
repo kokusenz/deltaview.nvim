@@ -246,7 +246,7 @@ M.display_diff_followcursor = function(cmd)
 
     vim.api.nvim_set_current_buf(term_buf)
 
-    local last_valid_currentdiff_cursor_pos
+    local last_valid_currentdiff_cursor_pos = { 1, 0 }
     local move_to_line
     --- @param line number # target line number to move to; moves to line post diff, not pre diff
     local move_to_line_wrapper = function(line)
@@ -276,7 +276,7 @@ M.display_diff_followcursor = function(cmd)
                             vim.cmd('normal! zz')
                         end)
                         if not success then
-                            -- Cursor position might be out of bounds, set to safe default
+                            -- cursor position might be out of bounds, set to safe default
                             vim.api.nvim_win_set_cursor(0, { key, 0 })
                             last_valid_currentdiff_cursor_pos = { key, 0 }
                         end
@@ -298,8 +298,6 @@ M.display_diff_followcursor = function(cmd)
                         end
                     end
                 })
-
-                -- expose functions to interact with term buffer
 
                 --- @param line number # target line number to move to; moves to line post diff, not pre diff
                 move_to_line = function(line)
