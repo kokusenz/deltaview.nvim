@@ -163,12 +163,17 @@ M.run_diff_against = function(filepath, ref)
         return
     end
 
+    -- get file line count for context size
+    local line_count_output = vim.fn.system({'wc', '-l', filepath})
+    local line_count = tonumber(vim.trim(line_count_output:match('^%d+'))) or 10000
+    local context = math.min(line_count + 100, 10000)
+
     local cmd
     local hunk_cmd
 
     if is_tracked == '' or is_tracked == '\n' then
         -- untracked file
-        cmd = 'git diff -U3000 --no-index /dev/null ' .. vim.fn.shellescape(filepath)
+        cmd = 'git diff -U' .. context .. ' --no-index /dev/null ' .. vim.fn.shellescape(filepath)
         hunk_cmd = 'git diff -U0 --no-index /dev/null ' .. vim.fn.shellescape(filepath)
     else
         -- tracked file
@@ -178,8 +183,7 @@ M.run_diff_against = function(filepath, ref)
             return
         end
         if modified_files ~= nil and modified_files ~= '' then
-            -- note that due to hard coded context ceiling (found no viable alternative), files above 3000 lines might not show all lines
-            cmd = 'git diff -U3000 ' .. (ref ~= nil and ref or 'HEAD') .. ' -- ' .. vim.fn.shellescape(filepath)
+            cmd = 'git diff -U' .. context .. ' ' .. (ref ~= nil and ref or 'HEAD') .. ' -- ' .. vim.fn.shellescape(filepath)
             hunk_cmd = 'git diff -U0 ' .. (ref ~= nil and ref or 'HEAD') .. ' -- ' .. vim.fn.shellescape(filepath)
         end
     end
@@ -264,7 +268,7 @@ M.display_diff_followcursor = function(cmd)
                 -- place cursor upon entry
                 local diff_buf_lines = vim.api.nvim_buf_get_lines(term_buf, 0, -1, false)
                 for key, value in ipairs(diff_buf_lines) do
-                    if string.match(value, '⋮%s+' .. cur_cursor_pos[1]) ~= nil then
+                    if string.match(value, '⋮%s*' .. cur_cursor_pos[1]) ~= nil then
                         local success, err = pcall(function()
                             if cur_line == '' or cur_line == nil then
                                 vim.api.nvim_win_set_cursor(0, { key, #value })
@@ -290,7 +294,7 @@ M.display_diff_followcursor = function(cmd)
                     callback = function()
                         local term_buf_cur_line = vim.api.nvim_get_current_line()
                         local term_buf_cur_cursor_pos = vim.api.nvim_win_get_cursor(0)
-                        local matching_line_number = string.match(term_buf_cur_line, '⋮%s+(%d+)')
+                        local matching_line_number = string.match(term_buf_cur_line, '⋮%s*(%d+)')
                         local git_delta_linenumber_artifacts = string.match(term_buf_cur_line, '(.*│)')
                         if matching_line_number ~= nil then
                             last_valid_currentdiff_cursor_pos = { tonumber(matching_line_number), math.max(
@@ -302,7 +306,7 @@ M.display_diff_followcursor = function(cmd)
                 --- @param line number # target line number to move to; moves to line post diff, not pre diff
                 move_to_line = function(line)
                     for key, value in ipairs(diff_buf_lines) do
-                        if string.match(value, '⋮%s+' .. line .. '%s*│') ~= nil then
+                        if string.match(value, '⋮%s*' .. line .. '%s*│') ~= nil then
                             local success, err = pcall(function()
                                 vim.api.nvim_win_set_cursor(0, { key, 0 })
                                 vim.cmd('normal! zz')
@@ -390,7 +394,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
     local update_cur_line_number = function()
         local term_buf_cur_line = vim.api.nvim_get_current_line()
         local before_line_number = string.match(term_buf_cur_line, '%s*(%d+)%s*⋮')
-        local after_line_number = string.match(term_buf_cur_line, '⋮%s+(%d+)')
+        local after_line_number = string.match(term_buf_cur_line, '⋮%s*(%d+)')
         cur_prev_line_number = tonumber(before_line_number)
         -- both cur_prev_line_number and cur_line_number should not be nil at the same time.
         -- fallback: if cur_prev_line_number is nil, then avoid updating cur_line_number if after_line_number also nil
@@ -399,7 +403,9 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
                 cur_line_number = tonumber(after_line_number)
             end
         else
-            cur_line_number = tonumber(after_line_number)
+            if tonumber(after_line_number) ~= nil then
+                cur_line_number = tonumber(after_line_number)
+            end
         end
     end
 
@@ -409,7 +415,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
             local last_after_line_number = tonumber(1)
             for _, value in ipairs(diff_buf_lines) do
                 local before_line_number = string.match(value, '%s*(%d+)%s*⋮')
-                local after_line_number = string.match(value, '⋮%s+(%d+)')
+                local after_line_number = string.match(value, '⋮%s*(%d+)')
                 if tonumber(after_line_number) ~= nil then
                     last_after_line_number = tonumber(after_line_number)
                 end
@@ -459,6 +465,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
     vim.keymap.set('n', M.keyconfig.next_hunk, function()
         for i = 1, #matches, 1 do
             local line = matches[i]
+            print(line)
             if (cur_line_number or get_line_number_before_negative_hunk()) < line then
                 diff_buffer_funcs.move_to_line(line)
                 return

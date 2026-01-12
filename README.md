@@ -13,7 +13,8 @@ This plugin takes a less intrusive approach; display the delta pager output in a
 If you aren't looking for an inline diff view, or are just looking for a code review tool that is mature and feature rich, [codediff.nvim](https://github.com/esmuellert/codediff.nvim/blob/main/README.md) may be a better fit for you. This is a tool for those who prefer inline diff views.
 
 ## Demo
-<insert demo video here>
+
+<video src="./assets/DeltaViewDemo.mp4" controls></video>
 
 ## Features
 
