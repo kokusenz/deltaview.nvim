@@ -14,7 +14,7 @@ If you aren't looking for an inline diff view, or are just looking for a code re
 
 ## Demo
 
-<video src="./assets/DeltaViewDemo.mp4" controls></video>
+https://github.com/user-attachments/assets/0df99590-eded-40c5-806c-75f0c044d6bd
 
 ## Features
 
