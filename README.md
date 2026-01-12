@@ -2,7 +2,7 @@
 
 An inline diff viewer for Neovim using [delta](https://github.com/dandavison/delta) (git-delta). The delta pager provides two tier highlighting, and deltaview.nvim brings the unified/inline view into a buffer that lays on top of your current buffer. View and navigate your diffs seamlessly while reading and writing code.
 
-![DeltaView Screenshot](./assets/example-screenshot-1.jpg)
+![DeltaView Screenshot](https://github.com/user-attachments/assets/dc6c5bb4-ef7d-40fb-9c6e-de2e4ac7378a)
 
 ## Why?
 
@@ -14,7 +14,7 @@ If you aren't looking for an inline diff view, or are just looking for a code re
 
 ## Demo
 
-https://github.com/user-attachments/assets/0df99590-eded-40c5-806c-75f0c044d6bd
+https://github.com/user-attachments/assets/ef732ea7-e2b5-4167-8d9d-f12052f94c9d
 
 ## Features
 
