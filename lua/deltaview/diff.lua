@@ -151,11 +151,16 @@ end
 --- @param filepath string The file path to diff
 --- @param ref string|nil Optional git ref to compare against (defaults to HEAD). Can be branch, commit, tag, etc.
 M.run_diff_against = function(filepath, ref)
-    local is_diffable = utils.is_diffable_filepath(filepath)
-    if is_diffable == false then
-        print('WARNING: cannot run diff on a directory')
+    if filepath == nil then
+        print('ERROR: filepath is nil')
         return
     end
+
+    if vim.fn.filereadable(filepath) == 0 then
+        print('ERROR: not a valid file.')
+        return
+    end
+
     -- check if file is tracked to determine which git diff command to use
     local is_tracked = vim.fn.system({ 'git', 'ls-files', '--', filepath })
     if vim.v.shell_error ~= 0 then
