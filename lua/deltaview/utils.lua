@@ -163,16 +163,6 @@ M.sort_diffed_files = function(files, ref)
     return sorted_files
 end
 
---- check if a path is a valid file path for diffing (not a directory or empty)
---- @param path string|nil The file path to validate
---- @return boolean True if the path is a diffable file, false otherwise
-M.is_diffable_filepath = function(path)
-    if path == nil or string.sub(path, -1) == "/" or path == '' then
-        return false
-    end
-    return true
-end
-
 --- factory function that creates a label extractor for file paths
 --- extracts unique single-character labels from filenames (not full paths)
 --- @return function A function that takes a filepath and returns a single-character label
