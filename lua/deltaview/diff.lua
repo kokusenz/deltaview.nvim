@@ -170,7 +170,7 @@ M.run_diff_against = function(filepath, ref)
 
     -- get file line count for context size
     local line_count_output = vim.fn.system({'wc', '-l', filepath})
-    local line_count = tonumber(vim.trim(line_count_output:match('^%d+'))) or 10000
+    local line_count = tonumber(vim.trim(line_count_output):match('^%d+')) or 10000
     local context = math.min(line_count + 100, 10000)
 
     local cmd
