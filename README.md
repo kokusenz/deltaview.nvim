@@ -211,6 +211,7 @@ When `use_nerdfonts = true`, the UI uses nerd font icons:
 ## Feature Roadmap
 
 - Tests
+- sorting doesn't seem to work properly...
 - Enable diffing subdirectories IN PROGRESS
 - Options for using the pickers in:
     - [fzf-lua](https://github.com/ibhagwan/fzf-lua)

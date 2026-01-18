@@ -550,7 +550,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         table.insert(matches, tonumber(line_after))
     end
 
-    -- currently unused; the intention is to make the hunk ui work with files (allow for jumping to file, or just visually indicating how many hunks fall into each file)
+    -- TODO currently unused; the intention is to make the hunk ui work with files (allow for jumping to file, or just visually indicating how many hunks fall into each file)
     -- .. if this is a multiple diffs ui. gotta think about the approach more.
     local files = {}
     for file in string.gmatch(output, '%+%+%+ %a/([^\n]+)') do
@@ -565,17 +565,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         local before_line_number = string.match(term_buf_cur_line, '%s*(%d+)%s*⋮')
         local after_line_number = string.match(term_buf_cur_line, '⋮%s*(%d+)')
         cur_prev_line_number = tonumber(before_line_number)
-        -- both cur_prev_line_number and cur_line_number should not be nil at the same time.
-        -- fallback: if cur_prev_line_number is nil, then avoid updating cur_line_number if after_line_number also nil
-        if cur_prev_line_number == nil then
-            if tonumber(after_line_number) ~= nil then
-                cur_line_number = tonumber(after_line_number)
-            end
-        else
-            if tonumber(after_line_number) ~= nil then
-                cur_line_number = tonumber(after_line_number)
-            end
-        end
+        cur_line_number = tonumber(after_line_number)
     end
 
     local get_line_number_before_negative_hunk = function()
@@ -596,11 +586,28 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         return nil
     end
 
+    -- when using limited context, not every line of the delta buffer is guaranteed to have before/after line numbers. this handles those lines
+    local get_line_number_before_empty_line = function()
+        if cur_line_number == nil and cur_prev_line_number == nil then
+            local cur_row = vim.api.nvim_win_get_cursor(0)[1]
+            local diff_buf_lines = vim.api.nvim_buf_get_lines(diff_buffer_funcs.buf_id, 0, cur_row, false)
+            local last_after_line_number = tonumber(0)
+            for _, value in ipairs(diff_buf_lines) do
+                local after_line_number = string.match(value, '⋮%s*(%d+)')
+                if tonumber(after_line_number) ~= nil then
+                    last_after_line_number = tonumber(after_line_number)
+                end
+            end
+            return last_after_line_number
+        end
+        return 0
+    end
+
     --- hunk progress indicator
     local render_hunk_progress_cmd_ui = function()
         local cur_hunk = 1
         for i = 1, #matches + 1, 1 do
-            if i == #matches + 1 or (matches[i] > (cur_line_number or get_line_number_before_negative_hunk())) then
+            if i == #matches + 1 or (matches[i] > (cur_line_number or get_line_number_before_negative_hunk() or get_line_number_before_empty_line())) then
                 cur_hunk = i
                 break
             end
@@ -631,12 +638,10 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         end
     })
 
-    -- TODO: currently on delta, hunk nav isn't perfect. can bug out. identify root cause and fix
     vim.keymap.set('n', M.keyconfig.next_hunk, function()
         for i = 1, #matches, 1 do
             local line = matches[i]
-            print(line)
-            if (cur_line_number or get_line_number_before_negative_hunk()) < line then
+            if (cur_line_number or get_line_number_before_negative_hunk() or get_line_number_before_empty_line()) < line then
                 diff_buffer_funcs.move_to_line(line)
                 return
             end
@@ -648,7 +653,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
     vim.keymap.set('n', M.keyconfig.prev_hunk, function()
         for i = #matches, 1, -1 do
             local line = matches[i]
-            if (cur_line_number or get_line_number_before_negative_hunk()) > line then
+            if (cur_line_number or get_line_number_before_negative_hunk() or get_line_number_before_empty_line()) > line then
                 diff_buffer_funcs.move_to_line(line)
                 return
             end
@@ -679,6 +684,7 @@ M.setup = function(opts)
     M.fzf_threshold = opts.fzf_threshold or M.fzf_threshold
     M.default_context = opts.default_context or M.default_context
 
+    -- TODO for DeltaView and Delta, keybind ? to open a keybind guide menu
     vim.api.nvim_create_user_command('DeltaView', function(delta_view_opts)
         local success, err = pcall(function()
             M.diff_target_ref = (delta_view_opts.args ~= '' and delta_view_opts.args ~= nil) and delta_view_opts.args or M.diff_target_ref
