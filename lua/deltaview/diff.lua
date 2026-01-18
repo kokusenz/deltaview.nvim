@@ -150,7 +150,7 @@ end
 --- Handles both tracked and untracked files
 --- @param filepath string The file path to diff
 --- @param ref string|nil Optional git ref to compare against (defaults to HEAD). Can be branch, commit, tag, etc.
-M.run_diff_against = function(filepath, ref)
+M.run_diff_against_file = function(filepath, ref)
     if filepath == nil then
         print('ERROR: filepath is nil')
         return
@@ -223,23 +223,51 @@ M.run_diff_against = function(filepath, ref)
     local diff_target_message = M.viewconfig.vs .. ' ' .. (M.diff_target_ref or 'HEAD')
     utils.append_cmd_ui(cmd_ui, diff_target_message, true)
 
-    local adjacent_files = utils.get_adjacent_files(M.diffed_files)
-    if adjacent_files ~= nil then
-        local next_diff_message = (M.show_verbose_nav and (vim.fn.fnamemodify(adjacent_files.prev.name, ':t') .. ' ' .. M.viewconfig.prev) or '') ..
-            ' [' .. M.diffed_files.cur_idx .. '/' .. #M.diffed_files.files .. '] ' .. M.viewconfig.next .. ' ' ..
-            vim.fn.fnamemodify(adjacent_files.next.name, ':t')
-        utils.append_cmd_ui(cmd_ui, next_diff_message, false)
-    end
-
-    local diff_buffer_funcs = M.display_diff_followcursor(cmd)
+    local diff_buffer_funcs = M.display_delta_file(cmd, cmd_ui)
     M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs, cmd_ui)
 end
 
---- display git diff output in a terminal buffer with cursor position syncing
---- creates a terminal buffer running delta, syncs cursor position between source and diff
+--- Run a git diff for the specified directory against a git ref
+--- @param path string The path to diff
+--- @param ref string|nil Optional git ref to compare against (defaults to HEAD). Can be branch, commit, tag, etc.
+M.run_diff_against_directory = function(path, ref)
+    local cmd = 'git diff -U'.. M.default_context .. ' ' .. (ref ~= nil and ref or 'HEAD') .. ' -- ' .. vim.fn.shellescape(path)
+    local hunk_cmd = 'git diff -U0 ' .. (ref ~= nil and ref or 'HEAD') .. ' -- ' .. vim.fn.shellescape(path)
+
+    -- check if buf with name already exists
+    local existing_buf = vim.fn.bufnr(cmd)
+    if existing_buf ~= -1 and vim.api.nvim_buf_is_valid(existing_buf) then
+        vim.api.nvim_buf_delete(existing_buf, { force = true })
+    end
+
+    -- dry run: test commands, terminate early if fail
+    local test_output = vim.fn.system(cmd)
+    local exit_code = vim.v.shell_error
+    if exit_code ~= 0 and exit_code ~= 1 then
+        print('ERROR: git diff failed (exit ' .. exit_code .. '): ' .. vim.trim(test_output))
+        return
+    end
+
+    test_output = vim.fn.system(hunk_cmd)
+    exit_code = vim.v.shell_error
+    if exit_code ~= 0 and exit_code ~= 1 then
+        print('ERROR: git diff failed (exit ' .. exit_code .. '): ' .. vim.trim(test_output))
+        return
+    end
+
+    local cmd_ui = {}
+    local diff_target_message = M.viewconfig.vs .. ' ' .. (M.diff_target_ref or 'HEAD')
+    utils.append_cmd_ui(cmd_ui, diff_target_message, true)
+
+    local diff_buffer_funcs = M.display_delta_directory(cmd, cmd_ui)
+    M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs, cmd_ui)
+end
+
+--- display git diff delta output in a terminal buffer with cursor position syncing and all context for one file
 --- @param cmd string The git diff command to execute
+--- @param cmd_ui table The cmd_ui
 --- @return table DiffBufferFuncs some exposed functionality to be able to interact with created terminal bufer
-M.display_diff_followcursor = function(cmd)
+M.display_delta_file = function(cmd, cmd_ui)
     local delta_cmd = cmd .. ' | delta --line-numbers --paging=never | sed "1,7d"'
 
     -- get previous cursor state
@@ -359,20 +387,149 @@ M.display_diff_followcursor = function(cmd)
 
     local adjacent_files = utils.get_adjacent_files(M.diffed_files)
     if adjacent_files ~= nil then
+        local next_diff_message = (M.show_verbose_nav and (vim.fn.fnamemodify(adjacent_files.prev.name, ':t') .. ' ' .. M.viewconfig.prev) or '') ..
+            ' [' .. M.diffed_files.cur_idx .. '/' .. #M.diffed_files.files .. '] ' .. M.viewconfig.next .. ' ' ..
+            vim.fn.fnamemodify(adjacent_files.next.name, ':t')
+        utils.append_cmd_ui(cmd_ui, next_diff_message, false)
+
         vim.keymap.set('n', M.keyconfig.next_diff, function()
             return_to_cur_buffer()
-            M.programmatically_select_diff_from_menu(M.run_diff_against, adjacent_files.next.name, M.diff_target_ref)
+            M.programmatically_select_diff_from_menu(M.run_diff_against_file, adjacent_files.next.name, M.diff_target_ref)
         end, { buffer = term_buf, noremap = true, silent = true })
 
         vim.keymap.set('n', M.keyconfig.prev_diff, function()
             return_to_cur_buffer()
-            M.programmatically_select_diff_from_menu(M.run_diff_against, adjacent_files.prev.name, M.diff_target_ref)
+            M.programmatically_select_diff_from_menu(M.run_diff_against_file, adjacent_files.prev.name, M.diff_target_ref)
         end, { buffer = term_buf, noremap = true, silent = true })
     end
 
     --- @class DiffBufferFuncs table to expose functions to interact with the diff buffer
     --- @field move_to_line function
     --- @field buf_id number
+    local funcs = { buf_id = term_buf, move_to_line = move_to_line_wrapper }
+    return funcs
+end
+
+--- display git diff delta output in a terminal buffer with optional exit strategy and configurable context
+--- @param cmd string The git diff command to execute
+--- @param cmd_ui table The cmd ui
+--- @return table DiffBufferFuncs some exposed functionality to be able to interact with created terminal bufer
+M.display_delta_directory = function(cmd, cmd_ui)
+    local delta_cmd = cmd .. ' | delta --line-numbers --paging=never'
+    local name_only_cmd = cmd:gsub("diff", "diff --name-only", 1)
+    local cur_buf = vim.api.nvim_get_current_buf()
+
+    local term_buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_option_value('bufhidden', 'wipe', { buf = term_buf })
+    vim.api.nvim_buf_set_var(term_buf, 'is_deltaview', true)
+    vim.api.nvim_set_current_buf(term_buf)
+
+    local current_line_number = nil
+    local diffed_file_names = {}
+    for file in vim.fn.system(name_only_cmd):gmatch("[^\r\n]+") do
+        table.insert(diffed_file_names, file)
+    end
+    local current_file = diffed_file_names[1]
+
+    local move_to_line
+    --- @param line number # target line number to move to; moves to line post diff, not pre diff
+    local move_to_line_wrapper = function(line)
+        if move_to_line ~= nil then
+            move_to_line(line)
+        else
+            print('WARNING: move_to_line has not been initialized. No action will be performed')
+        end
+    end
+
+    vim.fn.jobstart(delta_cmd, {
+        term = true,
+        on_exit = function()
+            vim.schedule(function()
+                -- update what line and file we are on. purely for performance reasons
+                local line_file_map = {}
+                vim.api.nvim_create_autocmd('CursorMoved', {
+                    buffer = term_buf,
+                    callback = function()
+                        local term_buf_cur_line = vim.api.nvim_get_current_line()
+                        local matching_line_number = string.match(term_buf_cur_line, '⋮%s*(%d+)')
+                        current_line_number = matching_line_number
+                        -- keep in mind cur_line refers to the actual line within the term window, not the line it's referring to in the file
+                        local cur_line = vim.api.nvim_win_get_cursor(0)[1]
+                        if line_file_map[cur_line] == nil then
+                            for i = cur_line, 1, -1 do
+                                local line_content = vim.api.nvim_buf_get_lines(term_buf, i - 1, i, false)[1]
+                                local trimmed = vim.trim(line_content)
+                                for _, file in ipairs(diffed_file_names) do
+                                    if trimmed == file then
+                                        table.insert(line_file_map, cur_line, file)
+                                        return
+                                    end
+                                end
+                            end
+                        end
+                        current_file = line_file_map[cur_line]
+                    end
+                })
+
+                local diff_buf_lines = vim.api.nvim_buf_get_lines(term_buf, 0, -1, false)
+
+                --- @param line number # target line number to move to; moves to line post diff, not pre diff
+                move_to_line = function(line)
+                    for key, value in ipairs(diff_buf_lines) do
+                        if string.match(value, '⋮%s*' .. line .. '%s*│') ~= nil then
+                            local success, err = pcall(function()
+                                vim.api.nvim_win_set_cursor(0, { key, 0 })
+                                vim.cmd('normal! zz')
+                            end)
+                            if not success then
+                                print('ERROR: Failed to move cursor to line ' .. line)
+                            end
+                            return
+                        end
+                    end
+                end
+            end)
+        end
+    })
+
+    vim.api.nvim_buf_set_name(term_buf, cmd)
+
+    -- TODO currently jumps to chosen line number, but not the exact word. Originally didn't see the value, now I do, may be worth implementing
+    local jump_to_chosen_diff = function()
+        if current_line_number ~= nil then
+            local success, err = pcall(function()
+                vim.cmd('e ' .. vim.fn.fnameescape(current_file))
+                vim.api.nvim_win_set_cursor(0, { tonumber(current_line_number), 0 })
+                vim.cmd('normal! zz')
+            end)
+            if not success then
+                print('ERROR: Failed to open file: ' .. current_file .. ' - file may have been removed.')
+                return
+            end
+        else
+            utils.display_cmd_ui(cmd_ui, "WARNING: could not jump to an invalid location")
+        end
+    end
+
+    vim.keymap.set('n', '<Esc>', function()
+        vim.api.nvim_set_current_buf(cur_buf)
+    end, { buffer = term_buf, noremap = true, silent = true })
+
+    vim.keymap.set('n', 'q', function()
+        vim.api.nvim_set_current_buf(cur_buf)
+    end, { buffer = term_buf, noremap = true, silent = true })
+
+    vim.keymap.set('n', M.keyconfig.jump_to_line, function()
+        jump_to_chosen_diff()
+    end, { buffer = term_buf, noremap = true, silent = true })
+
+    if M.keyconfig.d_toggle_keybind ~= nil and M.keyconfig.d_toggle_keybind ~= '' then
+        vim.keymap.set('n', M.keyconfig.d_toggle_keybind, function()
+            vim.api.nvim_set_current_buf(cur_buf)
+        end, { buffer = term_buf, noremap = true, silent = true })
+    end
+
+    --- @class DiffBufferFuncs table to expose functions to interact with the diff buffer
     local funcs = { buf_id = term_buf, move_to_line = move_to_line_wrapper }
     return funcs
 end
@@ -391,6 +548,13 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
     local matches = {}
     for line_after in string.gmatch(output, '@@ %-%d+,?%d* %+(%d+),?%d* @@') do
         table.insert(matches, tonumber(line_after))
+    end
+
+    -- currently unused; the intention is to make the hunk ui work with files (allow for jumping to file, or just visually indicating how many hunks fall into each file)
+    -- .. if this is a multiple diffs ui. gotta think about the approach more.
+    local files = {}
+    for file in string.gmatch(output, '%+%+%+ %a/([^\n]+)') do
+        table.insert(files, file)
     end
 
     local cur_line_number = tonumber(1)
@@ -467,6 +631,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         end
     })
 
+    -- TODO: currently on delta, hunk nav isn't perfect. can bug out. identify root cause and fix
     vim.keymap.set('n', M.keyconfig.next_hunk, function()
         for i = 1, #matches, 1 do
             local line = matches[i]
@@ -500,9 +665,10 @@ M.setup = function(opts)
     --- @field keyconfig KeyConfig | nil
     --- @field show_verbose_nav boolean | nil Show both prev and next filenames (true) or just position + next (false, default)
     --- @field fzf_threshold number | nil if the number of diffed files is equal to or greater than this threshold, it will show up in a fuzzy finding picker. Default to 10. Set to 1 or 0 if you would always like a fuzzy picker
+    --- @field default_context number | nil if running deltaview on a directory rather than a file, it will show a typical delta view with limited context. Default to 3. Set here, or pass it in as a second param to DeltaView, which will persist as the context for this session
     opts = opts or {}
-    if opts.use_nerdfonts then
-        M.viewconfig = M.nerdfont_viewconfig
+    if opts.use_nerdfonts ~= nil and opts.use_nerdfonts == false then
+        M.viewconfig = M.basic_viewconfig
     end
 
     if opts.keyconfig then
@@ -511,13 +677,23 @@ M.setup = function(opts)
 
     M.show_verbose_nav = opts.show_verbose_nav or false
     M.fzf_threshold = opts.fzf_threshold or M.fzf_threshold
+    M.default_context = opts.default_context or M.default_context
 
     vim.api.nvim_create_user_command('DeltaView', function(delta_view_opts)
         local success, err = pcall(function()
             M.diff_target_ref = (delta_view_opts.args ~= '' and delta_view_opts.args ~= nil) and delta_view_opts.args or M.diff_target_ref
             M.diffed_files.files = nil
             M.diffed_files.cur_idx = nil
-            M.run_diff_against(vim.fn.expand('%:p'), M.diff_target_ref)
+            local path = vim.fn.expand('%:p')
+            if path == nil or path == '' then
+                print('WARNING: not a valid path')
+                return
+            end
+            if vim.fn.filereadable(path) == 0 then
+                print('WARNING: not a valid file. Use :Delta to view the diff of the directory, or :DeltaMenu for all diffs')
+                return
+            end
+            M.run_diff_against_file(path, M.diff_target_ref)
         end)
         if not success then
             print('ERROR: Failed to create diff view: ' .. tostring(err))
@@ -534,10 +710,41 @@ M.setup = function(opts)
         end)
     end
 
+    vim.api.nvim_create_user_command('Delta', function(delta_view_opts)
+        local success, err = pcall(function()
+            M.diff_target_ref = (delta_view_opts.fargs[1] ~= nil and delta_view_opts.fargs[1] ~= '') and delta_view_opts.fargs[1] or M.diff_target_ref
+            M.default_context = (delta_view_opts.fargs[2] ~= nil and delta_view_opts.fargs[2] ~= '') and delta_view_opts.fargs[2] or M.default_context
+            if delta_view_opts.fargs[3] ~= nil then
+                print('Delta only accepts up to two args')
+                return
+            end
+            M.diffed_files.files = nil
+            M.diffed_files.cur_idx = nil
+            local path = vim.fn.expand('%:p')
+            if path == nil or path == '' then
+                path = vim.fn.getcwd()
+            end
+            M.run_diff_against_directory(path, M.diff_target_ref)
+        end)
+        if not success then
+            print('ERROR: Failed to create diff view: ' .. tostring(err))
+        end
+    end, {
+        nargs = '*',
+        desc =
+        'Open Diff View against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
+    })
+
+    if M.keyconfig.d_toggle_keybind ~= nil and M.keyconfig.d_toggle_keybind ~= '' then
+        vim.keymap.set('n', M.keyconfig.d_toggle_keybind, function()
+            vim.cmd('Delta')
+        end)
+    end
+
     vim.api.nvim_create_user_command('DeltaMenu', function(delta_menu_opts)
         local success, err = pcall(function()
             M.diff_target_ref = (delta_menu_opts.args ~= '' and delta_menu_opts.args ~= nil) and delta_menu_opts.args or M.diff_target_ref
-            M.create_diff_menu_pane(M.run_diff_against, M.diff_target_ref)
+            M.create_diff_menu_pane(M.run_diff_against_file, M.diff_target_ref)
         end)
         if not success then
             print('ERROR: Failed to create diff menu: ' .. tostring(err))
@@ -556,10 +763,7 @@ M.setup = function(opts)
 end
 
 --- @class ViewConfig
---- @field dot string
---- @field circle string
---- @field vs string
-M.viewconfig = {
+M.basic_viewconfig = {
     dot = "·",
     circle = "•",
     vs = "comparing to",
@@ -567,6 +771,7 @@ M.viewconfig = {
     prev = "<-"
 }
 
+--- @class ViewConfig
 M.nerdfont_viewconfig = {
     dot = "",
     circle = "",
@@ -574,6 +779,12 @@ M.nerdfont_viewconfig = {
     next = "󰁕",
     prev = "󰁎"
 }
+
+--- @class ViewConfig
+--- @field dot string
+--- @field circle string
+--- @field vs string
+M.viewconfig = M.nerdfont_viewconfig
 
 --- @class KeyConfig
 --- @field dv_toggle_keybind string | nil if defined, will create keybind that runs DeltaView, and exits Diff buffer if open
@@ -583,6 +794,7 @@ M.nerdfont_viewconfig = {
 --- @field next_diff string when diff was opened from DeltaMenu, open next file in the menu
 --- @field prev_diff string when diff was opened from DeltaMenu, open prev file in the menu
 --- @field fzf_toggle string when DeltaView Menu is opened in fzf mode (eg. when count exceeds the threshold), can switch back to default quick select.
+--- @field d_toggle_keybind string | nil if defined, will create keybind that runs Delta, and exits Diff buffer if open
 M.keyconfig = {
     dm_toggle_keybind = "<leader>dm",
     dv_toggle_keybind = "<leader>dl",
@@ -590,7 +802,9 @@ M.keyconfig = {
     prev_hunk = "<S-Tab>",
     next_diff = "]f",
     prev_diff = "[f",
-    fzf_toggle = "alt-;"
+    fzf_toggle = "alt-;",
+    d_toggle_keybind = "<leader>da",
+    jump_to_line = "<CR>"
 }
 
 --- enables the user to go to "next diff in menu" if the current diff was opened via the menu.
@@ -600,5 +814,6 @@ M.keyconfig = {
 M.diffed_files = { files = nil, cur_idx = nil }
 
 M.fzf_threshold = 6
+M.default_context = 3
 
 return M

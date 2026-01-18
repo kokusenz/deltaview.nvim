@@ -19,6 +19,7 @@ https://github.com/user-attachments/assets/ef732ea7-e2b5-4167-8d9d-f12052f94c9d
 ## Features
 
 - **Inline diff viewing**: View diffs on top of your code using delta's syntax highlighting
+- **Context specification**: Choose context when diffing paths, as to be able to search amongst your modified code
 - **Cursor maintenance**: Viewing a diff from a buffer keeps your cursor where it was, and viewing code from a diff keeps your cursor where you want it to be. Easily transition between reading and writing.
 - **Custom File Picker**: Review a large scope of changes
 - **Custom UI**: Visual Indicators for hunk and file count
@@ -70,6 +71,7 @@ The fzf file picker might be available out of the box, depending on how it was i
 #### `:DeltaView [ref]`
 
 Open an inline diff view for the current file.
+This uses Delta's syntax highlighting to mock an inline view of the full file with two way cursor tracking. The cursor is placed at the right location upon entry, and placed at the right location upon exit.
 
 ```vim
 :DeltaView           " Compare current file against HEAD
@@ -87,9 +89,20 @@ Open an interactive menu to select and view diffs from all modified files.
 :DeltaMenu develop   " Show all files changed from develop branch
 ```
 
+#### `:Delta [ref] [context]`
+
+Open the inline delta diff view for the current path. Does not have two way cursor tracking like DeltaView. <CR> to jump to the cursor is on.
+This works on both files and directories, by being in a directory path using netrw or some other filetree plugin. This can be useful for if you want to diff specific directories rather than the whole git directory.
+Context can be specified. This can be useful for searching your modified code (eg. looking for stray print statements).
+
+```vim
+:Delta               " Show all files changed from HEAD, with +- 3 lines of context by default
+:Delta HEAD 0        " Show all files changed from HEAD, with no lines of context.
+```
+
 **Note**: 
-- Both commands use the last ref used. If `:DeltaMenu main` was used, future calls to `:DeltaMenu` and `:DeltaView` will default to `main` instead of `HEAD`.
-- DeltaMenu requires Neovim's current working directory (`:pwd`) to be the git repository root. Use `:cd` to navigate to the git root if needed.
+- All commands use the last ref used. If `:DeltaMenu main` was used, future calls to `:DeltaMenu`, `:DeltaView`, and `:Delta` will default to `main` instead of `HEAD`.
+- This plugin requires Neovim's current working directory (`:pwd`) to be the git repository root. Use `:cd` to navigate to the git root if needed.
 
 ### Default Keybindings
 
@@ -97,8 +110,9 @@ Open an interactive menu to select and view diffs from all modified files.
 |-----|--------|
 | `<leader>dl` | :DeltaView |
 | `<leader>dm` | :DeltaMenu |
+| `<leader>da` | :Delta |
 
-When viewing a diff (DeltaView):
+When viewing a diff (DeltaView or Delta):
 
 | Key | Action |
 |-----|--------|
@@ -108,12 +122,18 @@ When viewing a diff (DeltaView):
 | `]f` | Open next file in menu (if opened from DeltaMenu) |
 | `[f` | Open previous file in menu (if opened from DeltaMenu) |
 
+When viewing a diff (Delta):
+
+| Key | Action |
+|-----|--------|
+| `<CR>` | Jump to line |
+
 When in the file menu:
 
 | Key | Action |
 |-----|--------|
 | Select a file | Open diff for that file |
-| `alt-;` | Toggle between fzf and quickselect (in fzf mode) |
+| `alt-;` | Change fzf to quickselect (in fzf mode) |
 
 All keybindings are configurable
 
@@ -144,6 +164,9 @@ require('deltaview').setup({
     -- Global keybind to toggle DeltaView (and exit diff if open)
     dv_toggle_keybind = "<leader>dl",
 
+    -- Global keybind to toggle Delta (and exit diff if open)
+    d_toggle_keybind = "<leader>da",
+
     -- Navigate between hunks in a diff
     next_hunk = "<Tab>",
     prev_hunk = "<S-Tab>",
@@ -154,6 +177,9 @@ require('deltaview').setup({
 
     -- Change diff menu view to quickselect (when in fzf mode)
     fzf_toggle = "alt-;",
+
+    -- Jump to line in view opened by Delta
+    jump_to_line = "<CR>"
   }
 })
 ```
@@ -185,7 +211,7 @@ When `use_nerdfonts = true`, the UI uses nerd font icons:
 ## Feature Roadmap
 
 - Tests
-- Enable diffing subdirectories
+- Enable diffing subdirectories IN PROGRESS
 - Options for using the pickers in:
     - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
     - [telescope](https://github.com/nvim-telescope/telescope.nvim)
@@ -193,6 +219,8 @@ When `use_nerdfonts = true`, the UI uses nerd font icons:
 - Option for overriding default sorting with user provided sorting function
 - Split diffs, if there is demand. There are other plugins (and native neovim :DiffTool) that already do this, and do this well, so this is not a priority.
 - Remove the [Process Exited 0] message, if I can figure out how
+- Potentially implement grep. Originally, didn't see the value because many fuzzy finding plugins handle grepping, but putting all greps with context lines in one buffer allows for searching amongst the context of grepped code, and uses delta syntax highlighting
+- delta blame
 
 ## License
 
