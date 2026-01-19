@@ -223,8 +223,16 @@ M.run_diff_against_file = function(filepath, ref)
     local diff_target_message = M.viewconfig.vs .. ' ' .. (M.diff_target_ref or 'HEAD')
     utils.append_cmd_ui(cmd_ui, diff_target_message, true)
 
-    local diff_buffer_funcs = M.display_delta_file(cmd, cmd_ui)
-    M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs, cmd_ui)
+    --- @class DiffBufferFuncs table to expose functions to interact with the diff buffer
+    --- @field buf_id number
+    --- @field move_to_line function
+    --- @field get_current_file function | nil
+
+    --- @param diff_buffer_funcs DiffBufferFuncs
+    local on_ready_callback = function(diff_buffer_funcs)
+        M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs, cmd_ui)
+    end
+    M.display_delta_file(cmd, cmd_ui, on_ready_callback)
 end
 
 --- Run a git diff for the specified directory against a git ref
@@ -259,15 +267,18 @@ M.run_diff_against_directory = function(path, ref)
     local diff_target_message = M.viewconfig.vs .. ' ' .. (M.diff_target_ref or 'HEAD')
     utils.append_cmd_ui(cmd_ui, diff_target_message, true)
 
-    local diff_buffer_funcs = M.display_delta_directory(cmd, cmd_ui)
-    M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs, cmd_ui)
+    --- @param diff_buffer_funcs DiffBufferFuncs
+    local on_ready_callback = function(diff_buffer_funcs)
+        M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs, cmd_ui)
+    end
+    M.display_delta_directory(cmd, cmd_ui, on_ready_callback)
 end
 
 --- display git diff delta output in a terminal buffer with cursor position syncing and all context for one file
 --- @param cmd string The git diff command to execute
 --- @param cmd_ui table The cmd_ui
---- @return table DiffBufferFuncs some exposed functionality to be able to interact with created terminal bufer
-M.display_delta_file = function(cmd, cmd_ui)
+--- @param on_ready_callback function after the cmd_ui has initialized, run this function
+M.display_delta_file = function(cmd, cmd_ui, on_ready_callback)
     local delta_cmd = cmd .. ' | delta --line-numbers --paging=never | sed "1,7d"'
 
     -- get previous cursor state
@@ -284,17 +295,6 @@ M.display_delta_file = function(cmd, cmd_ui)
     vim.api.nvim_set_current_buf(term_buf)
 
     local last_valid_currentdiff_cursor_pos = { 1, 0 }
-    local move_to_line
-    --- note: while file is defined here for consistency with the display_delta_directory move_to_line_wrapper, it is unused, as multiple files are not a factor in this workflow
-    --- @param line number # target line number to move to; moves to line post diff, not pre diff
-    --- @param file string | nil # file to move to. If unspecified, will move to the first found line
-    local move_to_line_wrapper = function(line, file)
-        if move_to_line ~= nil then
-            move_to_line(line)
-        else
-            print('WARNING: move_to_line has not been initialized. No action will be performed')
-        end
-    end
 
     vim.fn.jobstart(delta_cmd, {
         term = true,
@@ -338,8 +338,10 @@ M.display_delta_file = function(cmd, cmd_ui)
                     end
                 })
 
+                --- note: while file is defined here for consistency with the display_delta_directory move_to_line_wrapper, it is unused, as multiple files are not a factor in this workflow
                 --- @param line number # target line number to move to; moves to line post diff, not pre diff
-                move_to_line = function(line)
+                --- @param file string | nil # file to move to. If unspecified, will move to the first found line
+                local move_to_line = function(line, file)
                     for key, value in ipairs(diff_buf_lines) do
                         if string.match(value, '⋮%s*' .. line .. '%s*│') ~= nil then
                             local success, err = pcall(function()
@@ -353,6 +355,10 @@ M.display_delta_file = function(cmd, cmd_ui)
                         end
                     end
                 end
+
+                --- @class DiffBufferFuncs
+                local funcs = { buf_id = term_buf, move_to_line = move_to_line, get_current_file = nil }
+                on_ready_callback(funcs)
             end)
         end
     })
@@ -404,20 +410,13 @@ M.display_delta_file = function(cmd, cmd_ui)
             M.programmatically_select_diff_from_menu(M.run_diff_against_file, adjacent_files.prev.name, M.diff_target_ref)
         end, { buffer = term_buf, noremap = true, silent = true })
     end
-
-    --- @class DiffBufferFuncs table to expose functions to interact with the diff buffer
-    --- @field move_to_line function
-    --- @field buf_id number
-    --- @field get_current_file function | nil
-    local funcs = { buf_id = term_buf, move_to_line = move_to_line_wrapper }
-    return funcs
 end
 
 --- display git diff delta output in a terminal buffer with optional exit strategy and configurable context
 --- @param cmd string The git diff command to execute
 --- @param cmd_ui table The cmd ui
---- @return table DiffBufferFuncs some exposed functionality to be able to interact with created terminal bufer
-M.display_delta_directory = function(cmd, cmd_ui)
+--- @param on_ready_callback function after the cmd_ui has initialized, run this function
+M.display_delta_directory = function(cmd, cmd_ui, on_ready_callback)
     local delta_cmd = cmd .. ' | delta --line-numbers --paging=never'
     local name_only_cmd = cmd:gsub("diff", "diff --name-only", 1)
     local cur_buf = vim.api.nvim_get_current_buf()
@@ -442,23 +441,13 @@ M.display_delta_directory = function(cmd, cmd_ui)
         end
     })
 
-    local last_valid_cursor_pos = nil
     local diffed_file_names = {}
     for file in vim.fn.system(name_only_cmd):gmatch("[^\r\n]+") do
         table.insert(diffed_file_names, file)
     end
-    local current_file = diffed_file_names[1]
 
-    local move_to_line
-    --- @param line number # target line number to move to; moves to line post diff, not pre diff
-    --- @param file string | nil # file to move to. If unspecified, will move to the first found line
-    local move_to_line_wrapper = function(line, file)
-        if move_to_line ~= nil then
-            move_to_line(line, file)
-        else
-            print('WARNING: move_to_line has not been initialized. No action will be performed')
-        end
-    end
+    local last_valid_cursor_pos = nil
+    local current_file = diffed_file_names[1]
 
     vim.fn.jobstart(delta_cmd, {
         term = true,
@@ -520,7 +509,7 @@ M.display_delta_directory = function(cmd, cmd_ui)
 
                 --- @param line number # target line number to move to; moves to line post diff, not pre diff
                 --- @param file string | nil # file to move to. If unspecified, will move to the first found line
-                move_to_line = function(line, file)
+                local move_to_line = function(line, file)
                     for key, value in ipairs(diff_buf_lines) do
                         if file ~= nil and file ~= '' and get_file_at_line(key) ~= file then
                             goto continue
@@ -538,6 +527,14 @@ M.display_delta_directory = function(cmd, cmd_ui)
                         ::continue::
                     end
                 end
+
+                local get_current_file = function()
+                    return current_file
+                end
+
+                --- @class DiffBufferFuncs
+                local funcs = { buf_id = term_buf, move_to_line = move_to_line, get_current_file = get_current_file}
+                on_ready_callback(funcs)
             end)
         end
     })
@@ -577,14 +574,6 @@ M.display_delta_directory = function(cmd, cmd_ui)
             vim.api.nvim_set_current_buf(cur_buf)
         end, { buffer = term_buf, noremap = true, silent = true })
     end
-
-    local get_current_file = function()
-        return current_file
-    end
-
-    --- @class DiffBufferFuncs table to expose functions to interact with the diff buffer
-    local funcs = { buf_id = term_buf, move_to_line = move_to_line_wrapper, get_current_file = get_current_file }
-    return funcs
 end
 
 --- sets up hunk navigation for the buffer the diff is displayed on. keymaps for moving between hunks, visual indicator for hunk progress
@@ -623,6 +612,11 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         for _, line_num in ipairs(matches[file]) do
             table.insert(matches_flat, line_num)
         end
+    end
+
+    if #file_order > 1 and diff_buffer_funcs.get_current_file == nil then
+        print('ERROR: setup_hunk_navigation requires get_current_file for multi-file diffs')
+        return
     end
 
     local cur_line_number = tonumber(1)
@@ -729,8 +723,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
             end
             utils.display_cmd_ui(cmd_ui, message)
         else
-            -- TODO below
-            utils.display_cmd_ui(cmd_ui, "WARNING: improper state")
+            assert(false, "unreachable: multi-file diff should receive a get_current_file function")
         end
     end
 
@@ -785,8 +778,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
             -- move to first hunk
             diff_buffer_funcs.move_to_line(matches_flat[1])
         else
-            -- TODO below
-            utils.display_cmd_ui(cmd_ui, "WARNING: improper state")
+            assert(false, "unreachable: multi-file diff should receive a get_current_file function")
         end
     end, { buffer = diff_buffer_funcs.buf_id, noremap = true, silent = true })
 
@@ -825,8 +817,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
             -- move to last hunk
             diff_buffer_funcs.move_to_line(matches_flat[#matches_flat])
         else
-            -- TODO below
-            utils.display_cmd_ui(cmd_ui, "WARNING: improper state")
+            assert(false, "unreachable: multi-file diff should receive a get_current_file function")
         end
     end, { buffer = diff_buffer_funcs.buf_id, noremap = true, silent = true })
 
