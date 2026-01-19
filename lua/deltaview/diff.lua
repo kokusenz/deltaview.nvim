@@ -256,6 +256,11 @@ M.run_diff_against_directory = function(path, ref)
         return
     end
 
+    if vim.trim(test_output) == '' then
+        print('WARNING: path is not modified. No diff to display')
+        return
+    end
+
     test_output = vim.fn.system(hunk_cmd)
     exit_code = vim.v.shell_error
     if exit_code ~= 0 and exit_code ~= 1 then
@@ -601,6 +606,10 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         end
 
         local line_after = line:match('@@ %-%d+,?%d* %+(%d+),?%d* @@')
+        -- currently only looking at line_after. Works fine for if there's context, but if I have a fully deleted line and zero context
+        -- it can't detect the "after" line in the delta buffer. jump to line doesn't work.
+        -- an option is to start storing line_before as well, and jump to those as a fallback if line_after can't be found
+        -- think of other options
         if line_after and current_file then
             table.insert(matches[current_file], tonumber(line_after))
         end
@@ -670,7 +679,8 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         if #file_order <= 1 then
             local cur_hunk = 1
             for i = 1, #matches_flat + 1, 1 do
-                if i == #matches_flat + 1 or (matches_flat[i] > (cur_line_number or get_line_number_before_negative_hunk() or get_line_number_before_empty_line())) then
+                if i == #matches_flat + 1
+                    or (matches_flat[i] > (cur_line_number or get_line_number_before_negative_hunk() or get_line_number_before_empty_line())) then
                     cur_hunk = i
                     break
                 end
@@ -813,7 +823,6 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
                     return
                 end
             end
-            -- if ending without finding a file, need fallback handling
             -- move to last hunk
             diff_buffer_funcs.move_to_line(matches_flat[#matches_flat])
         else
@@ -821,7 +830,37 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         end
     end, { buffer = diff_buffer_funcs.buf_id, noremap = true, silent = true })
 
-    -- TODO set up ]f and [f keybinds if multiple files. to jump to specific files.
+    if #file_order > 1 then
+        vim.keymap.set('n', M.keyconfig.next_diff, function()
+            local diff_buffer_cur_file = diff_buffer_funcs.get_current_file()
+            for idx, file in ipairs(file_order) do
+                if file == diff_buffer_cur_file then
+                    local next_file = file_order[idx + 1 > #file_order and 1 or idx + 1]
+                    local next_file_hunks = matches[next_file]
+                    diff_buffer_funcs.move_to_line(next_file_hunks[1], next_file)
+                    return
+                end
+            end
+            -- move to first file's first hunk if output of get_current_file cannot be found (for example is returning nil)
+            local first_file = file_order[1]
+            diff_buffer_funcs.move_to_line(matches[first_file][1], first_file)
+        end, { buffer = diff_buffer_funcs.buf_id, noremap = true, silent = true })
+
+        vim.keymap.set('n', M.keyconfig.prev_diff, function()
+            local diff_buffer_cur_file = diff_buffer_funcs.get_current_file()
+            for idx, file in ipairs(file_order) do
+                if file == diff_buffer_cur_file then
+                    local prev_file = file_order[idx - 1 < 1 and #file_order or idx - 1]
+                    local prev_file_hunks = matches[prev_file]
+                    diff_buffer_funcs.move_to_line(prev_file_hunks[1], prev_file)
+                    return
+                end
+            end
+            -- move to last file's last hunk if output of get_current_file cannot be found (for example is returning nil)
+            local last_file = file_order[#file_order]
+            diff_buffer_funcs.move_to_line(matches[last_file][1], last_file)
+        end, { buffer = diff_buffer_funcs.buf_id, noremap = true, silent = true })
+    end
 end
 
 M.setup = function(opts)
