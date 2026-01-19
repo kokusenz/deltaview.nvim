@@ -424,7 +424,19 @@ M.display_delta_directory = function(cmd, cmd_ui)
     vim.api.nvim_buf_set_var(term_buf, 'is_deltaview', true)
     vim.api.nvim_set_current_buf(term_buf)
 
-    local current_line_number = nil
+    local prev_cursorline = vim.wo.cursorline
+    local prev_cursorlineopt = vim.wo.cursorlineopt
+
+    vim.api.nvim_create_autocmd('BufLeave', {
+        buffer = term_buf,
+        once = true,
+        callback = function()
+            vim.wo.cursorline = prev_cursorline
+            vim.wo.cursorlineopt = prev_cursorlineopt
+        end
+    })
+
+    local last_valid_cursor_pos = nil
     local diffed_file_names = {}
     for file in vim.fn.system(name_only_cmd):gmatch("[^\r\n]+") do
         table.insert(diffed_file_names, file)
@@ -451,19 +463,36 @@ M.display_delta_directory = function(cmd, cmd_ui)
                     buffer = term_buf,
                     callback = function()
                         local term_buf_cur_line = vim.api.nvim_get_current_line()
+                        local term_buf_cur_cursor_pos = vim.api.nvim_win_get_cursor(0)
                         local matching_line_number = string.match(term_buf_cur_line, '⋮%s*(%d+)')
-                        current_line_number = matching_line_number
+                        local git_delta_linenumber_artifacts = string.match(term_buf_cur_line, '(.*│)')
+                        if matching_line_number ~= nil then
+                            last_valid_cursor_pos = {
+                                tonumber(matching_line_number),
+                                math.max(term_buf_cur_cursor_pos[2] - string.len(git_delta_linenumber_artifacts or ''), 0)
+                            }
+                            vim.wo.cursorline = true
+                            vim.wo.cursorlineopt = 'screenline'
+                        else
+                            vim.wo.cursorline = prev_cursorline
+                            vim.wo.cursorlineopt = prev_cursorlineopt
+                        end
+
                         -- keep in mind cur_line refers to the actual line within the term window, not the line it's referring to in the file
-                        local cur_line = vim.api.nvim_win_get_cursor(0)[1]
+                        local cur_line = term_buf_cur_cursor_pos[1]
                         if line_file_map[cur_line] == nil then
                             for i = cur_line, 1, -1 do
                                 local line_content = vim.api.nvim_buf_get_lines(term_buf, i - 1, i, false)[1]
                                 local trimmed = vim.trim(line_content)
+                                local found = false
                                 for _, file in ipairs(diffed_file_names) do
                                     if trimmed == file then
                                         table.insert(line_file_map, cur_line, file)
-                                        return
+                                        found = true
                                     end
+                                end
+                                if found then
+                                    break
                                 end
                             end
                         end
@@ -494,12 +523,11 @@ M.display_delta_directory = function(cmd, cmd_ui)
 
     vim.api.nvim_buf_set_name(term_buf, cmd)
 
-    -- TODO currently jumps to chosen line number, but not the exact word. Originally didn't see the value, now I do, may be worth implementing
     local jump_to_chosen_diff = function()
-        if current_line_number ~= nil then
+        if last_valid_cursor_pos ~= nil then
             local success, err = pcall(function()
                 vim.cmd('e ' .. vim.fn.fnameescape(current_file))
-                vim.api.nvim_win_set_cursor(0, { tonumber(current_line_number), 0 })
+                vim.api.nvim_win_set_cursor(0, last_valid_cursor_pos)
                 vim.cmd('normal! zz')
             end)
             if not success then
