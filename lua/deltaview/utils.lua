@@ -187,6 +187,7 @@ end
 
 --- WARNING: do not construct your own local_persisted_ui unless you've read append_cmd_ui
 --- uses vim.cmd to display a ui. Uses a table in the scope to be able to construct a ui.
+--- the cmd ui allows for displaying exactly one dynamic message, but it allows you to display other things alongside your chosen message
 --- ex: I want two things in my ui. However, I only want this ui per diff buffer. In the function where I create my diff buffer, create a table. Because of closure, that scoped variable can be reused in other functions. A ui can be persisted, then any time I want to display it, I can.
 --- @param local_persisted_ui table the table declared in the scope where we want this ui to be shared
 --- @param ui string | nil the ui I want to display 
