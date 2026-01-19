@@ -19,7 +19,7 @@ https://github.com/user-attachments/assets/ef732ea7-e2b5-4167-8d9d-f12052f94c9d
 ## Features
 
 - **Inline diff viewing**: View diffs on top of your code using delta's syntax highlighting
-- **Context specification**: Choose context when diffing paths, as to be able to search amongst your modified code
+- **Custom Context**: Choose how many lines of context to see when diffing a path
 - **Cursor maintenance**: Viewing a diff from a buffer keeps your cursor where it was, and viewing code from a diff keeps your cursor where you want it to be. Easily transition between reading and writing.
 - **Custom File Picker**: Review a large scope of changes
 - **Custom UI**: Visual Indicators for hunk and file count
@@ -119,8 +119,8 @@ When viewing a diff (DeltaView or Delta):
 | `<Esc>` or `q` | Return to source file |
 | `<Tab>` | Jump to next hunk |
 | `<Shift-Tab>` | Jump to previous hunk |
-| `]f` | Open next file in menu (if opened from DeltaMenu) |
-| `[f` | Open previous file in menu (if opened from DeltaMenu) |
+| `]f` | Open next file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
+| `[f` | Open previous file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
 
 When viewing a diff (Delta):
 

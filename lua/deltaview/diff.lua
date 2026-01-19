@@ -12,7 +12,6 @@ M.create_diff_menu_pane = function(diffing_function, ref)
     end
 
     -- check if cwd matches git root
-    -- TODO: allow diff menu to work when cwd does not match the git root.
     if not utils.is_cwd_git_root() then
         print('ERROR: Current working directory must be the git repository root to use DeltaView Menu.')
         return
@@ -308,6 +307,7 @@ M.display_delta_file = function(cmd, cmd_ui, on_ready_callback)
         on_exit = function()
             vim.schedule(function()
                 -- place cursor upon entry
+                -- TODO does not handle wrapped lines well. When entering while cursor is on a wrapped line, it enters at the right line but the wrong position
                 local diff_buf_lines = vim.api.nvim_buf_get_lines(term_buf, 0, -1, false)
                 for key, value in ipairs(diff_buf_lines) do
                     if string.match(value, '⋮%s*' .. cur_cursor_pos[1]) ~= nil then
@@ -331,6 +331,7 @@ M.display_delta_file = function(cmd, cmd_ui, on_ready_callback)
                 end
 
                 -- update where cursor should be upon exit
+                -- TODO does not handle wrapped lines well. When exiting while cursor is on a wrapped line, it exits at the right line but the wrong position
                 vim.api.nvim_create_autocmd('CursorMoved', {
                     buffer = term_buf,
                     callback = function()
@@ -485,8 +486,9 @@ M.display_delta_directory = function(cmd, cmd_ui, on_ready_callback)
                 vim.api.nvim_create_autocmd('CursorMoved', {
                     buffer = term_buf,
                     callback = function()
-                        -- TODO determine if this is a line that wrapped over from the above due to small viewport. to handle, treat is like the line it is
-                        local term_buf_cur_line = vim.api.nvim_get_current_line()
+                        -- TODO getting current line means this does not detect the wrapped part of a wrapped line as a real valid line.
+                        -- Figure out how to handle jumping (<CR>) on a wrapped line, highlighting a wrapped line, confirm that hunk jumping when cursor is on wrapped lines works as intended
+                        local term_buf_cur_line =vim.api.nvim_get_current_line()
                         local term_buf_cur_cursor_pos = vim.api.nvim_win_get_cursor(0)
                         local matching_line_number = string.match(term_buf_cur_line, '⋮%s*(%d+)')
                         local before_line_number = string.match(term_buf_cur_line, '%s*(%d+)%s*⋮')
@@ -567,9 +569,9 @@ M.display_delta_directory = function(cmd, cmd_ui, on_ready_callback)
         end
     end
 
-    --vim.keymap.set('n', '<Esc>', function()
-    --    vim.api.nvim_set_current_buf(cur_buf)
-    --end, { buffer = term_buf, noremap = true, silent = true })
+    vim.keymap.set('n', '<Esc>', function()
+        vim.api.nvim_set_current_buf(cur_buf)
+    end, { buffer = term_buf, noremap = true, silent = true })
 
     vim.keymap.set('n', 'q', function()
         vim.api.nvim_set_current_buf(cur_buf)
@@ -632,6 +634,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
     end
 
     -- flattened list for when there is only one file
+    --- @type Hunk[]
     local matches_flat = {}
     for _, file in ipairs(file_order) do
         for _, hunk in ipairs(matches[file]) do
@@ -710,9 +713,6 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
                 utils.display_cmd_ui(cmd_ui, M.viewconfig.dot:rep(left) .. M.viewconfig.circle .. M.viewconfig.dot:rep(right))
             end
         elseif diff_buffer_funcs.get_current_file ~= nil then
-            -- TODO bug related to async. get_current_file executes before the current_file value in the function is updated, using the prev value
-            -- currently only a bug in this function (in a cursormoved) because the keybinds that depdend on this always execute after the autocmds
-            -- can think about forcing this function to execute after the cursormoved stuff in the above function (on_exit)
             local diff_buffer_cur_file = diff_buffer_funcs.get_current_file()
             if diff_buffer_cur_file == nil then
                 local next_diff_message = ' [0/' .. #file_order .. '] ' .. M.viewconfig.next .. ' ' ..
@@ -769,7 +769,6 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         end
     })
 
-    -- TODO for fun, consider adding the following function as an object in each hunk. then we can do hunk.jump() or something
     --- @param hunk Hunk
     --- @param file string | nil
     local move_to_hunk = function(hunk, file)
@@ -840,7 +839,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
                 if file == diff_buffer_cur_file then
                     for i = #hunks, 1, -1 do
                         local hunk = hunks[i]
-                        if ((hunk.is_pure_deletion and cur_prev_line_number or cur_line_number) or get_line_number_before_negative_hunk() or get_line_number_before_empty_line()) 
+                        if ((hunk.is_pure_deletion and cur_prev_line_number or cur_line_number) or get_line_number_before_negative_hunk() or get_line_number_before_empty_line())
                             > (hunk.is_pure_deletion and hunk.before or hunk.after) then
                             move_to_hunk(hunk, file)
                             return
@@ -1036,12 +1035,12 @@ M.viewconfig = M.nerdfont_viewconfig
 M.keyconfig = {
     dm_toggle_keybind = "<leader>dm",
     dv_toggle_keybind = "<leader>dl",
+    d_toggle_keybind = "<leader>da",
     next_hunk = "<Tab>",
     prev_hunk = "<S-Tab>",
     next_diff = "]f",
     prev_diff = "[f",
     fzf_toggle = "alt-;",
-    d_toggle_keybind = "<leader>da",
     jump_to_line = "<CR>"
 }
 

@@ -14,7 +14,7 @@ end
 
 --- Get list of modified and untracked files
 --- @param ref string|nil Git ref to compare against (defaults to HEAD if nil). If nil, includes untracked files
---- @return SortedFiles list of file paths that have been modified or are untracked
+--- @return SortedFile[] list of file paths that have been modified or are untracked
 M.get_diffed_files = function(ref)
     -- diffed files
     local diffed = vim.fn.system({'git', 'diff', ref ~= nil and ref or 'HEAD', '--name-only'})
@@ -45,7 +45,7 @@ end
 
 --- @param files table list of diffed files
 --- @param ref string | nil target ref
---- @return SortedFiles sorted files
+--- @return SortedFile[] sorted files
 M.sort_diffed_files = function(files, ref)
     local dirstat = vim.fn.system({'git', 'diff', ref ~= nil and ref or 'HEAD', '-X', '--dirstat=lines,0'})
     if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
@@ -206,7 +206,16 @@ M.display_cmd_ui = function(local_persisted_ui, ui)
             end_message = end_message .. key .. "    "
         end
     end
-    vim.cmd('echo "' .. start_message .. ui .. "    " .. end_message .. '"')
+    -- if message exceeds viewport, requires an annoying confirmation with "ENTER TO CONTINUE". remove need for confirmation, crop message to viewport
+    local max_width = vim.api.nvim_win_get_width(0) - 10  -- leave some padding
+    local full_message = start_message .. ui .. "    " .. end_message
+    if #full_message > max_width then
+        -- truncate the message to fit within the viewport
+        local truncated = string.sub(full_message, 1, max_width - 3) .. "..."
+        vim.cmd('echo "' .. truncated .. '"')
+    else
+        vim.cmd('echo "' .. full_message .. '"')
+    end
 end
 
 --- meant to be used alongside display_cmd_ui
@@ -229,7 +238,7 @@ M.get_adjacent_files = function(diffed_files)
     local files = diffed_files.files
     local current_index = diffed_files.cur_idx
 
-    if #files == 0 or #files == 1 then
+    if files == nil or #files == 0 or #files == 1 then
         return nil
     end
 
@@ -257,7 +266,7 @@ M.get_adjacent_files = function(diffed_files)
     }
 end
 
---- @param sorted_files SortedFiles
+--- @param sorted_files SortedFile[]
 --- @return table list of file names
 M.get_filenames_from_sortedfiles = function(sorted_files)
     local files = {}
