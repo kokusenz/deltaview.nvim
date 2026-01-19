@@ -223,10 +223,12 @@ M.run_diff_against_file = function(filepath, ref)
     local diff_target_message = M.viewconfig.vs .. ' ' .. (M.diff_target_ref or 'HEAD')
     utils.append_cmd_ui(cmd_ui, diff_target_message, true)
 
-    --- @class DiffBufferFuncs table to expose functions to interact with the diff buffer
-    --- @field buf_id number
-    --- @field move_to_line function
-    --- @field get_current_file function | nil
+--- @alias MoveToLineFunction fun(line: number, before: boolean|nil, file: string|nil): nil
+
+--- @class DiffBufferFuncs table to expose functions to interact with the diff buffer
+--- @field buf_id number
+--- @field move_to_line MoveToLineFunction Move cursor to specified line in diff buffer
+--- @field get_current_file function | nil
 
     --- @param diff_buffer_funcs DiffBufferFuncs
     local on_ready_callback = function(diff_buffer_funcs)
@@ -343,12 +345,14 @@ M.display_delta_file = function(cmd, cmd_ui, on_ready_callback)
                     end
                 })
 
-                --- note: while file is defined here for consistency with the display_delta_directory move_to_line_wrapper, it is unused, as multiple files are not a factor in this workflow
-                --- @param line number # target line number to move to; moves to line post diff, not pre diff
-                --- @param file string | nil # file to move to. If unspecified, will move to the first found line
-                local move_to_line = function(line, file)
+                --- note: while file is defined here for consistency with the expected method signature move_to_line, it is unused, as multiple files are not a factor in this workflow
+                --- @type MoveToLineFunction
+                local move_to_line = function(line, before, file)
+                    assert(file == nil, "delta for a single file does not expect file as a specification for which line to move to")
                     for key, value in ipairs(diff_buf_lines) do
-                        if string.match(value, '⋮%s*' .. line .. '%s*│') ~= nil then
+                        local after_pattern = '⋮%s*' .. line .. '%s*│'
+                        local before_pattern = '%s*' .. line .. '%s*⋮'
+                        if string.match(value, before and before_pattern or after_pattern) ~= nil then
                             local success, err = pcall(function()
                                 vim.api.nvim_win_set_cursor(0, { key, 0 })
                                 vim.cmd('normal! zz')
@@ -361,7 +365,7 @@ M.display_delta_file = function(cmd, cmd_ui, on_ready_callback)
                     end
                 end
 
-                --- @class DiffBufferFuncs
+                --- @type DiffBufferFuncs
                 local funcs = { buf_id = term_buf, move_to_line = move_to_line, get_current_file = nil }
                 on_ready_callback(funcs)
             end)
@@ -512,14 +516,15 @@ M.display_delta_directory = function(cmd, cmd_ui, on_ready_callback)
 
                 local diff_buf_lines = vim.api.nvim_buf_get_lines(term_buf, 0, -1, false)
 
-                --- @param line number # target line number to move to; moves to line post diff, not pre diff
-                --- @param file string | nil # file to move to. If unspecified, will move to the first found line
-                local move_to_line = function(line, file)
+                --- @type MoveToLineFunction
+                local move_to_line = function(line, before, file)
                     for key, value in ipairs(diff_buf_lines) do
                         if file ~= nil and file ~= '' and get_file_at_line(key) ~= file then
                             goto continue
                         end
-                        if string.match(value, '⋮%s*' .. line .. '%s*│') ~= nil then
+                        local after_pattern = '⋮%s*' .. line .. '%s*│'
+                        local before_pattern = '%s*' .. line .. '%s*⋮'
+                        if string.match(value, before and before_pattern or after_pattern) ~= nil then
                             local success, err = pcall(function()
                                 vim.api.nvim_win_set_cursor(0, { key, 0 })
                                 vim.cmd('normal! zz')
@@ -537,7 +542,7 @@ M.display_delta_directory = function(cmd, cmd_ui, on_ready_callback)
                     return current_file
                 end
 
-                --- @class DiffBufferFuncs
+                --- @type DiffBufferFuncs
                 local funcs = { buf_id = term_buf, move_to_line = move_to_line, get_current_file = get_current_file}
                 on_ready_callback(funcs)
             end)
@@ -592,7 +597,12 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         return
     end
 
-    -- matches keyed by file, with ordered file list for iteration
+    --- @class Hunk
+    --- @field after number the line number after
+    --- @field before number the line number before
+    --- @field is_pure_deletion boolean
+
+    --- @class Dictionary<Hunk>: { [string] : Hunk[] }
     local matches = {}
     local file_order = {}
     local current_file = nil
@@ -605,21 +615,27 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
             matches[file] = {}
         end
 
-        local line_after = line:match('@@ %-%d+,?%d* %+(%d+),?%d* @@')
-        -- currently only looking at line_after. Works fine for if there's context, but if I have a fully deleted line and zero context
-        -- it can't detect the "after" line in the delta buffer. jump to line doesn't work.
-        -- an option is to start storing line_before as well, and jump to those as a fallback if line_after can't be found
-        -- think of other options
+        local line_before, line_after, additions = line:match('@@ %-(%d+),?%d* %+(%d+),?(%d*) @@')
         if line_after and current_file then
-            table.insert(matches[current_file], tonumber(line_after))
+            if tonumber(line_after) == nil or tonumber(line_before) == nil then
+                assert(false, "parsing line numbers from hunks failed")
+            end
+            local is_pure_deletion = additions == '0'
+            --- @type Hunk
+            local hunk = {
+                after = tonumber(line_after) or 1,
+                before = tonumber(line_before) or 1,
+                is_pure_deletion = is_pure_deletion
+            }
+            table.insert(matches[current_file], hunk)
         end
     end
 
     -- flattened list for when there is only one file
     local matches_flat = {}
     for _, file in ipairs(file_order) do
-        for _, line_num in ipairs(matches[file]) do
-            table.insert(matches_flat, line_num)
+        for _, hunk in ipairs(matches[file]) do
+            table.insert(matches_flat, hunk)
         end
     end
 
@@ -680,7 +696,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
             local cur_hunk = 1
             for i = 1, #matches_flat + 1, 1 do
                 if i == #matches_flat + 1
-                    or (matches_flat[i] > (cur_line_number or get_line_number_before_negative_hunk() or get_line_number_before_empty_line())) then
+                    or (matches_flat[i].after > (cur_line_number or get_line_number_before_negative_hunk() or get_line_number_before_empty_line())) then
                     cur_hunk = i
                     break
                 end
@@ -711,7 +727,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
                     local cur_hunk = 1
                     for i = 1, #hunks + 1, 1 do
                         if i == #hunks + 1
-                            or (hunks[i] > (cur_line_number or get_line_number_before_negative_hunk() or get_line_number_before_empty_line())) then
+                            or (hunks[i].after > (cur_line_number or get_line_number_before_negative_hunk() or get_line_number_before_empty_line())) then
                             cur_hunk = i
                             break
                         end
@@ -753,40 +769,52 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         end
     })
 
+    -- TODO for fun, consider adding the following function as an object in each hunk. then we can do hunk.jump() or something
+    --- @param hunk Hunk
+    --- @param file string | nil
+    local move_to_hunk = function(hunk, file)
+        if hunk.is_pure_deletion then
+            diff_buffer_funcs.move_to_line(hunk.before, true, file)
+            return
+        end
+        diff_buffer_funcs.move_to_line(hunk.after, false, file)
+    end
+
     vim.keymap.set('n', M.keyconfig.next_hunk, function()
         -- maybe add validation that file_order is unique
         if #file_order <= 1 then
             for i = 1, #matches_flat, 1 do
-                local line = matches_flat[i]
-                if (cur_line_number or get_line_number_before_negative_hunk() or get_line_number_before_empty_line()) < line then
-                    diff_buffer_funcs.move_to_line(line)
+                local hunk = matches_flat[i]
+                if ((hunk.is_pure_deletion and cur_prev_line_number or cur_line_number) or get_line_number_before_negative_hunk() or get_line_number_before_empty_line()) 
+                    < (hunk.is_pure_deletion and hunk.before or hunk.after) then
+                    move_to_hunk(hunk)
                     return
                 end
             end
             -- if we couldn't find a hunk (eg. we are past the last hunk) loop back around to the first hunk
-            diff_buffer_funcs.move_to_line(matches_flat[1])
+            move_to_hunk(matches_flat[1])
         elseif diff_buffer_funcs.get_current_file ~= nil then
             local diff_buffer_cur_file = diff_buffer_funcs.get_current_file()
             for idx, file in ipairs(file_order) do
                 local hunks = matches[file]
                 if file == diff_buffer_cur_file then
                     for i = 1, #hunks, 1 do
-                        local line = hunks[i]
-                        if (cur_line_number or get_line_number_before_negative_hunk() or get_line_number_before_empty_line()) < line then
-                            diff_buffer_funcs.move_to_line(line, file)
+                        local hunk = hunks[i]
+                        if ((hunk.is_pure_deletion and cur_prev_line_number or cur_line_number) or get_line_number_before_negative_hunk() or get_line_number_before_empty_line())
+                            < (hunk.is_pure_deletion and hunk.before or hunk.after) then
+                            move_to_hunk(hunk, file)
                             return
                         end
                     end
                     -- if we couldn't find a hunk (eg. we are past the last hunk) move to the next hunk in the next file
                     local next_file = file_order[idx+1 > #file_order and 1 or idx+1]
                     local next_file_hunks = matches[next_file]
-                    diff_buffer_funcs.move_to_line(next_file_hunks[1], next_file)
+                    move_to_hunk(next_file_hunks[1], next_file)
                     return
                 end
             end
-            -- if ending without finding a file, need fallback handling
-            -- move to first hunk
-            diff_buffer_funcs.move_to_line(matches_flat[1])
+            -- if ending without finding a file move to first hunk
+            move_to_hunk(matches_flat[1])
         else
             assert(false, "unreachable: multi-file diff should receive a get_current_file function")
         end
@@ -796,35 +824,37 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         -- maybe add validation that file_order is unique
         if #file_order <= 1 then
             for i = #matches_flat, 1, -1 do
-                local line = matches_flat[i]
-                if (cur_line_number or get_line_number_before_negative_hunk() or get_line_number_before_empty_line()) > line then
-                    diff_buffer_funcs.move_to_line(line)
+                local hunk = matches_flat[i]
+                if ((hunk.is_pure_deletion and cur_prev_line_number or cur_line_number) or get_line_number_before_negative_hunk() or get_line_number_before_empty_line())
+                    > (hunk.is_pure_deletion and hunk.before or hunk.after) then
+                    move_to_hunk(hunk)
                     return
                 end
             end
             -- if we couldn't find a hunk (eg. we are before the first hunk) loop back around to the last hunk
-            diff_buffer_funcs.move_to_line(matches_flat[#matches_flat])
+            move_to_hunk(matches_flat[#matches_flat])
         elseif diff_buffer_funcs.get_current_file ~= nil then
             local diff_buffer_cur_file = diff_buffer_funcs.get_current_file()
             for idx, file in ipairs(file_order) do
                 local hunks = matches[file]
                 if file == diff_buffer_cur_file then
                     for i = #hunks, 1, -1 do
-                        local line = hunks[i]
-                        if (cur_line_number or get_line_number_before_negative_hunk() or get_line_number_before_empty_line()) > line then
-                            diff_buffer_funcs.move_to_line(line, file)
+                        local hunk = hunks[i]
+                        if ((hunk.is_pure_deletion and cur_prev_line_number or cur_line_number) or get_line_number_before_negative_hunk() or get_line_number_before_empty_line()) 
+                            > (hunk.is_pure_deletion and hunk.before or hunk.after) then
+                            move_to_hunk(hunk, file)
                             return
                         end
                     end
                     -- if we couldn't find a hunk (eg. we are before the first hunk) pick last hunk in prev file
                     local next_file = file_order[idx-1 < 1 and #file_order or idx-1]
                     local next_file_hunks = matches[next_file]
-                    diff_buffer_funcs.move_to_line(next_file_hunks[#next_file_hunks], next_file)
+                    move_to_hunk(next_file_hunks[#next_file_hunks], next_file)
                     return
                 end
             end
             -- move to last hunk
-            diff_buffer_funcs.move_to_line(matches_flat[#matches_flat])
+            move_to_hunk(matches_flat[#matches_flat])
         else
             assert(false, "unreachable: multi-file diff should receive a get_current_file function")
         end
@@ -837,13 +867,13 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
                 if file == diff_buffer_cur_file then
                     local next_file = file_order[idx + 1 > #file_order and 1 or idx + 1]
                     local next_file_hunks = matches[next_file]
-                    diff_buffer_funcs.move_to_line(next_file_hunks[1], next_file)
+                    move_to_hunk(next_file_hunks[1], next_file)
                     return
                 end
             end
             -- move to first file's first hunk if output of get_current_file cannot be found (for example is returning nil)
             local first_file = file_order[1]
-            diff_buffer_funcs.move_to_line(matches[first_file][1], first_file)
+            move_to_hunk(matches[first_file][1], first_file)
         end, { buffer = diff_buffer_funcs.buf_id, noremap = true, silent = true })
 
         vim.keymap.set('n', M.keyconfig.prev_diff, function()
@@ -852,13 +882,13 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
                 if file == diff_buffer_cur_file then
                     local prev_file = file_order[idx - 1 < 1 and #file_order or idx - 1]
                     local prev_file_hunks = matches[prev_file]
-                    diff_buffer_funcs.move_to_line(prev_file_hunks[1], prev_file)
+                    move_to_hunk(prev_file_hunks[1], prev_file)
                     return
                 end
             end
             -- move to last file's last hunk if output of get_current_file cannot be found (for example is returning nil)
             local last_file = file_order[#file_order]
-            diff_buffer_funcs.move_to_line(matches[last_file][1], last_file)
+            move_to_hunk(matches[last_file][1], last_file)
         end, { buffer = diff_buffer_funcs.buf_id, noremap = true, silent = true })
     end
 end

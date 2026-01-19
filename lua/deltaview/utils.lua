@@ -105,7 +105,7 @@ M.sort_diffed_files = function(files, ref)
     --- @field added number
     --- @field removed number
 
-    --- @alias SortedFiles SortedFile[]
+    --- @type SortedFile[]
     local sorted_files = {}
     for _, file in ipairs(files) do
         local stats = files_w_stats[file]
