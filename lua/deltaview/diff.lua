@@ -240,7 +240,7 @@ end
 --- @param path string The path to diff
 --- @param ref string|nil Optional git ref to compare against (defaults to HEAD). Can be branch, commit, tag, etc.
 M.run_diff_against_directory = function(path, ref)
-    local cmd = 'git diff -U'.. M.default_context .. ' ' .. (ref ~= nil and ref or 'HEAD') .. ' -- ' .. vim.fn.shellescape(path)
+    local cmd = 'git diff -U' .. M.default_context .. ' ' .. (ref ~= nil and ref or 'HEAD') .. ' -- ' .. vim.fn.shellescape(path)
     local hunk_cmd = 'git diff -U0 ' .. (ref ~= nil and ref or 'HEAD') .. ' -- ' .. vim.fn.shellescape(path)
 
     -- check if buf with name already exists
@@ -619,9 +619,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
 
         local line_before, line_after, additions = line:match('@@ %-(%d+),?%d* %+(%d+),?(%d*) @@')
         if line_after and current_file then
-            if tonumber(line_after) == nil or tonumber(line_before) == nil then
-                assert(false, "parsing line numbers from hunks failed")
-            end
+            assert(tonumber(line_after) ~= nil and tonumber(line_before) ~= nil, "parsing line numbers from hunks failed")
             local is_pure_deletion = additions == '0'
             --- @type Hunk
             local hunk = {
@@ -641,6 +639,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
             table.insert(matches_flat, hunk)
         end
     end
+    assert(#matches_flat > 0, "no hunks found")
 
     if #file_order > 1 and diff_buffer_funcs.get_current_file == nil then
         print('ERROR: setup_hunk_navigation requires get_current_file for multi-file diffs')

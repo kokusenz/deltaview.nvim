@@ -212,9 +212,9 @@ M.display_cmd_ui = function(local_persisted_ui, ui)
     if #full_message > max_width then
         -- truncate the message to fit within the viewport
         local truncated = string.sub(full_message, 1, max_width - 3) .. "..."
-        vim.cmd('echo "' .. truncated .. '"')
+        vim.api.nvim_echo({{truncated, "Normal"}}, false, {})
     else
-        vim.cmd('echo "' .. full_message .. '"')
+        vim.api.nvim_echo({{full_message, "Normal"}}, false, {})
     end
 end
 
