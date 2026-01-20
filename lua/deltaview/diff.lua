@@ -912,7 +912,7 @@ M.setup = function(opts)
     M.fzf_threshold = opts.fzf_threshold or M.fzf_threshold
     M.default_context = opts.default_context or M.default_context
 
-    -- TODO for DeltaView and Delta, keybind ? to open a keybind guide menu
+    local branches = vim.fn.systemlist('git branch --format="%(refname:short)"')
     vim.api.nvim_create_user_command('DeltaView', function(delta_view_opts)
         local success, err = pcall(function()
             M.diff_target_ref = (delta_view_opts.args ~= '' and delta_view_opts.args ~= nil) and delta_view_opts.args or M.diff_target_ref
@@ -934,6 +934,25 @@ M.setup = function(opts)
         end
     end, {
         nargs = '?',
+        complete = function(arg_lead, cmd_line, _)
+            local args = vim.split(cmd_line, '%s+')
+            if #args == 2 then
+                local refs = {'HEAD'}
+                for _, branch in ipairs(branches) do
+                    table.insert(refs, branch)
+                end
+
+                local filtered = {}
+                local arg_lead_lower = string.lower(arg_lead)
+                for _, ref in ipairs(refs) do
+                    if vim.startswith(string.lower(ref), arg_lead_lower) then
+                        table.insert(filtered, ref)
+                    end
+                end
+                return filtered
+            end
+            return {}
+        end,
         desc =
         'Open Diff View against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
     })
@@ -948,15 +967,20 @@ M.setup = function(opts)
         local success, err = pcall(function()
             M.diff_target_ref = (delta_view_opts.fargs[1] ~= nil and delta_view_opts.fargs[1] ~= '') and delta_view_opts.fargs[1] or M.diff_target_ref
             M.default_context = (delta_view_opts.fargs[2] ~= nil and delta_view_opts.fargs[2] ~= '') and delta_view_opts.fargs[2] or M.default_context
-            if delta_view_opts.fargs[3] ~= nil then
-                print('Delta only accepts up to two args')
-                return
-            end
+            local custom_path = delta_view_opts.fargs[3]
+            assert(delta_view_opts.fargs[4] == nil, 'Delta only accepts up to three args')
             M.diffed_files.files = nil
             M.diffed_files.cur_idx = nil
-            local path = vim.fn.expand('%:p')
-            if path == nil or path == '' then
-                path = vim.fn.getcwd()
+
+            local path
+            if custom_path ~= nil and custom_path ~= '' then
+                path = vim.fn.fnamemodify(custom_path, ':p')
+            else
+                path = vim.fn.expand('%:p')
+                if path == nil or path == '' then
+                    -- I want this to be usable from the nvim splashscreen, and there is no path
+                    path = vim.fn.getcwd()
+                end
             end
             M.run_diff_against_directory(path, M.diff_target_ref)
         end)
@@ -965,8 +989,37 @@ M.setup = function(opts)
         end
     end, {
         nargs = '*',
+        complete = function(arg_lead, cmd_line, _)
+            local args = vim.split(cmd_line, '%s+')
+
+            if #args == 2 then
+                local refs = {'HEAD'}
+                for _, branch in ipairs(branches) do
+                    table.insert(refs, branch)
+                end
+
+                local filtered = {}
+                local arg_lead_lower = string.lower(arg_lead)
+                for _, ref in ipairs(refs) do
+                    if vim.startswith(string.lower(ref), arg_lead_lower) then
+                        table.insert(filtered, ref)
+                    end
+                end
+                return filtered
+            end
+
+            if #args == 3 then
+                return {'0','1','2','3'}
+            end
+
+            if #args == 4 then
+                return vim.fn.getcompletion(arg_lead, 'file')
+            end
+
+            return {}
+        end,
         desc =
-        'Open Diff View against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
+        'Open Diff View for a path against a git ref. Usage: Delta [ref] [context] [path]. Defaults to current buffer path or cwd.'
     })
 
     if M.keyconfig.d_toggle_keybind ~= nil and M.keyconfig.d_toggle_keybind ~= '' then
@@ -985,6 +1038,25 @@ M.setup = function(opts)
         end
     end, {
         nargs = '?',
+        complete = function(arg_lead, cmd_line, _)
+            local args = vim.split(cmd_line, '%s+')
+            if #args == 2 then
+                local refs = {'HEAD'}
+                for _, branch in ipairs(branches) do
+                    table.insert(refs, branch)
+                end
+
+                local filtered = {}
+                local arg_lead_lower = string.lower(arg_lead)
+                for _, ref in ipairs(refs) do
+                    if vim.startswith(string.lower(ref), arg_lead_lower) then
+                        table.insert(filtered, ref)
+                    end
+                end
+                return filtered
+            end
+            return {}
+        end,
         desc =
         'Open Diff Menu against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
     })
