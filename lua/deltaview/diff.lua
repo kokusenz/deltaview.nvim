@@ -474,7 +474,7 @@ M.display_delta_directory = function(cmd, cmd_ui, on_ready_callback)
                             local trimmed = vim.trim(line_content)
                             for _, file in ipairs(diffed_file_names) do
                                 if trimmed == file then
-                                    table.insert(line_file_map, cur_line, file)
+                                    line_file_map[cur_line] = file
                                     goto found
                                 end
                             end
@@ -488,7 +488,7 @@ M.display_delta_directory = function(cmd, cmd_ui, on_ready_callback)
                     callback = function()
                         -- TODO getting current line means this does not detect the wrapped part of a wrapped line as a real valid line.
                         -- Figure out how to handle jumping (<CR>) on a wrapped line, highlighting a wrapped line, confirm that hunk jumping when cursor is on wrapped lines works as intended
-                        local term_buf_cur_line =vim.api.nvim_get_current_line()
+                        local term_buf_cur_line = vim.api.nvim_get_current_line()
                         local term_buf_cur_cursor_pos = vim.api.nvim_win_get_cursor(0)
                         local matching_line_number = string.match(term_buf_cur_line, '⋮%s*(%d+)')
                         local before_line_number = string.match(term_buf_cur_line, '%s*(%d+)%s*⋮')
@@ -895,7 +895,7 @@ end
 M.setup = function(opts)
     -- considerations for opts:
     --- @class DeltaViewOpts
-    --- @field use_nerdfonts boolean | nil
+    --- @field use_nerdfonts boolean | nil Defaults to true
     --- @field keyconfig KeyConfig | nil
     --- @field show_verbose_nav boolean | nil Show both prev and next filenames (true) or just position + next (false, default)
     --- @field fzf_threshold number | nil if the number of diffed files is equal to or greater than this threshold, it will show up in a fuzzy finding picker. Default to 10. Set to 1 or 0 if you would always like a fuzzy picker

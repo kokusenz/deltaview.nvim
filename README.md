@@ -143,8 +143,8 @@ All keybindings are configurable
 
 ```lua
 require('deltaview').setup({
-  -- Enable nerd font icons for a prettier UI
-  use_nerdfonts = true,
+  -- Disable nerd font icons if uninstalled (defaults to true)
+  use_nerdfonts = false,
 
   -- Show both previous and next filenames when navigating
   -- false: shows "[2/5] -> next.lua"
@@ -186,10 +186,10 @@ require('deltaview').setup({
 
 ### View Configuration
 
-When `use_nerdfonts = true`, the UI uses nerd font icons:
+By default (`use_nerdfonts = true`), the UI uses nerd font icons:
 
 ```lua
--- With nerd fonts
+-- With nerd fonts (default)
 {
   dot = "",      -- Hunk indicator
   circle = "",   -- Current hunk indicator
@@ -198,7 +198,7 @@ When `use_nerdfonts = true`, the UI uses nerd font icons:
   prev = "󰁎"     -- Previous file indicator
 }
 
--- Without nerd fonts (default)
+-- Without nerd fonts
 {
   dot = "·",
   circle = "•",
