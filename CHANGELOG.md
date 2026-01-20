@@ -31,3 +31,12 @@ commit - 8a7bf251b420f1c75158a6c66a145ee26fbdccea
 
 - Nil filepath validation - 587052f2f7f9229452ceb38f52f7e5d46523df41
 - Line count parsing - fbc4303db0b65ac597c45c3a5f09c8f93393a6db
+
+## [0.1.1] - 2025-01-19
+
+### Added
+commit - c389a3efadc61765bd5c68c28a6170c897e4fac8
+
+- `:Delta` command to view diff of a path (directory or file). New custom ui with controllable lines of context, rather than unlimited
+- The code that sets up hunk ui now waits until after the terminal buffer has finished rendering the delta ui, to avoid async issues
+- Command ui is now truncated to fit the viewport
