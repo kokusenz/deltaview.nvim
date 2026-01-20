@@ -20,9 +20,6 @@ This plugin takes a less intrusive approach; display the delta pager output in a
 
 If you aren't looking for an inline diff view, or are just looking for a code review tool that is mature and feature rich, [codediff.nvim](https://github.com/esmuellert/codediff.nvim/blob/main/README.md) may be a better fit for you. This is a tool for those who prefer inline diff views.
 
-This code does not do anything impressive with regards to generating diffs, it simply integrates the inline diff view that delta provides into neovim.
-
-
 ==============================================================================
 SETUP/CONFIGURATION                                               *deltaview-setup*, *deltaview-configuration*
 
@@ -80,7 +77,7 @@ COMMANDS                                                  *deltaview-commands*
 :DeltaMenu [ref]        Opens the delta diff menu of the git directory. Uses the last ref that was used, or HEAD by default if ref is omitted.
 
                                                                 *:Delta*
-:Delta [ref] [context]  Open the delta diff view with configurable context for the current path. Does not have two way cursor tracking like DeltaView. <CR> to jump to the cursor is on. This works on both files and directories, by being in a directory path using netrw or some other filetree plugin. Context can be specified. This can be useful for searching your modified code (eg. looking for stray print statements). Show all files changed from HEAD, with +- 3 lines of context by default. Use `:Delta HEAD 0` to show all files changed from HEAD, with no lines of context.
+:Delta [ref] [context] [path]    Opens the delta diff view with configurable context for a path, without two way cursor tracking. Uses the last ref that was used, or HEAD by default. Uses the last specified context size, or 3 by default. Uses the current path (use netrw or some other filetree plugin to nav to it), or a specified path.
 
 ==============================================================================
 KEYBINDINGS                                            *deltaview-keybindings*

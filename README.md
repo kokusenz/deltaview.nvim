@@ -89,15 +89,17 @@ Open an interactive menu to select and view diffs from all modified files.
 :DeltaMenu develop   " Show all files changed from develop branch
 ```
 
-#### `:Delta [ref] [context]`
+#### `:Delta [ref] [context] [path]`
 
 Open the inline delta diff view for the current path. Does not have two way cursor tracking like DeltaView. <CR> to jump to the cursor is on.
-This works on both files and directories, by being in a directory path using netrw or some other filetree plugin. This can be useful for if you want to diff specific directories rather than the whole git directory.
+This works on both files and directories, by being in a directory path using netrw or some other filetree plugin. This can be useful for if you want to diff specific directories rather than the whole git directory. 
+If you are unable to navigate to a directory because you use something like [oil.nvim](https://github.com/stevearc/oil.nvim), you can pass the path as an argument
 Context can be specified. This can be useful for searching your modified code (eg. looking for stray print statements).
 
 ```vim
 :Delta               " Show all files changed from HEAD, with +- 3 lines of context by default
 :Delta HEAD 0        " Show all files changed from HEAD, with no lines of context.
+:Delta HEAD 10 src/   " Show all files changed from HEAD, with 10 lines of context, for everything in src/
 ```
 
 **Note**: 
@@ -215,6 +217,7 @@ By default, the UI uses nerd font icons:
     - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
     - [telescope](https://github.com/nvim-telescope/telescope.nvim)
     - [snacks](https://github.com/folke/snacks.nvim)
+- ? keybind to show a keybind menu, in deltaview and delta buffers
 - Split diffs, if there is demand. There are other plugins (and native neovim :DiffTool) that already do this, and do this well, so this is not a priority.
 - Remove the [Process Exited 0] message, if I can figure out how
 - delta blame view
