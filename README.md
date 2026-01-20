@@ -186,7 +186,7 @@ require('deltaview').setup({
 
 ### View Configuration
 
-By default (`use_nerdfonts = true`), the UI uses nerd font icons:
+By default, the UI uses nerd font icons:
 
 ```lua
 -- With nerd fonts (default)
@@ -211,17 +211,14 @@ By default (`use_nerdfonts = true`), the UI uses nerd font icons:
 ## Feature Roadmap
 
 - Tests
-- sorting doesn't seem to work properly...
-- Enable diffing subdirectories IN PROGRESS
 - Options for using the pickers in:
     - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
     - [telescope](https://github.com/nvim-telescope/telescope.nvim)
     - [snacks](https://github.com/folke/snacks.nvim)
-- Option for overriding default sorting with user provided sorting function
 - Split diffs, if there is demand. There are other plugins (and native neovim :DiffTool) that already do this, and do this well, so this is not a priority.
 - Remove the [Process Exited 0] message, if I can figure out how
-- Potentially implement grep. Originally, didn't see the value because many fuzzy finding plugins handle grepping, but putting all greps with context lines in one buffer allows for searching amongst the context of grepped code, and uses delta syntax highlighting
-- delta blame
+- delta blame view
+- delta grep. Originally, didn't see the value because many fuzzy finding plugins handle grepping, but putting all greps with lines of context in one buffer allows for searching amongst the context of grepped code. Delta provides nice formatting.
 
 ## License
 
