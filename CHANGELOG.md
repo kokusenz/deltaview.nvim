@@ -40,3 +40,7 @@ commit - c389a3efadc61765bd5c68c28a6170c897e4fac8
 - `:Delta` command to view diff of a path (directory or file). New custom ui with controllable lines of context, rather than unlimited
 - The code that sets up hunk ui now waits until after the terminal buffer has finished rendering the delta ui, to avoid async issues
 - Command ui is now truncated to fit the viewport
+
+### Fixes
+
+- allows passing path as arg to :Delta - dcfd515c43a272b5dcf4192e45a8375dc1449c2b
