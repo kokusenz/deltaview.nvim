@@ -51,6 +51,9 @@ require('deltaview').setup({
     -- Global keybind to toggle DeltaView (and exit diff if open)
     dv_toggle_keybind = "<leader>dl",
 
+    -- Global keybind to toggle Delta (and exit diff if open)
+    d_toggle_keybind = "<leader>da",
+
     -- Navigate between hunks in a diff
     next_hunk = "<Tab>",
     prev_hunk = "<S-Tab>",
@@ -61,6 +64,9 @@ require('deltaview').setup({
 
     -- Change diff menu view to quickselect (when in fzf mode)
     fzf_toggle = "alt-;",
+
+    -- Jump to line in view opened by Delta
+    jump_to_line = "<CR>"
   }
 })
 
@@ -68,6 +74,43 @@ require('deltaview').setup({
 COMMANDS                                                  *deltaview-commands*
 
                                                                 *:DeltaView*
-:DeltaView [ref]        Opens the delta diff view on the buffer you are on. Uses the last ref that was used, or HEAD by default if ref is omitted.
+:DeltaView [ref]        Opens the delta diff view on the buffer you are on. Uses the last ref that was used, or HEAD by default if ref is omitted. This uses Delta's syntax highlighting to mock an inline view of the full file with two way cursor tracking. The cursor is placed at the right location upon entry, and placed at the right location upon exit.
+
                                                                 *:DeltaMenu*
 :DeltaMenu [ref]        Opens the delta diff menu of the git directory. Uses the last ref that was used, or HEAD by default if ref is omitted.
+
+                                                                *:Delta*
+:Delta [ref] [context]  Open the delta diff view with configurable context for the current path. Does not have two way cursor tracking like DeltaView. <CR> to jump to the cursor is on. This works on both files and directories, by being in a directory path using netrw or some other filetree plugin. Context can be specified. This can be useful for searching your modified code (eg. looking for stray print statements). Show all files changed from HEAD, with +- 3 lines of context by default. Use `:Delta HEAD 0` to show all files changed from HEAD, with no lines of context.
+
+==============================================================================
+KEYBINDINGS                                            *deltaview-keybindings*
+
+Global keybindings:
+
+| Key | Action |
+|-----|--------|
+| `<leader>dl` | :DeltaView |
+| `<leader>dm` | :DeltaMenu |
+| `<leader>da` | :Delta |
+
+When viewing a diff (DeltaView):
+
+| Key | Action |
+|-----|--------|
+| `<Tab>` | Next hunk |
+| `<S-Tab>` | Previous hunk |
+| `]f` | Open next file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
+| `[f` | Open previous file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
+
+When viewing a diff (Delta):
+
+| Key | Action |
+|-----|--------|
+| `<CR>` | Jump to line |
+
+When in the file menu:
+
+| Key | Action |
+|-----|--------|
+| Select a file | Open diff for that file |
+| `alt-;` | Change fzf to quickselect (in fzf mode) |
