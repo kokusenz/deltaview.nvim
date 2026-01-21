@@ -80,6 +80,16 @@ COMMANDS                                                  *deltaview-commands*
 :Delta [ref] [context] [path]    Opens the delta diff view with configurable context for a path, without two way cursor tracking. Uses the last ref that was used, or HEAD by default. Uses the last specified context size, or 3 by default. Uses the current path (use netrw or some other filetree plugin to nav to it), or a specified path.
 
 ==============================================================================
+MODULE FUNCTIONS                                            *deltaview-functions*
+The module exposed by require('deltaview') exposes .setup({}) for configuration, but also exposes two bonus functions.
+
+                                                                *is_deltaview_buffer*
+is_deltaview_buffer(bufnr)  Checks if a buffer is a deltaview diff buffer. Takes in a buffer id, or defaults to current buffer if param is nil. Intended for personal scripting.
+
+                                                                *register_ui_select*
+register_ui_select()    Allows the user to opt into using the DeltaView quick picker as their vim ui select. Comes with the default labeling strategy and keybinds, as well as expanded opts to use.
+
+==============================================================================
 KEYBINDINGS                                            *deltaview-keybindings*
 
 Global keybindings:
