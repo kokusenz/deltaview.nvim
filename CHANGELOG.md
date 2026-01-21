@@ -45,4 +45,4 @@ commit - c389a3efadc61765bd5c68c28a6170c897e4fac8
 ### Fixes
 
 - allows passing path as arg to :Delta - dcfd515c43a272b5dcf4192e45a8375dc1449c2b
-- refactors .setup to merge user provided config instead of requiring user to override via an after/ directory. changes nerdfonts to be consistent family
+- refactors .setup to merge user provided config instead of requiring user to override via an after/ directory. changes nerdfonts to be consistent family - https://github.com/kokusenz/deltaview.nvim/pull/12
