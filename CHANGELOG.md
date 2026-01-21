@@ -3,6 +3,7 @@
 All notable changes to deltaview.nvim will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Because lua is not compiled for a release, I am just choosing a number and specifying which commit I am describing.
+I try to attach a commit to each log, but in the initial pr, I may use the pr instead. Will change the pr to the commit hash (if merged) in a later pr.
 
 ## [Unreleased]
 
@@ -44,3 +45,4 @@ commit - c389a3efadc61765bd5c68c28a6170c897e4fac8
 ### Fixes
 
 - allows passing path as arg to :Delta - dcfd515c43a272b5dcf4192e45a8375dc1449c2b
+- refactors .setup to merge user provided config instead of requiring user to override via an after/ directory. changes nerdfonts to be consistent family - https://github.com/kokusenz/deltaview.nvim/pull/12

@@ -34,36 +34,6 @@ https://github.com/user-attachments/assets/ef732ea7-e2b5-4167-8d9d-f12052f94c9d
 - Git
 - (Optional) [fzf](https://github.com/junegunn/fzf) for a fuzzy finder
 
-## Installation
-
-[vim.pack](https://github.com/neovim/neovim/pull/34009)
-
-```lua
-vim.pack.add({ 'https://github.com/kokusenz/deltaview.nvim.git'})
-```
-
-Or your favorite plugin manager:
-
-```lua
--- example: vim plug
-Plug('kokusenz/deltaview.nvim')
-```
-
-No setup needed. If you want to modify configuration, put it in the `/after/plugin` directory.
-
-```lua
-require('deltaview').setup({
-    -- configuration here
-    -- example:
-    keyconfig = {
-        dv_toggle_keybind = "<leader>dd"
-    },
-    use_nerdfonts = false
-})
-```
-
-The fzf file picker might be available out of the box, depending on how it was installed. If it does not work, you may need [additional setup](https://github.com/junegunn/fzf/blob/master/README-VIM.md) in your neovim config. Try adding the fzf binary to your `&runtimepath`, or installing fzf's vim integration using a package manager.
-
 ## Usage
 
 ### Commands
@@ -105,6 +75,36 @@ Context can be specified. This can be useful for searching your modified code (e
 **Note**: 
 - All commands use the last ref used. If `:DeltaMenu main` was used, future calls to `:DeltaMenu`, `:DeltaView`, and `:Delta` will default to `main` instead of `HEAD`.
 - This plugin requires Neovim's current working directory (`:pwd`) to be the git repository root. Use `:cd` to navigate to the git root if needed.
+
+## Installation
+
+[vim.pack](https://github.com/neovim/neovim/pull/34009)
+
+```lua
+vim.pack.add({ 'https://github.com/kokusenz/deltaview.nvim.git'})
+```
+
+Or your favorite plugin manager:
+
+```lua
+-- example: vim plug
+Plug('kokusenz/deltaview.nvim')
+```
+
+No setup needed by default. You can configure if you want:
+
+```lua
+require('deltaview').setup({
+    -- configuration here
+    -- example:
+    keyconfig = {
+        dv_toggle_keybind = "<leader>dd"
+    },
+    use_nerdfonts = false
+})
+```
+
+The fzf file picker might be available out of the box, depending on how it was installed. If it does not work, you may need [additional setup](https://github.com/junegunn/fzf/blob/master/README-VIM.md) in your neovim config. Try adding the fzf binary to your `&runtimepath`, or installing fzf's vim integration using a package manager.
 
 ### Default Keybindings
 
@@ -193,11 +193,11 @@ By default, the UI uses nerd font icons:
 ```lua
 -- With nerd fonts (default)
 {
-  dot = "",      -- Hunk indicator
-  circle = "",   -- Current hunk indicator
-  vs = "",      -- "versus" symbol in menu header
-  next = "󰁕",    -- Next file indicator
-  prev = "󰁎"     -- Previous file indicator
+  dot = "󰧟", -- nf-md-circle_small, hunk indicator
+  circle = "󰧞", -- nf-md-circle_medium, current hunk indicator
+  vs = "", -- nf-seti-git, "versus" symbol in menu header
+  next = "󰁕", -- nf-md-arrow_right_thick, next file indicator
+  prev = "󰁎" -- nf-md-arrow_left_thick, previous file indicator
 }
 
 -- Without nerd fonts
@@ -210,23 +210,23 @@ By default, the UI uses nerd font icons:
 }
 ```
 
+## Troubleshooting
+- :help DeltaView
+- Reach out via an issue
+
 ## Feature Roadmap
 
-- Tests
 - Options for using the pickers in:
     - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
     - [telescope](https://github.com/nvim-telescope/telescope.nvim)
     - [snacks](https://github.com/folke/snacks.nvim)
 - ? keybind to show a keybind menu, in deltaview and delta buffers
-- Split diffs, if there is demand. There are other plugins (and native neovim :DiffTool) that already do this, and do this well, so this is not a priority.
-- Remove the [Process Exited 0] message, if I can figure out how
+- handling for neovim light colorschemes
 - delta blame view
 - delta grep. Originally, didn't see the value because many fuzzy finding plugins handle grepping, but putting all greps with lines of context in one buffer allows for searching amongst the context of grepped code. Delta provides nice formatting.
-
-## License
-
-MIT
+- Split diffs, if there is demand. There are other plugins (and native neovim :DiffTool) that already do this, and do this well, so this is not a priority.
+- Tests
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit issues or pull requests.
+Contributions are welcome. CONTRIBUTING.md coming soon.

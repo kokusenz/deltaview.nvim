@@ -4,6 +4,9 @@
 deltaview-commands	deltaview.txt	/*deltaview-commands*
 deltaview-configuration	deltaview.txt	/*deltaview-configuration*
 deltaview-contents	deltaview.txt	/*deltaview-contents*
+deltaview-functions	deltaview.txt	/*deltaview-functions*
 deltaview-introduction	deltaview.txt	/*deltaview-introduction*
 deltaview-keybindings	deltaview.txt	/*deltaview-keybindings*
 deltaview.txt	deltaview.txt	/*deltaview.txt*
+is_deltaview_buffer	deltaview.txt	/*is_deltaview_buffer*
+register_ui_select	deltaview.txt	/*register_ui_select*
