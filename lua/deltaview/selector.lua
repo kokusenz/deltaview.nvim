@@ -58,7 +58,8 @@ M.ui_select = function(items, opts, on_choice)
 
     vim.api.nvim_set_option_value('modifiable', false, { buf = buf })
 
-    local win_opts = M.get_opts(opts.win_predefined, opts.prompt, #lines)
+    local width = math.min(90, vim.o.columns - 4)
+    local win_opts = M.get_opts(opts.win_predefined, opts.prompt, M.calculate_display_height(lines, width), width)
     if opts.win_predefined == 'hsplit' then
         vim.api.nvim_buf_set_name(buf, opts.prompt)
     end
@@ -141,15 +142,29 @@ M.label_item_default = function(format_item)
     end
 end
 
+--- Calculate the display height for lines accounting for wrapping
+--- @param lines table List of lines to display
+--- @param width number The width of the window
+--- @return number The total display height accounting for wrapped lines
+M.calculate_display_height = function(lines, width)
+    local total_height = 0
+    for _, line in ipairs(lines) do
+        local effective_width = math.max(1, width - 2)
+        local line_length = vim.fn.strchars(line)
+        local rows_needed = math.ceil(line_length / effective_width)
+        total_height = total_height + rows_needed
+    end
+    return total_height
+end
+
 --- Get window options for the ui_select window
 --- @param win_predefined string Window type: 'center', 'bottom', or 'hsplit'
 --- @param prompt string|nil The prompt text to display in the window title
 --- @param height number The height of the window
+--- @param width number The width of the window
 --- @return table Window options table for nvim_open_win
-M.get_opts = function(win_predefined, prompt, height)
+M.get_opts = function(win_predefined, prompt, height, width)
     -- creating buffer ui
-    local width = math.min(90, vim.o.columns - 4)
-
     local center_win_opts = {
         relative = 'editor',
         width = width,
