@@ -161,9 +161,11 @@ M.get_opts = function(win_predefined, prompt, lines)
     -- use simple line count for initial height, height will be adjusted after window creation based on actual width and borders
 
     if win_predefined == 'hsplit' then
+        -- can use width of cur window, because hsplit
+        local height = M.calculate_display_height(lines, vim.api.nvim_win_get_width(0))
         return {
             split = 'below',
-            height = #lines,
+            height = height + 1,
             win = 0,
         }
     end
