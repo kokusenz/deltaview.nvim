@@ -1,4 +1,13 @@
 local M = {}
+
+---@enum valid_select_views
+M.VIEWS = {
+    center = 'center',
+    bottom = 'bottom',
+    hsplit = 'hsplit'
+}
+local default_select_view = M.VIEWS.center
+
 --- custom vim.ui.select implementation with extra custom opts
 --- @param items table List of items to select from
 --- @param opts table Options table with fields:
@@ -59,7 +68,7 @@ M.ui_select = function(items, opts, on_choice)
     vim.api.nvim_set_option_value('modifiable', false, { buf = buf })
 
 
-    local win_opts = M.get_opts(opts.win_predefined, opts.prompt, lines)
+    local win_opts = M.get_opts(opts.win_predefined or default_select_view, opts.prompt, lines)
     if opts.win_predefined == 'hsplit' then
         vim.api.nvim_buf_set_name(buf, opts.prompt)
     end
@@ -208,6 +217,19 @@ M.calculate_display_height = function(lines, width)
         total_height = total_height + rows_needed
     end
     return total_height
+end
+
+--- @param view string
+M.register_default_select_view = function(view)
+    assert(view ~= nil, "nil view was attempted to be registered as the default view for DeltaView's vim-ui-select")
+    local found = false
+    for _, value in pairs(M.VIEWS) do
+        if value == view then
+            found = true
+        end
+    end
+    assert(found, "Invalid view string '" .. view .. "' was attempted to be registered as the default view for DeltaView's vim-ui-select")
+    default_select_view = view
 end
 
 return M

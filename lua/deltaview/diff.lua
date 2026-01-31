@@ -58,7 +58,7 @@ M.create_diff_menu_pane = function(diffing_function, ref)
         selector.ui_select(mods, {
             prompt = 'DeltaView Menu  |  ' .. config.viewconfig().vs .. ' ' .. (ref or 'HEAD'),
             label_item = utils.label_filepath_item,
-            win_predefined = config.options.quick_select_display,
+            win_predefined = config.options.quick_select_view,
             additional_data = changes_data
         }, on_select)
     end
