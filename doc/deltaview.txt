@@ -10,6 +10,9 @@ CONTENTS                                                  *deltaview-contents*
     2. Setup ............................... |deltaview-setup|
     3. Commands ............................ |deltaview-commands|
     4. Configuration ....................... |deltaview-config|
+    5. Module Functions .................... |deltaview-functions|
+    7. Keybindings ......................... |deltaview-keybindings|
+    6. Vim UI Select ....................... |deltaview-ui-select|
 
 ==============================================================================
 INTRODUCTION                                          *deltaview-introduction*
@@ -34,6 +37,12 @@ require('deltaview').setup({
   -- false: shows "[2/5] -> next.lua"
   -- true: shows "<- prev.lua [2/5] -> next.lua"
   show_verbose_nav = false,
+
+  -- configures the position of the quick select opened by DeltaMenu when under the fzf_threshold
+  -- 'hsplit': horizontal split window
+  -- 'center': centered floating window
+  -- 'bottom': centered at the bottom, floating window
+  quick_select_display = 'hsplit',
 
   -- Number of files threshold for switching to fzf
   -- When the number of modified files >= this value, use fzf instead of quickselect
@@ -121,3 +130,137 @@ When in the file menu:
 |-----|--------|
 | Select a file | Open diff for that file |
 | `alt-;` | Change fzf to quickselect (in fzf mode) |
+
+==============================================================================
+VIM.UI.SELECT INTERFACE                                   *deltaview-ui-select*
+
+DeltaView provides a custom vim.ui.select implementation that extends the
+standard Neovim interface with additional features like automatic label
+extraction, wrapped line height calculation, and configurable window
+positioning. This is used for the default quick select in DeltaMenu, but can be used in other applications.
+
+To use it as your default picker: >lua
+    require('deltaview').register_ui_select()
+<
+
+STANDARD OPTIONS                          *deltaview-ui-select-standard-opts*
+
+These options are compatible with standard vim.ui.select:
+
+    prompt           (string, optional)
+        Title displayed in the window border or as buffer name.
+        Default: 'Select item'
+
+    kind             (string, optional)
+        Arbitrary hint string (standard vim.ui.select, currently unused).
+
+    format_item      (function, optional)
+        Function to format items for display.
+        Signature: function(item) -> string
+        Default: tostring
+
+DELTAVIEW EXTENSIONS                     *deltaview-ui-select-extension-opts*
+
+Additional options specific to DeltaView's implementation:
+
+    win_predefined   (string, optional)
+        Window position type. Options:
+        - 'center'  : Centered floating window with border
+        - 'bottom'  : Floating window at bottom of screen with border
+        - 'hsplit'  : Horizontal split below current window
+        Default: 'center'
+
+    label_item       (function, optional)
+        Factory function that returns a label extractor function.
+        The factory is called twice: once to generate display labels,
+        and once to generate keybinding labels.
+
+        Signature: function() -> function(item) -> string
+
+        The returned function should:
+        - Extract a single-character label from each item
+        - Return unique labels for each item
+        - Labels become single-key shortcuts to select items
+
+        Default: Extracts first unused lowercase character from
+                 formatted item string
+
+    additional_data  (table, optional)
+        Extra data to display alongside items.
+        Format: { [item] = {string, string, ...} }
+
+        Each item can have a list of strings that will be displayed
+        after the item text, separated by ' │ '.
+
+        Example: { ["file.lua"] = {"+10", "-5"} }
+        Displays: "f: file.lua    │    +10 -5"
+
+    win_opts         (table, optional)
+        Custom window options to completely override defaults.
+        Should be a valid nvim_open_win() config table.
+        When provided, win_predefined is ignored.
+
+SELECTION KEYBINDINGS                      *deltaview-ui-select-keybindings*
+
+When the selection window is active:
+
+    <letter>         Select item with that label (auto-generated)
+    j / k            Navigate down / up
+    <CR>             Select item at cursor
+    <Esc>            Cancel selection
+
+    Note: Labels that conflict with navigation keys (j, k, Esc, CR)
+          will not have keybindings set.
+
+EXAMPLES                                       *deltaview-ui-select-examples*
+
+Basic usage with default center window: >lua
+    vim.ui.select({'Option 1', 'Option 2', 'Option 3'}, {
+        prompt = 'Choose an option',
+    }, function(choice, idx)
+        if choice then
+            print('Selected: ' .. choice)
+        end
+    end)
+<
+
+Using hsplit window for file selection: >lua
+    local files = {'init.lua', 'config.lua', 'utils.lua'}
+    vim.ui.select(files, {
+        prompt = 'Select File',
+        win_predefined = 'hsplit',
+    }, function(file, idx)
+        if file then
+            vim.cmd('edit ' .. file)
+        end
+    end)
+<
+
+Advanced: Custom formatting with additional data: >lua
+    local commits = {
+        {hash = 'a1b2c3d', msg = 'Fix bug'},
+        {hash = 'e4f5g6h', msg = 'Add feature'},
+    }
+
+    local additional_data = {}
+    for _, commit in ipairs(commits) do
+        additional_data[commit] = {commit.hash}
+    end
+
+    vim.ui.select(commits, {
+        prompt = 'Select Commit',
+        format_item = function(commit)
+            return commit.msg
+        end,
+        additional_data = additional_data,
+        win_predefined = 'bottom',
+    }, function(commit, idx)
+        if commit then
+            print('Selected: ' .. commit.hash)
+        end
+    end)
+<
+    Display format: >
+        f: Fix bug    │    a1b2c3d
+        a: Add feature    │    e4f5g6h
+<

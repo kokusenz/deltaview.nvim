@@ -58,14 +58,15 @@ M.ui_select = function(items, opts, on_choice)
 
     vim.api.nvim_set_option_value('modifiable', false, { buf = buf })
 
-    local width = math.min(90, vim.o.columns - 4)
-    local win_opts = M.get_opts(opts.win_predefined, opts.prompt, M.calculate_display_height(lines, width), width)
+
+    local win_opts = M.get_opts(opts.win_predefined, opts.prompt, lines)
     if opts.win_predefined == 'hsplit' then
         vim.api.nvim_buf_set_name(buf, opts.prompt)
     end
 
     local win = vim.api.nvim_open_win(buf, true, opts.win_opts or win_opts)
     vim.api.nvim_set_option_value('cursorline', true, { win = win })
+    vim.api.nvim_set_option_value('wrap', true, { win = win })
 
     -- track current selection
     local current_line = 1
@@ -105,7 +106,7 @@ M.ui_select = function(items, opts, on_choice)
     for idx, item in ipairs(items) do
         local label = label_item(item)
         if #label > 1 then
-            print('WARNING: keybinds wll not work if label is longer than one character')
+            print('WARNING: keybinds will not work if label is longer than one character')
         elseif label == 'j' or label == 'k' or label == '<Esc>' or label == '<CR>' then
             print('WARNING: cannot use reserved keys (j, k, Esc, CR) as label. keybind not set.')
         else
@@ -142,66 +143,71 @@ M.label_item_default = function(format_item)
     end
 end
 
---- Calculate the display height for lines accounting for wrapping
+--- Get window options for the ui_select window
+--- @param win_predefined string Window type: 'center', 'bottom', or 'hsplit'
+--- @param prompt string|nil The prompt text to display in the window title
+--- @param lines table The lines being displayed in the window
+--- @return table Window options table for nvim_open_win
+M.get_opts = function(win_predefined, prompt, lines)
+    -- use simple line count for initial height, height will be adjusted after window creation based on actual width and borders
+
+    if win_predefined == 'hsplit' then
+        -- can use width of cur window, because hsplit
+        local height = M.calculate_display_height(lines, vim.api.nvim_win_get_width(0))
+        return {
+            split = 'below',
+            win = 0,
+            height = height
+        }
+    end
+
+    local width = math.min(90, vim.o.columns - 4)
+    local height = M.calculate_display_height(lines, width)
+    if win_predefined == 'bottom' then
+        return {
+            relative = 'editor',
+            width = width,
+            height = height,
+            row = math.floor((vim.o.lines - height - 2)), -- -2 for border
+            col = math.floor((vim.o.columns - width) / 2),
+            style = 'minimal',
+            border = 'rounded',
+            title = ' ' .. (prompt or 'Select item') .. ' ',
+            title_pos = 'center',
+        }
+    end
+
+    if win_predefined == 'center' then
+        return {
+            relative = 'editor',
+            width = width,
+            height = height,
+            row = math.floor((vim.o.lines - height) / 2),
+            col = math.floor((vim.o.columns - width) / 2),
+            style = 'minimal',
+            border = 'rounded',
+            title = ' ' .. (prompt or 'Select item') .. ' ',
+            title_pos = 'center',
+        }
+    end
+
+    assert(false, "win_predefined passed into deltaview's vim-ui-select is not valid")
+    return {}
+end
+
+--- calculate the display height for lines accounting for wrapping
 --- @param lines table List of lines to display
 --- @param width number The width of the window
 --- @return number The total display height accounting for wrapped lines
 M.calculate_display_height = function(lines, width)
     local total_height = 0
     for _, line in ipairs(lines) do
-        local effective_width = math.max(1, width - 2)
+        local effective_width = math.max(1, width)
         local line_length = vim.fn.strchars(line)
         local rows_needed = math.ceil(line_length / effective_width)
         total_height = total_height + rows_needed
     end
     return total_height
-end
-
---- Get window options for the ui_select window
---- @param win_predefined string Window type: 'center', 'bottom', or 'hsplit'
---- @param prompt string|nil The prompt text to display in the window title
---- @param height number The height of the window
---- @param width number The width of the window
---- @return table Window options table for nvim_open_win
-M.get_opts = function(win_predefined, prompt, height, width)
-    -- creating buffer ui
-    local center_win_opts = {
-        relative = 'editor',
-        width = width,
-        height = height,
-        row = math.floor((vim.o.lines - height) / 2),
-        col = math.floor((vim.o.columns - width) / 2),
-        style = 'minimal',
-        border = 'rounded',
-        title = ' ' .. (prompt or 'Select item') .. ' ',
-        title_pos = 'center',
-    }
-
-    local bottom_win_opts = {
-        relative = 'editor',
-        width = width,
-        height = height,
-        row = math.floor((vim.o.lines - height - 2)), -- -2 for border
-        col = math.floor((vim.o.columns - width) / 2),
-        style = 'minimal',
-        border = 'rounded',
-        title = ' ' .. (prompt or 'Select item') .. ' ',
-        title_pos = 'center',
-    }
-
-    local hsplit_win_opts = {
-        split = 'below',
-        win = 0,
-        height = height -- math.max(require('deltaview.diff').fzf_threshold, 4) -- played around with capping height. not intuitive
-    }
-
-    if win_predefined == 'bottom' then
-        return bottom_win_opts
-    elseif win_predefined == 'hsplit' then
-        return hsplit_win_opts
-    else
-        return center_win_opts
-    end
 end
 
 return M
