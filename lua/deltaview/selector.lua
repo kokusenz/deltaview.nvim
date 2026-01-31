@@ -163,6 +163,7 @@ M.get_opts = function(win_predefined, prompt, lines)
     if win_predefined == 'hsplit' then
         return {
             split = 'below',
+            height = #lines,
             win = 0,
         }
     end
