@@ -153,6 +153,12 @@ require('deltaview').setup({
   -- true: shows "<- prev.lua [2/5] -> next.lua"
   show_verbose_nav = false,
 
+  -- Configures the position of the quick select opened by DeltaMenu when under the fzf_threshold
+  -- 'hsplit': horizontal split window
+  -- 'center': centered floating window
+  -- 'bottom': centered at the bottom, floating window
+  quick_select_view = 'hsplit',
+
   -- Number of files threshold for switching to fzf
   -- When the number of modified files >= this value, use fzf instead of quickselect
   -- Set to 0 or 1 to always use fzf

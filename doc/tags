@@ -7,6 +7,11 @@ deltaview-contents	deltaview.txt	/*deltaview-contents*
 deltaview-functions	deltaview.txt	/*deltaview-functions*
 deltaview-introduction	deltaview.txt	/*deltaview-introduction*
 deltaview-keybindings	deltaview.txt	/*deltaview-keybindings*
+deltaview-ui-select	deltaview.txt	/*deltaview-ui-select*
+deltaview-ui-select-examples	deltaview.txt	/*deltaview-ui-select-examples*
+deltaview-ui-select-extension-opts	deltaview.txt	/*deltaview-ui-select-extension-opts*
+deltaview-ui-select-keybindings	deltaview.txt	/*deltaview-ui-select-keybindings*
+deltaview-ui-select-standard-opts	deltaview.txt	/*deltaview-ui-select-standard-opts*
 deltaview.txt	deltaview.txt	/*deltaview.txt*
 is_deltaview_buffer	deltaview.txt	/*is_deltaview_buffer*
 register_ui_select	deltaview.txt	/*register_ui_select*
