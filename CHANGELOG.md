@@ -46,4 +46,4 @@ commit - c389a3efadc61765bd5c68c28a6170c897e4fac8
 
 - allows passing path as arg to :Delta - dcfd515c43a272b5dcf4192e45a8375dc1449c2b
 - refactors .setup to merge user provided config instead of requiring user to override via an after/ directory. changes nerdfonts to be consistent family - e4547f8e79387d0ff6521cc5fc225eddd583ee1b
-- deltamenu quickselect now shows all items if items wrap into multiple lines. supplementing helpdocs with vimuiselect details. exposes config to change the position of the deltamenu quickselect. register_ui_select now takes in default selector config.
+- deltamenu quickselect now shows all items if items wrap into multiple lines. supplementing helpdocs with vimuiselect details. exposes config to change the position of the deltamenu quickselect. register_ui_select now takes in default selector config. - https://github.com/kokusenz/deltaview.nvim/pull/15
