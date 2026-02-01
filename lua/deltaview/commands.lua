@@ -86,7 +86,7 @@ M.setup = function()
                     path = vim.fn.getcwd()
                 end
             end
-            diff.run_diff_against_directory(path, diff.diff_target_ref)
+            diff.run_diff_against_path(path, diff.diff_target_ref)
         end)
         if not success then
             print('ERROR: Failed to create diff view: ' .. tostring(err))
