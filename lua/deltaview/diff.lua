@@ -232,14 +232,15 @@ M.run_diff_against_file = function(filepath, ref)
     --- @param diff_buffer_funcs DiffBufferFuncs
     local on_ready_callback = function(diff_buffer_funcs)
         M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs, cmd_ui)
+        M.setup_yank_override(diff_buffer_funcs)
     end
     M.display_delta_file(cmd, cmd_ui, on_ready_callback)
 end
 
---- Run a git diff for the specified directory against a git ref
+--- Run a git diff for the specified path against a git ref
 --- @param path string The path to diff
 --- @param ref string|nil Optional git ref to compare against (defaults to HEAD). Can be branch, commit, tag, etc.
-M.run_diff_against_directory = function(path, ref)
+M.run_diff_against_path = function(path, ref)
     local context = M.default_context or config.options.default_context
     local cmd = 'git diff -U' .. context .. ' ' .. (ref ~= nil and ref or 'HEAD') .. ' -- ' .. vim.fn.shellescape(path)
     local hunk_cmd = 'git diff -U0 ' .. (ref ~= nil and ref or 'HEAD') .. ' -- ' .. vim.fn.shellescape(path)
@@ -277,6 +278,7 @@ M.run_diff_against_directory = function(path, ref)
     --- @param diff_buffer_funcs DiffBufferFuncs
     local on_ready_callback = function(diff_buffer_funcs)
         M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs, cmd_ui)
+        M.setup_yank_override(diff_buffer_funcs)
     end
     M.display_delta_directory(cmd, cmd_ui, on_ready_callback)
 end
@@ -892,6 +894,35 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
     end
 end
 
+--- @param diff_buffer_funcs DiffBufferFuncs
+M.setup_yank_override = function(diff_buffer_funcs)
+    vim.api.nvim_create_autocmd('TextYankPost', {
+        buffer = diff_buffer_funcs.buf_id,
+        callback = function(args)
+            local yanked = vim.v.event.regcontents
+            if yanked == nil or #yanked == 0 then
+                return
+            end
+            local register = vim.v.event.regname
+            local type = vim.v.event.regtype
+            local without_line_artifact_pattern = '%s*│(.+)'
+            local result = {}
+            for _, line in ipairs(yanked) do
+                local match = string.match(line, without_line_artifact_pattern)
+                if match ~= nil then
+                    table.insert(result, match)
+                else
+                    if #result == 0 then
+                        table.insert(result, line)
+                    else
+                        result[#result] = result[#result] .. line
+                    end
+                end
+            end
+            vim.fn.setreg(register, result, type)
+        end
+    })
+end
 
 --- enables the user to go to "next diff in menu" if the current diff was opened via the menu.
 --- @class DiffedFiles
