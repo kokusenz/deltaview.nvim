@@ -10,7 +10,7 @@ I try to attach a commit to each log, but in the initial pr, I may use the pr in
 ### [0.1.2] - 2025-01-31
 
 #### Added
-pr - 
+pr - https://github.com/kokusenz/deltaview.nvim/pull/16
 
 - yanking code from a Delta buffer will yank the text without any delta line number artifacts.
 
