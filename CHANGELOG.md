@@ -10,9 +10,13 @@ I try to attach a commit to each log, but in the initial pr, I may use the pr in
 ### [0.1.2] - 2025-01-31
 
 #### Added
-pr - https://github.com/kokusenz/deltaview.nvim/pull/16
+pr - 70f1d2d25c64f2c70afd4b4f92fd56dc29194899
 
 - yanking code from a Delta buffer will yank the text without any delta line number artifacts.
+
+#### Fixes
+
+- yanked code that includes empty lines would append line number artifacts onto the last valid yanked linked. Now, empty lines are yanked properly - https://github.com/kokusenz/deltaview.nvim/pull/17
 
 ## History
 
