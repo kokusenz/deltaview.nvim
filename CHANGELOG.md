@@ -16,7 +16,7 @@ pr - 70f1d2d25c64f2c70afd4b4f92fd56dc29194899
 
 #### Fixes
 
-- yanked code that includes empty lines would append line number artifacts onto the last valid yanked linked. Now, empty lines are yanked properly - https://github.com/kokusenz/deltaview.nvim/pull/16
+- yanked code that includes empty lines would append line number artifacts onto the last valid yanked linked. Now, empty lines are yanked properly - https://github.com/kokusenz/deltaview.nvim/pull/17
 
 ## History
 
