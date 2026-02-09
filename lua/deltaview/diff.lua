@@ -905,12 +905,13 @@ M.setup_yank_override = function(diff_buffer_funcs)
             end
             local register = vim.v.event.regname
             local type = vim.v.event.regtype
+            local has_line_artifact_pattern = '%s*│'
             local without_line_artifact_pattern = '%s*│(.+)'
             local result = {}
             for _, line in ipairs(yanked) do
-                local match = string.match(line, without_line_artifact_pattern)
-                if match ~= nil then
-                    table.insert(result, match)
+                if string.match(line, has_line_artifact_pattern) then
+                    local match = string.match(line, without_line_artifact_pattern)
+                    table.insert(result, match or '')
                 else
                     if #result == 0 then
                         table.insert(result, line)
