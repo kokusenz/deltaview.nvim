@@ -222,13 +222,6 @@ M.run_diff_against_file = function(filepath, ref)
     local diff_target_message = config.viewconfig().vs .. ' ' .. (M.diff_target_ref or 'HEAD')
     utils.append_cmd_ui(cmd_ui, diff_target_message, true)
 
---- @alias MoveToLineFunction fun(line: number, before: boolean|nil, file: string|nil): nil
-
---- @class DiffBufferFuncs table to expose functions to interact with the diff buffer
---- @field buf_id number
---- @field move_to_line MoveToLineFunction Move cursor to specified line in diff buffer
---- @field get_current_file function | nil
-
     --- @param diff_buffer_funcs DiffBufferFuncs
     local on_ready_callback = function(diff_buffer_funcs)
         M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs, cmd_ui)
@@ -925,10 +918,7 @@ M.setup_yank_override = function(diff_buffer_funcs)
     })
 end
 
---- enables the user to go to "next diff in menu" if the current diff was opened via the menu.
---- @class DiffedFiles
---- @field files table | nil
---- @field cur_idx number | nil
+--- @type DiffedFiles
 M.diffed_files = { files = nil, cur_idx = nil }
 
 --- stores the last used ref for future calls
@@ -936,5 +926,12 @@ M.diff_target_ref = nil
 
 --- stores the last used context for future delta calls
 M.default_context = nil
+
+--- @alias MoveToLineFunction fun(line: number, before: boolean|nil, file: string|nil): nil
+
+--- @class DiffBufferFuncs table to expose functions to interact with the diff buffer
+--- @field buf_id number
+--- @field move_to_line MoveToLineFunction Move cursor to specified line in diff buffer
+--- @field get_current_file function | nil
 
 return M

@@ -145,6 +145,9 @@ All keybindings are configurable
 
 ```lua
 require('deltaview').setup({
+  -- Use delta.lua as the diff viewer if true, uses dandavison/delta if false
+  use_delta_lua = true
+
   -- Disable nerd font icons if uninstalled (defaults to true)
   use_nerdfonts = false,
 

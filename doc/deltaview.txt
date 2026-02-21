@@ -30,6 +30,9 @@ No configuration is needed by default. If you want to change the configured defa
 
 setup>lua
 require('deltaview').setup({
+  -- Use delta.lua as the diff viewer if true, uses dandavison/delta if false
+  use_delta_lua = true
+
   -- Enable nerd font icons for a prettier UI
   use_nerdfonts = true,
 

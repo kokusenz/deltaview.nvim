@@ -276,5 +276,38 @@ M.get_filenames_from_sortedfiles = function(sorted_files)
     return files
 end
 
+--- Read file contents without opening a vim buffer
+--- @param filepath string Full path to the file
+--- @return table|nil lines Array of lines from the file, or nil if error
+M.read_file_lines = function(filepath)
+    local file = io.open(filepath, 'r')
+    if not file then
+        return nil
+    end
+
+    local lines = {}
+    for line in file:lines() do
+        table.insert(lines, line)
+    end
+    file:close()
+
+    return lines
+end
+
+--- Filter git refs based on user input (case insensitive)
+--- @param refs table List of git refs
+--- @param arg_lead string User's partial input
+--- @return table Filtered list of refs
+M.filter_refs = function(refs, arg_lead)
+    local filtered = {}
+    local arg_lead_lower = string.lower(arg_lead)
+    for _, ref in ipairs(refs) do
+        if vim.startswith(string.lower(ref), arg_lead_lower) then
+            table.insert(filtered, ref)
+        end
+    end
+    return filtered
+end
+
 
 return M
