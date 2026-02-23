@@ -1,5 +1,4 @@
 local M = {}
-local delta = require('delta')
 local utils = require('deltaview.utils')
 
 --- Run a git diff for the specified file against a git ref
@@ -38,7 +37,7 @@ M.run_git_diff_against_file = function(filepath, ref)
         return
     end
 
-    local data = delta.parse.get_diff_data_git(diffstring)[1]
+    local data = Delta.parse.get_diff_data_git(diffstring)[1]
 
     local file_lines = utils.read_file_lines(git_root .. '/' .. data.new_path)
     if file_lines == nil then
@@ -49,7 +48,7 @@ M.run_git_diff_against_file = function(filepath, ref)
     local s1 = ''
 
     if (data.old_path) then
-        local before = string.format('git show %s:%s', ref or 'HEAD', vim.fn.shellescape(data.old_path))
+        local before = string.format('git show %s:%s', ref and vim.fn.shellescape(ref) or 'HEAD', vim.fn.shellescape(data.old_path))
         handle = io.popen(before)
         if not handle then
             vim.notify("Failed to run git show", vim.log.levels.ERROR)
@@ -61,12 +60,12 @@ M.run_git_diff_against_file = function(filepath, ref)
         handle:close()
     end
 
-    local bufnr = delta.text_diff(s1, s2, data.language, {context = 1000})
+    local bufnr = Delta.text_diff(s1, s2, data.language, {context = 1000})
     vim.api.nvim_win_set_buf(0, bufnr)
-    delta.highlight_delta_artifacts(bufnr)
-    delta.syntax_highlight_diff_set(bufnr)
-    delta.diff_highlight_diff(bufnr)
-    delta.setup_delta_statuscolumn(bufnr)
+    Delta.highlight_delta_artifacts(bufnr)
+    Delta.syntax_highlight_diff_set(bufnr)
+    Delta.diff_highlight_diff(bufnr)
+    Delta.setup_delta_statuscolumn(bufnr)
 
     --local cmd_ui = {}
     --local diff_target_message = config.viewconfig().vs .. ' ' .. (M.diff_target_ref or 'HEAD')

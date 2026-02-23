@@ -35,7 +35,7 @@ end
 
 --- @type DeltaViewOpts
 M.defaults = {
-    use_deltalua = false,
+    use_deltalua = true,
     use_nerdfonts = true,
     show_verbose_nav = false,
     quick_select_view = 'hsplit',
