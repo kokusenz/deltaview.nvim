@@ -273,7 +273,7 @@ M.setup_legacy_delta_commands = function()
         local success, err = pcall(function()
             diff.diff_target_ref = (delta_menu_opts.args ~= '' and delta_menu_opts.args ~= nil) and delta_menu_opts.args or
                 diff.diff_target_ref
-            diff.create_diff_menu_pane(diff.run_diff_against_file_terminal, diff.diff_target_ref)
+            diff.create_diff_menu_pane(diff.run_diff_against_file, diff.diff_target_ref)
         end)
         if not success then
             print('ERROR: Failed to create diff menu: ' .. tostring(err))

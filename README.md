@@ -229,12 +229,8 @@ By default, the UI uses nerd font icons:
     - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
     - [telescope](https://github.com/nvim-telescope/telescope.nvim)
     - [snacks](https://github.com/folke/snacks.nvim)
-- ? keybind to show a keybind menu, in deltaview and delta buffers
-- handling for neovim light colorschemes
 - delta blame view
 - delta grep. Originally, didn't see the value because many fuzzy finding plugins handle grepping, but putting all greps with lines of context in one buffer allows for searching amongst the context of grepped code. Delta provides nice formatting.
-- Split diffs, if there is demand. There are other plugins (and native neovim :DiffTool) that already do this, and do this well, so this is not a priority.
-- Tests
 
 ## Contributing
 
