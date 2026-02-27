@@ -79,7 +79,7 @@ M.DeltaView = function(command_argument)
             or state.diff_target_ref
         state.diffed_files.files = nil
         state.diffed_files.cur_idx = nil
-        require('deltaview.view').run_git_diff_against_file(vim.fn.expand('%:p'), state.diff_target_ref)
+        require('deltaview.view').deltaview_file(state.diff_target_ref)
     end)
     if not success then
         print('ERROR: Failed to create diff view: ' .. tostring(err))
