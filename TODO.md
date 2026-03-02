@@ -33,6 +33,7 @@ __2. size of changes for new files is not properly processed or stored TODO WITH
 __3. hunk nav for when line numbers are out of order bugs out TODO WITH DELTA.LUA. once this is fixed, and the 1000 context bug is fixed, close the issue on github__
 __4. delta with 1000 context if files are less than that will bug out, DONE WITH DELTA.LUA verify this works__
 __5. highlighting can persist when using other methods besides esc to nav in and out of a delta buffer TODO WITH D.L__
+__5. Currently, we maintain consistency in cursor placement when going in and out with zz. We can actually do this without zz, let's figure it out TODO WITH D.L__
 4. <f3><b0><a7> in cmdui when concatenated
 6. deleted files should not be able to be nav'd to in the deltamenu
 

@@ -6,7 +6,7 @@ local utils = require('deltaview.utils')
 --- @return number | nil bufnr buf id of delta.lua buffer
 M.deltaview_file = function(ref)
     local filepath = vim.fn.expand('%:p')
-    local cur_buf = vim.api.nvim_get_current_buf()
+    local cur_bufnr = vim.api.nvim_get_current_buf()
     local cursor_placement = M.get_cursor_placement_current_buffer()
     local diff_bufnr = M.open_git_diff_buffer(filepath, ref)
     if diff_bufnr == nil then
@@ -19,6 +19,14 @@ M.deltaview_file = function(ref)
     end
     -- TODO create exit keybinds, where if invoked, bring the user back to cur_buf, and then calls place_cursor()
     -- in this entire flow of this orchestrator function, completely safe to assume vim.text.diff
+
+    vim.keymap.set('n', '<Esc>', function()
+        M.exit_to_buf_with_strategy(cur_bufnr, place_cursor)
+    end, { buffer = diff_bufnr, noremap = true, silent = true })
+
+    vim.keymap.set('n', 'q', function()
+        M.exit_to_buf_with_strategy(cur_bufnr, place_cursor)
+    end, { buffer = diff_bufnr, noremap = true, silent = true })
 end
 
 --- opens a delta.lua git diff buffer for the specified file against a git ref, using Delta.text_diff
@@ -138,7 +146,7 @@ end
 --- returns a function that, when invoked, opens the file to and places the cursor where the cursor was in the diff buffer. The function can fail if the cursor is not in a valid location.
 --- @param bufnr number buf_id of delta.lua buffer id
 --- @param winnr number win id of the buffer we are exiting to
---- @return function | nil place_cursor returns boolean whether the cursor was successfully placed. If used on a Delta.text_diff or Delta.patch_diff buffer, will not redirect to any filepath. If used on a Delta.git_diff buffer, will go to the filepath at the top
+--- @return nil | fun(): boolean place_cursor returns boolean whether the cursor was successfully placed. If used on a Delta.text_diff or Delta.patch_diff buffer, will not redirect to any filepath. If used on a Delta.git_diff buffer, will go to the filepath at the top
 M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr)
     local delta_files_data = vim.b[bufnr].delta_diff_data_set
 
@@ -218,6 +226,22 @@ M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr)
         vim.api.nvim_win_set_cursor(cursor_placement.winnr, cursor_placement.cursor)
         return true
     end
+end
+
+--- @param bufnr number
+--- @param strategy fun() : boolean
+M.exit_to_buf_with_strategy = function(bufnr, strategy)
+    local success, _ = pcall(function()
+        vim.api.nvim_set_current_buf(bufnr)
+        local success_moved = strategy()
+        if success_moved == false then
+            print('sadness')
+        end
+    end)
+    if not success then
+        vim.notify('Failed to return to original buffer', vim.log.levels.ERROR)
+    end
+
 end
 
 return M
