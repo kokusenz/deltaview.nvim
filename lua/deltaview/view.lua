@@ -13,20 +13,13 @@ M.deltaview_file = function(ref)
         return
     end
     M.place_cursor_delta_buffer(diff_bufnr, 0, cursor_placement)
-    local place_cursor = M.get_delta_buffer_cursor_exit_strategy(diff_bufnr, 0)
-    if place_cursor == nil then
+    local nav_back_and_place_cursor = M.get_delta_buffer_cursor_exit_strategy(diff_bufnr, 0, cur_bufnr)
+    if nav_back_and_place_cursor == nil then
         return
     end
-    -- TODO create exit keybinds, where if invoked, bring the user back to cur_buf, and then calls place_cursor()
-    -- in this entire flow of this orchestrator function, completely safe to assume vim.text.diff
 
-    vim.keymap.set('n', '<Esc>', function()
-        M.exit_to_buf_with_strategy(cur_bufnr, place_cursor)
-    end, { buffer = diff_bufnr, noremap = true, silent = true })
-
-    vim.keymap.set('n', 'q', function()
-        M.exit_to_buf_with_strategy(cur_bufnr, place_cursor)
-    end, { buffer = diff_bufnr, noremap = true, silent = true })
+    vim.keymap.set('n', '<Esc>', nav_back_and_place_cursor, { buffer = diff_bufnr, noremap = true, silent = true })
+    vim.keymap.set('n', 'q', nav_back_and_place_cursor, { buffer = diff_bufnr, noremap = true, silent = true })
 end
 
 --- opens a delta.lua git diff buffer for the specified file against a git ref, using Delta.text_diff
@@ -146,8 +139,9 @@ end
 --- returns a function that, when invoked, opens the file to and places the cursor where the cursor was in the diff buffer. The function can fail if the cursor is not in a valid location.
 --- @param bufnr number buf_id of delta.lua buffer id
 --- @param winnr number win id of the buffer we are exiting to
---- @return nil | fun(): boolean place_cursor returns boolean whether the cursor was successfully placed. If used on a Delta.text_diff or Delta.patch_diff buffer, will not redirect to any filepath. If used on a Delta.git_diff buffer, will go to the filepath at the top
-M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr)
+--- @param alternative_bufnr number | nil buf_id of the buffer id to exit to. If given, is used.
+--- @return nil | fun(): boolean strategy strategy function returns a boolean when executed if the window succcessfully exited to anotherb uffer and if the cursor was successfully placed. If used on a Delta.text_diff or Delta.patch_diff buffer, will not redirect to any filepath given by the buffer, so would prefer to have alternative_bufnr. If used on a Delta.git_diff buffer where the filepath is displayed, it will navigate to that before placing the cursor
+M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr, alternative_bufnr)
     local delta_files_data = vim.b[bufnr].delta_diff_data_set
 
     if delta_files_data == nil then
@@ -213,35 +207,38 @@ M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr)
             return false
         end
 
+        if alternative_bufnr ~= nil then
+            local success, err = pcall(function()
+                vim.api.nvim_set_current_buf(alternative_bufnr)
+            end)
+            if not success then
+                vim.notify('Failed to navigate to alternative buffer' .. tostring(err), vim.log.levels.ERROR)
+                return false
+            end
+            goto place_cursor
+        end
+
         if cursor_placement.filepath ~= nil then
             local success, err = pcall(function()
                 vim.cmd('e ' .. vim.fn.fnameescape(cursor_placement.filepath))
             end)
             if not success then
-                vim.notify('ERROR: Failed to open file: ' .. cursor_placement.filepath .. ' - ' .. tostring(err), vim.log.levels.ERROR)
+                vim.notify('Failed to open file: ' .. cursor_placement.filepath .. ' - ' .. tostring(err), vim.log.levels.ERROR)
                 return false
             end
         end
 
-        vim.api.nvim_win_set_cursor(cursor_placement.winnr, cursor_placement.cursor)
+        ::place_cursor::
+        local success, err = pcall(function()
+            vim.api.nvim_win_set_cursor(cursor_placement.winnr, cursor_placement.cursor)
+        end)
+
+        if not success then
+            vim.notify('Failed to maintain cursor location. - ' .. tostring(err), vim.log.levels.ERROR)
+            return false
+        end
         return true
     end
-end
-
---- @param bufnr number
---- @param strategy fun() : boolean
-M.exit_to_buf_with_strategy = function(bufnr, strategy)
-    local success, _ = pcall(function()
-        vim.api.nvim_set_current_buf(bufnr)
-        local success_moved = strategy()
-        if success_moved == false then
-            print('sadness')
-        end
-    end)
-    if not success then
-        vim.notify('Failed to return to original buffer', vim.log.levels.ERROR)
-    end
-
 end
 
 return M
