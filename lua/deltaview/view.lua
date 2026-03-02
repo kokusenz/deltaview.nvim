@@ -8,11 +8,12 @@ M.deltaview_file = function(ref)
     local filepath = vim.fn.expand('%:p')
     local cur_bufnr = vim.api.nvim_get_current_buf()
     local cursor_placement = M.get_cursor_placement_current_buffer()
+    local og_winline = vim.fn.winline()
     local diff_bufnr = M.open_git_diff_buffer(filepath, ref)
     if diff_bufnr == nil then
         return
     end
-    M.place_cursor_delta_buffer(diff_bufnr, 0, cursor_placement)
+    M.place_cursor_delta_buffer(diff_bufnr, 0, cursor_placement, og_winline)
     local nav_back_and_place_cursor = M.get_delta_buffer_cursor_exit_strategy(diff_bufnr, 0, cur_bufnr)
     if nav_back_and_place_cursor == nil then
         return
@@ -31,23 +32,15 @@ end
 M.open_git_diff_buffer = function(filepath, ref, winnr)
     local git_root = vim.fn.systemlist('git rev-parse --show-toplevel')[1]
     if vim.v.shell_error ~= 0 then
-        vim.notify('Not in a git repository', vim.log.levels.WARN)
+        vim.notify('Not in a git repository. Cannot open git diff delta.lua buffer', vim.log.levels.ERROR)
         return
     end
-
-    if filepath == nil then
-        vim.notify('ERROR: filepath is nil', vim.log.levels.WARN)
-        return
-    end
-
-    if vim.fn.filereadable(filepath) == 0 then
-        print('ERROR: not a valid file.')
-        return
-    end
+    assert(filepath ~= nil)
+    assert(vim.fn.filereadable(filepath) ~= 0)
 
     local diff_result = vim.system({ 'git', 'diff', '-U0', '--', filepath }):wait()
     if diff_result.code ~= 0 and diff_result.code ~= 1 then
-        vim.notify('Failed to run git diff', vim.log.levels.ERROR)
+        vim.notify('Failed to run git diff - ' .. diff_result.stderr, vim.log.levels.ERROR)
         return
     end
     local diffstring = diff_result.stdout
@@ -60,17 +53,14 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     local data = Delta.parse.get_diff_data_git(diffstring)[1]
 
     local file_lines = utils.read_file_lines(git_root .. '/' .. data.new_path)
-    if file_lines == nil then
-        vim.notify('ERROR: couldnt read file', vim.log.levels.WARN)
-        return
-    end
+    assert(file_lines ~= nil)
     local s2 = table.concat(file_lines, "\n")
     local s1 = ''
 
     if data.old_path then
         local show_result = vim.system({ 'git', 'show', (ref or 'HEAD') .. ':' .. data.old_path }):wait()
-        if show_result.code ~= 0 then
-            vim.notify('Failed to run git show', vim.log.levels.ERROR)
+        if show_result.code ~= 0 and show_result.code ~= 1 then
+            vim.notify('Failed to run git show - ' .. show_result.stderr, vim.log.levels.ERROR)
             return
         end
         s1 = show_result.stdout or ''
@@ -105,14 +95,12 @@ end
 --- finds the corresponding line in the delta.lua buffer to place the cursor at.
 --- @param bufnr number buf_id of delta.lua buffer id
 --- @param winnr number win id of delta.lua window id
+--- @param winline number winline number of original cursor placement
 --- @param cursor_placement CursorPlacement if filepath is not specified, they will try to place the cursor on the first file of the diff. If the delta.lua buffer does not have filepath, but you know the file your cursor was on matches with the delta.lua file, use filepath = nil.
-M.place_cursor_delta_buffer = function(bufnr, winnr, cursor_placement)
+M.place_cursor_delta_buffer = function(bufnr, winnr, cursor_placement, winline)
     local delta_files_data = vim.b[bufnr].delta_diff_data_set
+    assert(delta_files_data ~= nil)
 
-    if delta_files_data == nil then
-        vim.notify("Buffer did not contain delta diff data. Cursor will not be placed.", vim.log.levels.WARN)
-        return
-    end
     --- @cast delta_files_data DiffData[]
 
     for _, diff_data in ipairs(delta_files_data) do
@@ -122,18 +110,32 @@ M.place_cursor_delta_buffer = function(bufnr, winnr, cursor_placement)
             for _, hunk in ipairs(diff_data.hunks) do
                 for _, line in ipairs(hunk.lines) do
                     if line.new_line_num == cursor_placement.cursor[1] then
-                        vim.api.nvim_win_set_cursor(winnr,
-                            { line.formatted_diff_line_num + 1, cursor_placement.cursor[2] })
+                        -- the problem is that when lines wrap due to the statuscolumn change, it messes up placement
+                        local success, err = pcall(function()
+                            vim.api.nvim_win_set_cursor(winnr, { line.formatted_diff_line_num + 2 - winline, 0 })
+                            vim.cmd("normal! zt")
+                            vim.api.nvim_win_set_cursor(winnr,
+                                { line.formatted_diff_line_num + 1, cursor_placement.cursor[2] })
+                        end)
+                        if not success then
+                            vim.notify('Failed to place cursor.' .. tostring(err), vim.log.levels.ERROR)
+                        end
                         return
                     end
                 end
             end
             -- fallback: just place at top of first hunk of matched filepath
-            vim.api.nvim_win_set_cursor(winnr, { diff_data.hunks[1].lines[1].formatted_diff_line_num + 1, 0 })
+            local success, err = pcall(function()
+                vim.api.nvim_win_set_cursor(winnr, { diff_data.hunks[1].lines[1].formatted_diff_line_num + 1, 0 })
+            end)
+            if not success then
+                vim.notify('Failed to place cursor.' .. tostring(err), vim.log.levels.ERROR)
+            end
             return
         end
     end
-    vim.notify("Corresponding cursor location or filepath could not be found. Cursor will not be placed.", vim.log.levels.WARN)
+    vim.notify("Corresponding cursor location or filepath could not be found. Cursor will not be placed.",
+        vim.log.levels.WARN)
 end
 
 --- returns a function that, when invoked, opens the file to and places the cursor where the cursor was in the diff buffer. The function can fail if the cursor is not in a valid location.
@@ -143,11 +145,8 @@ end
 --- @return nil | fun(): boolean strategy strategy function returns a boolean when executed if the window succcessfully exited to anotherb uffer and if the cursor was successfully placed. If used on a Delta.text_diff or Delta.patch_diff buffer, will not redirect to any filepath given by the buffer, so would prefer to have alternative_bufnr. If used on a Delta.git_diff buffer where the filepath is displayed, it will navigate to that before placing the cursor
 M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr, alternative_bufnr)
     local delta_files_data = vim.b[bufnr].delta_diff_data_set
+    assert(delta_files_data ~= nil)
 
-    if delta_files_data == nil then
-        vim.notify("Buffer did not contain delta diff data. Cursor exit autocmds will not be declared.", vim.log.levels.WARN)
-        return
-    end
     --- @cast delta_files_data DiffData[]
 
     --- @type CursorPlacement | nil
@@ -174,38 +173,41 @@ M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr, alternative_buf
         end
     end
 
+    local populate_cursor_placement = function()
+        local pos = vim.api.nvim_win_get_cursor(0)
+        local current_row = pos[1]
+        local current_col = pos[2]
+
+        local entry = row_lookup[current_row]
+        if entry == nil then
+            -- not yet cached — row is not a diff line
+            row_lookup[current_row] = false
+            cursor_placement = nil
+            return
+        end
+
+        if entry == false then
+            cursor_placement = nil
+            return
+        end
+
+        cursor_placement = {
+            winnr = winnr,
+            cursor = { entry.new_line_num, current_col },
+            filepath = entry.filepath,
+        }
+    end
+    populate_cursor_placement()
     vim.api.nvim_create_autocmd('CursorMoved', {
         buffer = bufnr,
-        callback = function()
-            local pos = vim.api.nvim_win_get_cursor(0)
-            local current_row = pos[1]
-            local current_col = pos[2]
-
-            local entry = row_lookup[current_row]
-            if entry == nil then
-                -- not yet cached — row is not a diff line
-                row_lookup[current_row] = false
-                cursor_placement = nil
-                return
-            end
-
-            if entry == false then
-                cursor_placement = nil
-                return
-            end
-
-            cursor_placement = {
-                winnr = winnr,
-                cursor = { entry.new_line_num, current_col },
-                filepath = entry.filepath,
-            }
-        end
+        callback = populate_cursor_placement
     })
 
     return function()
         if cursor_placement == nil then
             return false
         end
+        local og_winline = vim.fn.winline()
 
         if alternative_bufnr ~= nil then
             local success, err = pcall(function()
@@ -223,13 +225,17 @@ M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr, alternative_buf
                 vim.cmd('e ' .. vim.fn.fnameescape(cursor_placement.filepath))
             end)
             if not success then
-                vim.notify('Failed to open file: ' .. cursor_placement.filepath .. ' - ' .. tostring(err), vim.log.levels.ERROR)
+                vim.notify('Failed to open file: ' .. cursor_placement.filepath .. ' - ' .. tostring(err),
+                    vim.log.levels.ERROR)
                 return false
             end
         end
 
         ::place_cursor::
         local success, err = pcall(function()
+            local cursor_top_screen = {cursor_placement.cursor[1] - og_winline, 0}
+            vim.api.nvim_win_set_cursor(cursor_placement.winnr, cursor_top_screen)
+            vim.cmd("normal! zt")
             vim.api.nvim_win_set_cursor(cursor_placement.winnr, cursor_placement.cursor)
         end)
 
