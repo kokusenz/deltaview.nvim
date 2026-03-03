@@ -75,7 +75,7 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     Delta.highlight_delta_artifacts(bufnr)
     Delta.syntax_highlight_diff_set(bufnr)
     Delta.diff_highlight_diff(bufnr)
-    Delta.setup_delta_statuscolumn(bufnr)
+    --Delta.setup_delta_statuscolumn(bufnr)
     return bufnr
     -- what else left to do: hunk navigation, and the enter cursor placement, and the exit cursor placement
     -- hunk navigation can be done as long as I have the buf number and diff info (in buffer), i can just use set_cursor
@@ -95,9 +95,9 @@ end
 --- finds the corresponding line in the delta.lua buffer to place the cursor at.
 --- @param bufnr number buf_id of delta.lua buffer id
 --- @param winnr number win id of delta.lua window id
---- @param winline number winline number of original cursor placement
 --- @param cursor_placement CursorPlacement if filepath is not specified, they will try to place the cursor on the first file of the diff. If the delta.lua buffer does not have filepath, but you know the file your cursor was on matches with the delta.lua file, use filepath = nil.
-M.place_cursor_delta_buffer = function(bufnr, winnr, cursor_placement, winline)
+--- @param og_winline number winline of the cursor in the source buffer, used to preserve relative screen position in the diff buffer
+M.place_cursor_delta_buffer = function(bufnr, winnr, cursor_placement, og_winline)
     local delta_files_data = vim.b[bufnr].delta_diff_data_set
     assert(delta_files_data ~= nil)
 
@@ -110,16 +110,8 @@ M.place_cursor_delta_buffer = function(bufnr, winnr, cursor_placement, winline)
             for _, hunk in ipairs(diff_data.hunks) do
                 for _, line in ipairs(hunk.lines) do
                     if line.new_line_num == cursor_placement.cursor[1] then
-                        -- the problem is that when lines wrap due to the statuscolumn change, it messes up placement
-                        local success, err = pcall(function()
-                            vim.api.nvim_win_set_cursor(winnr, { line.formatted_diff_line_num + 2 - winline, 0 })
-                            vim.cmd("normal! zt")
-                            vim.api.nvim_win_set_cursor(winnr,
-                                { line.formatted_diff_line_num + 1, cursor_placement.cursor[2] })
-                        end)
-                        if not success then
-                            vim.notify('Failed to place cursor.' .. tostring(err), vim.log.levels.ERROR)
-                        end
+                        local target_lnum = line.formatted_diff_line_num + 1
+                        M.set_restview(winnr, og_winline, target_lnum, cursor_placement.cursor[2])
                         return
                     end
                 end
@@ -232,18 +224,52 @@ M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr, alternative_buf
         end
 
         ::place_cursor::
-        local success, err = pcall(function()
-            local cursor_top_screen = {cursor_placement.cursor[1] - og_winline, 0}
-            vim.api.nvim_win_set_cursor(cursor_placement.winnr, cursor_top_screen)
-            vim.cmd("normal! zt")
-            vim.api.nvim_win_set_cursor(cursor_placement.winnr, cursor_placement.cursor)
-        end)
-
-        if not success then
-            vim.notify('Failed to maintain cursor location. - ' .. tostring(err), vim.log.levels.ERROR)
-            return false
-        end
+        M.set_restview(winnr, og_winline, cursor_placement.cursor[1], cursor_placement.cursor[2])
         return true
+    end
+end
+
+--- sets the view state while maintaining the cursor position relative to the top of the window. Accounts for new line wrapping.
+--- @param winnr number
+--- @param og_winline number original distance between cursor and top of window
+--- @param target_row number row of where cursor should be placed
+--- @param target_col number col of where the cursor should be placed
+M.set_restview = function(winnr, og_winline, target_row, target_col)
+    local success, err = pcall(function()
+        vim.api.nvim_win_call(winnr, function()
+            vim.api.nvim_win_set_cursor(winnr, { target_row, target_col })
+            vim.cmd('normal! zb')
+
+            local topline = target_row
+            -- Account for the cursor being on a wrapped screen line within target_row.
+            -- screenpos row of col 1 is the first screen row of the buffer line.
+            -- screenpos row of target_col is the screen row the cursor is actually on.
+            -- The difference tells us how many extra screen rows of target_row sit above the cursor.
+            local sp_cursor_line_start = vim.fn.screenpos(winnr, target_row, 1)
+            local sp_cursor = vim.fn.screenpos(winnr, target_row, math.max(1, target_col))
+            local cursor_line_offset = (sp_cursor_line_start.row ~= 0 and sp_cursor.row ~= 0)
+                and (sp_cursor.row - sp_cursor_line_start.row)
+                or 0
+            local screen_lines_walked = 1 + cursor_line_offset
+            while screen_lines_walked < og_winline and topline > 1 do
+                topline = topline - 1
+                local line_end_col = math.max(1, vim.fn.col({ topline, '$' }) - 1)
+                local sp_start = vim.fn.screenpos(winnr, topline, 1)
+                local sp_end = vim.fn.screenpos(winnr, topline, line_end_col)
+                if sp_start.row == 0 or sp_end.row == 0 then
+                    break
+                end
+                screen_lines_walked = screen_lines_walked + (sp_end.row - sp_start.row + 1)
+            end
+            vim.fn.winrestview({
+                topline = topline,
+                lnum = target_row,
+                col = target_col,
+            })
+        end)
+    end)
+    if not success then
+        vim.notify('Failed to place cursor. ' .. tostring(err), vim.log.levels.ERROR)
     end
 end
 
