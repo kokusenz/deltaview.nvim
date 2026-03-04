@@ -32,11 +32,14 @@ end
 M.open_git_diff_buffer = function(filepath, ref, winnr)
     local git_root = vim.fn.systemlist('git rev-parse --show-toplevel')[1]
     if vim.v.shell_error ~= 0 then
-        vim.notify('Not in a git repository. Cannot open git diff delta.lua buffer', vim.log.levels.ERROR)
+        vim.notify('Not in a git repository. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
         return
     end
     assert(filepath ~= nil)
-    assert(vim.fn.filereadable(filepath) ~= 0)
+    if vim.fn.filereadable(filepath) == 0 then
+        vim.notify('Not on a real file. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
+        return
+    end
 
     local diff_result = vim.system({ 'git', 'diff', '-U0', '--', filepath }):wait()
     if diff_result.code ~= 0 and diff_result.code ~= 1 then
@@ -64,6 +67,8 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
             return
         end
         s1 = show_result.stdout or ''
+        -- there exists a trailing newline for some reason with git show
+        s1 = s1:gsub('\n+$', '')
     end
 
     local bufnr = Delta.text_diff(s1, s2, data.language, { context = #file_lines })
@@ -241,24 +246,28 @@ M.set_restview = function(winnr, og_winline, target_row, target_col)
             vim.cmd('normal! zb')
 
             local topline = target_row
-            -- Account for the cursor being on a wrapped screen line within target_row.
-            -- screenpos row of col 1 is the first screen row of the buffer line.
-            -- screenpos row of target_col is the screen row the cursor is actually on.
-            -- The difference tells us how many extra screen rows of target_row sit above the cursor.
+
+            -- accounting for the cursor being on a wrapped screen line within target_row.
             local sp_cursor_line_start = vim.fn.screenpos(winnr, target_row, 1)
-            local sp_cursor = vim.fn.screenpos(winnr, target_row, math.max(1, target_col))
+            local sp_cursor = vim.fn.screenpos(winnr, target_row, math.max(1, target_col + 1)) -- col is 1-based
             local cursor_line_offset = (sp_cursor_line_start.row ~= 0 and sp_cursor.row ~= 0)
                 and (sp_cursor.row - sp_cursor_line_start.row)
                 or 0
             local screen_lines_walked = 1 + cursor_line_offset
+
             while screen_lines_walked < og_winline and topline > 1 do
-                topline = topline - 1
-                local line_end_col = math.max(1, vim.fn.col({ topline, '$' }) - 1)
-                local sp_start = vim.fn.screenpos(winnr, topline, 1)
-                local sp_end = vim.fn.screenpos(winnr, topline, line_end_col)
+                local next_topline = topline - 1
+                local line_end_col = math.max(1, vim.fn.col({ next_topline, '$' }) - 1) -- col is 1-based
+                local sp_start = vim.fn.screenpos(winnr, next_topline, 1)
+                local sp_end = vim.fn.screenpos(winnr, next_topline, line_end_col)
                 if sp_start.row == 0 or sp_end.row == 0 then
+                    -- there is a bug when this function is called with the cursor on the very last row.
+                    -- if you put print statements here, you will observe that sp_start and sp_end return 0
+                    -- values when the cursor starts on the last row, and it tries to calculate for the
+                    -- second to last row. Root cause is completely unknown.
                     break
                 end
+                topline = next_topline
                 screen_lines_walked = screen_lines_walked + (sp_end.row - sp_start.row + 1)
             end
             vim.fn.winrestview({

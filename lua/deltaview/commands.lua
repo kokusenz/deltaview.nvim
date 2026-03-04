@@ -82,7 +82,7 @@ M.DeltaView = function(command_argument)
         require('deltaview.view').deltaview_file(state.diff_target_ref)
     end)
     if not success then
-        print('ERROR: Failed to create diff view: ' .. tostring(err))
+        vim.notify('Failed to create diff view - ' .. tostring(err), vim.log.levels.ERROR)
     end
 end
 
