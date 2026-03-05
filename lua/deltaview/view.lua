@@ -14,7 +14,8 @@ M.deltaview_file = function(ref)
     if diff_bufnr == nil then
         return
     end
-    M.place_cursor_delta_buffer(diff_bufnr, 0, cursor_placement, og_winline)
+    M.place_cursor_delta_buffer_entry(diff_bufnr, 0, cursor_placement, og_winline)
+    M.setup_hunk_navigation(diff_bufnr)
     local nav_back_and_place_cursor = M.get_delta_buffer_cursor_exit_strategy(diff_bufnr, 0, cur_bufnr)
     if nav_back_and_place_cursor == nil then
         return
@@ -54,15 +55,15 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
         return
     end
 
-    local parsed_git_data = Delta.parse.get_diff_data_git(diffstring)[1]
+    local parsed_git_data = Delta.parse.get_diff_data_git(diffstring)
 
-    local file_lines = utils.read_file_lines(git_root .. '/' .. parsed_git_data.new_path)
+    local file_lines = utils.read_file_lines(git_root .. '/' .. parsed_git_data[1].new_path)
     assert(file_lines ~= nil)
     local s2 = table.concat(file_lines, "\n")
     local s1 = ''
 
-    if parsed_git_data.old_path then
-        local show_result = vim.system({ 'git', 'show', (ref or 'HEAD') .. ':' .. parsed_git_data.old_path }):wait()
+    if parsed_git_data[1].old_path then
+        local show_result = vim.system({ 'git', 'show', (ref or 'HEAD') .. ':' .. parsed_git_data[1].old_path }):wait()
         if show_result.code ~= 0 and show_result.code ~= 1 then
             vim.notify('Failed to run git show - ' .. show_result.stderr, vim.log.levels.ERROR)
             return
@@ -72,7 +73,7 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
         s1 = s1:gsub('\n+$', '')
     end
 
-    local bufnr = Delta.text_diff(s1, s2, parsed_git_data.language, { context = #file_lines })
+    local bufnr = Delta.text_diff(s1, s2, parsed_git_data[1].language, { context = #file_lines })
     if bufnr == nil then
         return -- error already notified
     end
@@ -92,9 +93,13 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     -- displays ref, filename, size of hunks
     local diff_buffer_name = filepath .. '    '
         .. config.viewconfig().vs .. ' ' .. ref .. '    '
-        .. config.viewconfig().segment .. ' ' ..  #parsed_git_data.hunks .. ' '
+        .. config.viewconfig().segment .. ' ' .. #parsed_git_data[1].hunks .. ' '
 
     vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
+
+    --- for Delta.text_diff buffers, because of full file context, everything is one hunk. This is the data with theoretically 0 context, meaning each hunk is separate
+    --- @type DiffData[]
+    vim.b[bufnr].parsed_git_data = parsed_git_data
     return bufnr
 end
 
@@ -107,17 +112,17 @@ M.get_cursor_placement_current_buffer = function()
     return { winnr = winnr, cursor = cursor }
 end
 
---- finds the corresponding line in the delta.lua buffer to place the cursor at.
+--- finds the line in the delta.lua buffer that corresponds to the real file to place the cursor at.
 --- @param bufnr number buf_id of delta.lua buffer id
 --- @param winnr number win id of delta.lua window id
 --- @param cursor_placement CursorPlacement if filepath is not specified, they will try to place the cursor on the first file of the diff. If the delta.lua buffer does not have filepath, but you know the file your cursor was on matches with the delta.lua file, use filepath = nil.
 --- @param og_winline number winline of the cursor in the source buffer, used to preserve relative screen position in the diff buffer
-M.place_cursor_delta_buffer = function(bufnr, winnr, cursor_placement, og_winline)
-    local delta_files_data = vim.b[bufnr].delta_diff_data_set
-    assert(delta_files_data ~= nil)
-    --- @cast delta_files_data DiffData[]
+M.place_cursor_delta_buffer_entry = function(bufnr, winnr, cursor_placement, og_winline)
+    local delta_diff_data_set = vim.b[bufnr].delta_diff_data_set
+    assert(delta_diff_data_set ~= nil)
+    --- @cast delta_diff_data_set DiffData[]
 
-    for _, diff_data in ipairs(delta_files_data) do
+    for _, diff_data in ipairs(delta_diff_data_set) do
         -- when using Delta.text_diff, there is no filepath in diff_data to compare to.
         -- in the interest of making this usable with Delta.text_diff, we do a fail open (if we can't find a filepath, we try to do a cursor placement anyways)
         if cursor_placement.filepath == nil or diff_data.new_path == cursor_placement.filepath then
@@ -144,26 +149,21 @@ M.place_cursor_delta_buffer = function(bufnr, winnr, cursor_placement, og_winlin
         vim.log.levels.WARN)
 end
 
---- returns a function that, when invoked, opens the file to and places the cursor where the cursor was in the diff buffer. The function can fail if the cursor is not in a valid location.
---- @param bufnr number buf_id of delta.lua buffer id
---- @param winnr number win id of the buffer we are exiting to
---- @param alternative_bufnr number | nil buf_id of the buffer id to exit to. If given, is used.
---- @return nil | fun(): boolean strategy strategy function returns a boolean when executed if the window succcessfully exited to anotherb uffer and if the cursor was successfully placed. If used on a Delta.text_diff or Delta.patch_diff buffer, will not redirect to any filepath given by the buffer, so would prefer to have alternative_bufnr. If used on a Delta.git_diff buffer where the filepath is displayed, it will navigate to that before placing the cursor
-M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr, alternative_bufnr)
-    local delta_files_data = vim.b[bufnr].delta_diff_data_set
-    assert(delta_files_data ~= nil)
-    --- @cast delta_files_data DiffData[]
+--- @type CursorPlacement | nil
+M.cursor_placement = nil -- module level upvalue, reusable in multiple module scoped functions
 
-    --- @type CursorPlacement | nil
-    local cursor_placement = nil
 
-    --- @class CursorLookupEntry
-    --- @field new_line_num number
-    --- @field filepath string | nil
+--- Populates the module level upvalue to track the cursor in the delta diff buffer
+--- @param bufnr number
+--- @param winnr number
+M.setup_cursor_placement_tracking = function(bufnr, winnr)
+    local delta_diff_data_set = vim.b[bufnr].delta_diff_data_set
+    assert(delta_diff_data_set ~= nil)
+    --- @cast delta_diff_data_set DiffData[]
 
     --- @type table<number, CursorLookupEntry | false>
     local row_lookup = {}
-    for _, diff_data in ipairs(delta_files_data) do
+    for _, diff_data in ipairs(delta_diff_data_set) do
         for _, hunk in ipairs(diff_data.hunks) do
             for _, line in ipairs(hunk.lines) do
                 if line.new_line_num ~= nil then
@@ -187,29 +187,40 @@ M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr, alternative_buf
         if entry == nil then
             -- not yet cached — row is not a diff line
             row_lookup[current_row] = false
-            cursor_placement = nil
+            M.cursor_placement = nil
             return
         end
 
         if entry == false then
-            cursor_placement = nil
+            M.cursor_placement = nil
             return
         end
 
-        cursor_placement = {
+        M.cursor_placement = {
             winnr = winnr,
             cursor = { entry.new_line_num, current_col },
             filepath = entry.filepath,
         }
     end
+
     populate_cursor_placement()
+
     vim.api.nvim_create_autocmd('CursorMoved', {
         buffer = bufnr,
         callback = populate_cursor_placement
     })
+end
+
+--- returns a function that, when invoked, opens the file to and places the cursor where the cursor was in the diff buffer. The function can fail if the cursor is not in a valid location.
+--- @param bufnr number buf_id of delta.lua buffer id
+--- @param winnr number win id of the buffer we are exiting to
+--- @param alternative_bufnr number | nil buf_id of the buffer id to exit to. If given, is used.
+--- @return nil | fun(): boolean strategy strategy function returns a boolean when executed if the window succcessfully exited to anotherb uffer and if the cursor was successfully placed. If used on a Delta.text_diff or Delta.patch_diff buffer, will not redirect to any filepath given by the buffer, so would prefer to have alternative_bufnr. If used on a Delta.git_diff buffer where the filepath is displayed, it will navigate to that before placing the cursor
+M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr, alternative_bufnr)
+    M.setup_cursor_placement_tracking(bufnr, winnr)
 
     return function()
-        if cursor_placement == nil then
+        if M.cursor_placement == nil then
             return false
         end
         local og_winline = vim.fn.winline()
@@ -225,19 +236,20 @@ M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr, alternative_buf
             goto place_cursor
         end
 
-        if cursor_placement.filepath ~= nil then
+        if M.cursor_placement.filepath ~= nil then
             local success, err = pcall(function()
-                vim.cmd('e ' .. vim.fn.fnameescape(cursor_placement.filepath))
+                vim.cmd('e ' .. vim.fn.fnameescape(M.cursor_placement.filepath))
             end)
             if not success then
-                vim.notify('Failed to open file: ' .. cursor_placement.filepath .. ' - ' .. tostring(err),
+                vim.notify('Failed to open file: ' .. M.cursor_placement.filepath .. ' - ' .. tostring(err),
                     vim.log.levels.ERROR)
                 return false
             end
         end
 
         ::place_cursor::
-        M.set_restview(winnr, og_winline, cursor_placement.cursor[1], cursor_placement.cursor[2])
+        M.set_restview(winnr, og_winline, M.cursor_placement.cursor[1], M.cursor_placement.cursor[2])
+        M.cursor_placement = nil
         return true
     end
 end
@@ -290,6 +302,77 @@ M.set_restview = function(winnr, og_winline, target_row, target_col)
     end
 end
 
+--- @param bufnr number
+M.setup_hunk_navigation = function(bufnr)
+    local delta_diff_data_set = vim.b[bufnr].delta_diff_data_set
+    assert(delta_diff_data_set ~= nil)
+    --- @cast delta_diff_data_set DiffData[]
+
+    -- TODO known bug when cursor on an added line, cannot jump to next hunk if next hunk is also added line
+    vim.keymap.set('n', config.options.keyconfig.next_hunk, function()
+        local cursor_placement = M.get_cursor_placement_current_buffer()
+        for _, diff_data in ipairs(delta_diff_data_set) do
+            -- delta_diff_data_set only has 1 hunk, because of unlimited context
+            local lines = diff_data.hunks[1].lines
+            for i = 1, #lines, 1 do
+                local real_buf_line = lines[i]
+                -- we are using the fact that a hunk does not have both old and new line number to identify hunks
+                -- instead of using the deserialized vim.b[bufnr].parsed_git_data
+                if (real_buf_line.new_line_num == nil and
+                        real_buf_line.old_line_num ~= nil and
+                        lines[cursor_placement.cursor[1]].new_line_num ~= nil
+                    ) or
+                    (real_buf_line.new_line_num ~= nil and
+                        real_buf_line.old_line_num == nil and
+                        lines[cursor_placement.cursor[1]].old_line_num ~= nil
+                    )
+                then
+                    if i > cursor_placement.cursor[1] then
+                        local og_winline = vim.fn.winline()
+                        M.set_restview(0, og_winline, real_buf_line.formatted_diff_line_num + 1, 1)
+                        vim.api.nvim_echo({ { 'TODO: print hunk / total hunks', 'Normal' } }, false, {})
+                        return
+                    end
+                end
+            end
+        end
+    end, { buffer = bufnr, silent = true })
+
+    vim.keymap.set('n', config.options.keyconfig.prev_hunk, function()
+        local cursor_placement = M.get_cursor_placement_current_buffer()
+        for _, diff_data in ipairs(delta_diff_data_set) do
+            -- delta_diff_data_set only has 1 hunk, because of unlimited context
+            local lines = diff_data.hunks[1].lines
+            for i = #lines, 1, -1 do
+                local real_buf_line = lines[i]
+                -- we are using the fact that a hunk does not have both old and new line number to identify hunks
+                -- instead of using the deserialized vim.b[bufnr].parsed_git_data
+                if (real_buf_line.new_line_num == nil and
+                        real_buf_line.old_line_num ~= nil and
+                        lines[cursor_placement.cursor[1]].new_line_num ~= nil
+                    ) or
+                    (real_buf_line.new_line_num ~= nil and
+                        real_buf_line.old_line_num == nil and
+                        lines[cursor_placement.cursor[1]].old_line_num ~= nil
+                    )
+                then
+                    if i < cursor_placement.cursor[1] then
+                        local og_winline = vim.fn.winline()
+                        M.set_restview(0, og_winline, real_buf_line.formatted_diff_line_num + 1, 1)
+                        vim.api.nvim_echo({ { 'TODO: print hunk / total hunks', 'Normal' } }, false, {})
+                        return
+                    end
+                end
+            end
+        end
+    end, { buffer = bufnr, silent = true })
+end
+
+
 return M
 
 --- @alias CursorPlacement { winnr: number, filepath: string | nil, cursor: number[] }
+
+--- @class CursorLookupEntry
+--- @field new_line_num number
+--- @field filepath string | nil
