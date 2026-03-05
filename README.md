@@ -167,6 +167,9 @@ require('deltaview').setup({
   -- Set to 0 or 1 to always use fzf
   fzf_threshold = 6,
 
+  -- Only applicable if use_deltalua is true. If this setting is true, will show the delta style line numbers in the statuscolumn.
+  line_numbers = false,
+
   -- Custom keybindings
   keyconfig = {
     -- Global keybind to toggle DeltaMenu

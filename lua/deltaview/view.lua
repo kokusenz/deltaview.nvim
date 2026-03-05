@@ -1,5 +1,6 @@
 local M = {}
 local utils = require('deltaview.utils')
+local config = require('deltaview.config')
 
 --- deltaview file diff buffer orchestrator, using delta.lua. opens a deltaview diff on top of current window
 --- @param ref string|nil Optional git ref to compare against (defaults to HEAD). Can be branch, commit, tag, etc.
@@ -80,7 +81,9 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     Delta.highlight_delta_artifacts(bufnr)
     Delta.syntax_highlight_diff_set(bufnr)
     Delta.diff_highlight_diff(bufnr)
-    --Delta.setup_delta_statuscolumn(bufnr)
+    if config.options.line_numbers then
+        Delta.setup_delta_statuscolumn(bufnr)
+    end
     return bufnr
     -- what else left to do: hunk navigation, and the enter cursor placement, and the exit cursor placement
     -- hunk navigation can be done as long as I have the buf number and diff info (in buffer), i can just use set_cursor
