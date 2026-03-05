@@ -313,62 +313,93 @@ M.setup_hunk_navigation = function(bufnr)
     --- @cast parsed_git_data DiffData[]
 
     vim.keymap.set('n', config.options.keyconfig.next_hunk, function()
-        local cursor_placement = M.get_cursor_placement_current_buffer()
-        for idx, diff_data in ipairs(delta_diff_data_set) do
-            -- delta_diff_data_set only has 1 hunk, because of unlimited context
-            local lines = diff_data.hunks[1].lines
-            for i = cursor_placement.cursor[1] + 1, #lines, 1 do
-                local real_buf_line = lines[i]
-                for hunk_number = 1, #parsed_git_data[idx].hunks, 1 do
-                    local hunk_line = parsed_git_data[idx].hunks[hunk_number]
-                    if hunk_line.lines[1].new_line_num == real_buf_line.new_line_num and
-                        hunk_line.lines[1].old_line_num == real_buf_line.old_line_num
-                    then
-                        local og_winline = vim.fn.winline()
-                        -- M.set_restview(0, og_winline, real_buf_line.formatted_diff_line_num + 1, 0)
-                        vim.api.nvim_win_set_cursor(0, { real_buf_line.formatted_diff_line_num + 1, 0 })
-                        vim.cmd('normal! zz')
-                        vim.api.nvim_echo({
-                            { 'jumped to '
-                            .. config.viewconfig().segment .. ' '
-                            .. hunk_number .. '/'
-                            .. #parsed_git_data[idx].hunks, 'Normal' }
-                        }, false, {})
-                        return
-                    end
-                end
-            end
-        end
+        M.jump_to_hunk(delta_diff_data_set, parsed_git_data, true)
     end, { buffer = bufnr, silent = true })
 
     vim.keymap.set('n', config.options.keyconfig.prev_hunk, function()
-        local cursor_placement = M.get_cursor_placement_current_buffer()
-        for idx, diff_data in ipairs(delta_diff_data_set) do
-            -- delta_diff_data_set only has 1 hunk, because of unlimited context
-            local lines = diff_data.hunks[1].lines
-            for i = cursor_placement.cursor[1] - 1, 1, -1 do
-                local real_buf_line = lines[i]
-                for hunk_number = #parsed_git_data[idx].hunks, 1, -1 do
-                    local hunk_line = parsed_git_data[idx].hunks[hunk_number]
+        M.jump_to_hunk(delta_diff_data_set, parsed_git_data, false)
+    end, { buffer = bufnr, silent = true })
+end
+
+--- @param delta_diff_data_set DiffData[]
+--- @param parsed_git_data DiffData[]
+--- @param forward boolean
+M.jump_to_hunk = function(delta_diff_data_set, parsed_git_data, forward)
+    local cursor_placement = M.get_cursor_placement_current_buffer()
+
+    local step = forward and 1 or -1
+    local data_set_start = forward and 1 or #delta_diff_data_set
+    local data_set_end = forward and #delta_diff_data_set or 1
+    for data_set_idx = data_set_start, data_set_end, step do
+        local diff_data = delta_diff_data_set[data_set_idx]
+        local hunk_start = forward and 1 or #diff_data.hunks
+        local hunk_end = forward and #diff_data.hunks or 1
+        for hunk_idx = hunk_start, hunk_end, step do
+            local lines = diff_data.hunks[hunk_idx].lines
+
+            local line_start = forward and cursor_placement.cursor[1] + 1 or cursor_placement.cursor[1] - 1
+            local line_end = forward and #lines or 1
+
+            for line_idx = line_start, line_end, step do
+                local real_buf_line = lines[line_idx]
+
+                local parsed_hunk_start = forward and 1 or #parsed_git_data[data_set_idx].hunks
+                local parsed_hunk_end = forward and #parsed_git_data[data_set_idx].hunks or 1
+                for parsed_hunk_idx = parsed_hunk_start, parsed_hunk_end, step do
+                    local hunk_line = parsed_git_data[data_set_idx].hunks[parsed_hunk_idx]
+
                     if hunk_line.lines[1].new_line_num == real_buf_line.new_line_num and
                         hunk_line.lines[1].old_line_num == real_buf_line.old_line_num
                     then
-                        local og_winline = vim.fn.winline()
-                        -- M.set_restview(0, og_winline, real_buf_line.formatted_diff_line_num + 1, 0)
-                        vim.api.nvim_win_set_cursor(0, { real_buf_line.formatted_diff_line_num + 1, 0 })
-                        vim.cmd('normal! zz')
+                        local target_lnum = real_buf_line.formatted_diff_line_num + 1
+                        local w0 = vim.fn.line('w0')
+                        local wend = vim.fn.line('w$')
+                        vim.api.nvim_win_set_cursor(0, { target_lnum, 0 })
+                        if target_lnum < w0 or target_lnum > wend then
+                            vim.cmd('normal! zz')
+                        end
                         vim.api.nvim_echo({
                             { 'jumped to '
                             .. config.viewconfig().segment .. ' '
-                            .. hunk_number .. '/'
-                            .. #parsed_git_data[idx].hunks, 'Normal' }
+                            .. parsed_hunk_idx .. '/'
+                            .. #parsed_git_data[data_set_idx].hunks, 'Normal' }
                         }, false, {})
                         return
                     end
                 end
             end
         end
-    end, { buffer = bufnr, silent = true })
+    end
+    -- fallback: jump to first hunk if forward, last hunk if not forward
+    for data_set_idx = data_set_start, data_set_end, step do
+        local diff_data = delta_diff_data_set[data_set_idx]
+
+        local hunk_number = forward and 1 or #parsed_git_data[data_set_idx].hunks
+        local hunk_line = parsed_git_data[data_set_idx].hunks[hunk_number]
+        for j = 1, #diff_data.hunks, 1 do
+            local lines = diff_data.hunks[j].lines
+            for _, real_buf_line in ipairs(lines) do
+                if hunk_line.lines[1].new_line_num == real_buf_line.new_line_num and
+                    hunk_line.lines[1].old_line_num == real_buf_line.old_line_num
+                then
+                    local target_lnum = real_buf_line.formatted_diff_line_num + 1
+                    local w0 = vim.fn.line('w0')
+                    local wend = vim.fn.line('w$')
+                    vim.api.nvim_win_set_cursor(0, { target_lnum, 0 })
+                    if target_lnum < w0 or target_lnum > wend then
+                        vim.cmd('normal! zz')
+                    end
+                    vim.api.nvim_echo({
+                        { 'jumped to '
+                        .. config.viewconfig().segment .. ' '
+                        .. hunk_number .. '/'
+                        .. #parsed_git_data[data_set_idx].hunks, 'Normal' }
+                    }, false, {})
+                    return
+                end
+            end
+        end
+    end
 end
 
 
