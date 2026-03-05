@@ -304,27 +304,30 @@ end
 
 --- @param bufnr number
 M.setup_hunk_navigation = function(bufnr)
-    local delta_diff_data_set = vim.b[bufnr].delta_diff_data_set
-    assert(delta_diff_data_set ~= nil)
-    --- @cast delta_diff_data_set DiffData[]
-
-    local parsed_git_data = vim.b[bufnr].parsed_git_data
-    assert(parsed_git_data ~= nil)
-    --- @cast parsed_git_data DiffData[]
 
     vim.keymap.set('n', config.options.keyconfig.next_hunk, function()
-        M.jump_to_hunk(delta_diff_data_set, parsed_git_data, true)
+        M.jump_to_hunk(bufnr, true)
     end, { buffer = bufnr, silent = true })
 
     vim.keymap.set('n', config.options.keyconfig.prev_hunk, function()
-        M.jump_to_hunk(delta_diff_data_set, parsed_git_data, false)
+        M.jump_to_hunk(bufnr, false)
     end, { buffer = bufnr, silent = true })
 end
 
---- @param delta_diff_data_set DiffData[]
---- @param parsed_git_data DiffData[]
+--- jumps to a hunk when user is on a delta.lua buffer
+--- jumps to the top of each hunk
+--- when no more hunks are left to go to, it will cycle through. eg. if at the end, go back to top.
+--- @param bufnr number
 --- @param forward boolean
-M.jump_to_hunk = function(delta_diff_data_set, parsed_git_data, forward)
+M.jump_to_hunk = function(bufnr, forward)
+    local delta_diff_data_set = vim.b[bufnr].delta_diff_data_set -- real data set of buffer
+    assert(delta_diff_data_set ~= nil)
+    --- @cast delta_diff_data_set DiffData[]
+
+    local parsed_git_data = vim.b[bufnr].parsed_git_data -- data set with 0 context, as to properly distinguish hunks
+    assert(parsed_git_data ~= nil)
+    --- @cast parsed_git_data DiffData[]
+
     local cursor_placement = M.get_cursor_placement_current_buffer()
 
     local step = forward and 1 or -1
