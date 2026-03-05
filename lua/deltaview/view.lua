@@ -308,29 +308,32 @@ M.setup_hunk_navigation = function(bufnr)
     assert(delta_diff_data_set ~= nil)
     --- @cast delta_diff_data_set DiffData[]
 
-    -- TODO known bug when cursor on an added line, cannot jump to next hunk if next hunk is also added line
+    local parsed_git_data = vim.b[bufnr].parsed_git_data
+    assert(parsed_git_data ~= nil)
+    --- @cast parsed_git_data DiffData[]
+
     vim.keymap.set('n', config.options.keyconfig.next_hunk, function()
         local cursor_placement = M.get_cursor_placement_current_buffer()
-        for _, diff_data in ipairs(delta_diff_data_set) do
+        for idx, diff_data in ipairs(delta_diff_data_set) do
             -- delta_diff_data_set only has 1 hunk, because of unlimited context
             local lines = diff_data.hunks[1].lines
-            for i = 1, #lines, 1 do
+            for i = cursor_placement.cursor[1] + 1, #lines, 1 do
                 local real_buf_line = lines[i]
-                -- we are using the fact that a hunk does not have both old and new line number to identify hunks
-                -- instead of using the deserialized vim.b[bufnr].parsed_git_data
-                if (real_buf_line.new_line_num == nil and
-                        real_buf_line.old_line_num ~= nil and
-                        lines[cursor_placement.cursor[1]].new_line_num ~= nil
-                    ) or
-                    (real_buf_line.new_line_num ~= nil and
-                        real_buf_line.old_line_num == nil and
-                        lines[cursor_placement.cursor[1]].old_line_num ~= nil
-                    )
-                then
-                    if i > cursor_placement.cursor[1] then
+                for hunk_number = 1, #parsed_git_data[idx].hunks, 1 do
+                    local hunk_line = parsed_git_data[idx].hunks[hunk_number]
+                    if hunk_line.lines[1].new_line_num == real_buf_line.new_line_num and
+                        hunk_line.lines[1].old_line_num == real_buf_line.old_line_num
+                    then
                         local og_winline = vim.fn.winline()
-                        M.set_restview(0, og_winline, real_buf_line.formatted_diff_line_num + 1, 1)
-                        vim.api.nvim_echo({ { 'TODO: print hunk / total hunks', 'Normal' } }, false, {})
+                        -- M.set_restview(0, og_winline, real_buf_line.formatted_diff_line_num + 1, 0)
+                        vim.api.nvim_win_set_cursor(0, { real_buf_line.formatted_diff_line_num + 1, 0 })
+                        vim.cmd('normal! zz')
+                        vim.api.nvim_echo({
+                            { 'jumped to '
+                            .. config.viewconfig().segment .. ' '
+                            .. hunk_number .. '/'
+                            .. #parsed_git_data[idx].hunks, 'Normal' }
+                        }, false, {})
                         return
                     end
                 end
@@ -340,26 +343,26 @@ M.setup_hunk_navigation = function(bufnr)
 
     vim.keymap.set('n', config.options.keyconfig.prev_hunk, function()
         local cursor_placement = M.get_cursor_placement_current_buffer()
-        for _, diff_data in ipairs(delta_diff_data_set) do
+        for idx, diff_data in ipairs(delta_diff_data_set) do
             -- delta_diff_data_set only has 1 hunk, because of unlimited context
             local lines = diff_data.hunks[1].lines
-            for i = #lines, 1, -1 do
+            for i = cursor_placement.cursor[1] - 1, 1, -1 do
                 local real_buf_line = lines[i]
-                -- we are using the fact that a hunk does not have both old and new line number to identify hunks
-                -- instead of using the deserialized vim.b[bufnr].parsed_git_data
-                if (real_buf_line.new_line_num == nil and
-                        real_buf_line.old_line_num ~= nil and
-                        lines[cursor_placement.cursor[1]].new_line_num ~= nil
-                    ) or
-                    (real_buf_line.new_line_num ~= nil and
-                        real_buf_line.old_line_num == nil and
-                        lines[cursor_placement.cursor[1]].old_line_num ~= nil
-                    )
-                then
-                    if i < cursor_placement.cursor[1] then
+                for hunk_number = #parsed_git_data[idx].hunks, 1, -1 do
+                    local hunk_line = parsed_git_data[idx].hunks[hunk_number]
+                    if hunk_line.lines[1].new_line_num == real_buf_line.new_line_num and
+                        hunk_line.lines[1].old_line_num == real_buf_line.old_line_num
+                    then
                         local og_winline = vim.fn.winline()
-                        M.set_restview(0, og_winline, real_buf_line.formatted_diff_line_num + 1, 1)
-                        vim.api.nvim_echo({ { 'TODO: print hunk / total hunks', 'Normal' } }, false, {})
+                        -- M.set_restview(0, og_winline, real_buf_line.formatted_diff_line_num + 1, 0)
+                        vim.api.nvim_win_set_cursor(0, { real_buf_line.formatted_diff_line_num + 1, 0 })
+                        vim.cmd('normal! zz')
+                        vim.api.nvim_echo({
+                            { 'jumped to '
+                            .. config.viewconfig().segment .. ' '
+                            .. hunk_number .. '/'
+                            .. #parsed_git_data[idx].hunks, 'Normal' }
+                        }, false, {})
                         return
                     end
                 end
