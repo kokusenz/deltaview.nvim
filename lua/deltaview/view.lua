@@ -54,15 +54,15 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
         return
     end
 
-    local data = Delta.parse.get_diff_data_git(diffstring)[1]
+    local parsed_git_data = Delta.parse.get_diff_data_git(diffstring)[1]
 
-    local file_lines = utils.read_file_lines(git_root .. '/' .. data.new_path)
+    local file_lines = utils.read_file_lines(git_root .. '/' .. parsed_git_data.new_path)
     assert(file_lines ~= nil)
     local s2 = table.concat(file_lines, "\n")
     local s1 = ''
 
-    if data.old_path then
-        local show_result = vim.system({ 'git', 'show', (ref or 'HEAD') .. ':' .. data.old_path }):wait()
+    if parsed_git_data.old_path then
+        local show_result = vim.system({ 'git', 'show', (ref or 'HEAD') .. ':' .. parsed_git_data.old_path }):wait()
         if show_result.code ~= 0 and show_result.code ~= 1 then
             vim.notify('Failed to run git show - ' .. show_result.stderr, vim.log.levels.ERROR)
             return
@@ -72,7 +72,7 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
         s1 = s1:gsub('\n+$', '')
     end
 
-    local bufnr = Delta.text_diff(s1, s2, data.language, { context = #file_lines })
+    local bufnr = Delta.text_diff(s1, s2, parsed_git_data.language, { context = #file_lines })
     if bufnr == nil then
         return -- error already notified
     end
@@ -84,11 +84,18 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     if config.options.line_numbers then
         Delta.setup_delta_statuscolumn(bufnr)
     end
+
+    local delta_files_data = vim.b[bufnr].delta_diff_data_set
+    assert(delta_files_data ~= nil)
+    --- @cast delta_files_data DiffData[]
+
+    -- displays ref, filename, size of hunks
+    local diff_buffer_name = filepath .. '    '
+        .. config.viewconfig().vs .. ' ' .. ref .. '    '
+        .. config.viewconfig().segment .. ' ' ..  #parsed_git_data.hunks .. ' '
+
+    vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
     return bufnr
-    -- what else left to do: hunk navigation, and the enter cursor placement, and the exit cursor placement
-    -- hunk navigation can be done as long as I have the buf number and diff info (in buffer), i can just use set_cursor
-    -- enter cursor can be done as long as I have the buf id of delta.lua buffer and original buf id (can be found at callsite)
-    -- exit cursor can be done via tracking where cursor is via cursormoved autocmd, then make a bufleave autocmd that sets it.
 end
 
 --- Captures the current window and cursor position before opening a diff buffer
@@ -108,7 +115,6 @@ end
 M.place_cursor_delta_buffer = function(bufnr, winnr, cursor_placement, og_winline)
     local delta_files_data = vim.b[bufnr].delta_diff_data_set
     assert(delta_files_data ~= nil)
-
     --- @cast delta_files_data DiffData[]
 
     for _, diff_data in ipairs(delta_files_data) do
@@ -146,7 +152,6 @@ end
 M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr, alternative_bufnr)
     local delta_files_data = vim.b[bufnr].delta_diff_data_set
     assert(delta_files_data ~= nil)
-
     --- @cast delta_files_data DiffData[]
 
     --- @type CursorPlacement | nil

@@ -205,20 +205,22 @@ By default, the UI uses nerd font icons:
 ```lua
 -- With nerd fonts (default)
 {
-  dot = "󰧟", -- nf-md-circle_small, hunk indicator
-  circle = "󰧞", -- nf-md-circle_medium, current hunk indicator
-  vs = "", -- nf-seti-git, "versus" symbol in menu header
-  next = "󰁕", -- nf-md-arrow_right_thick, next file indicator
-  prev = "󰁎" -- nf-md-arrow_left_thick, previous file indicator
+    dot = "󰧟", -- nf-md-circle_small, hunk indicator
+    circle = "󰧞", -- nf-md-circle_medium, current hunk indicator
+    vs = "", -- nf-seti-git, "versus" symbol in menu header
+    next = "󰁕", -- nf-md-arrow_right_thick, next file indicator
+    prev = "󰁎", -- nf-md-arrow_left_thick, previous file indicator
+    segment = "󰻋", -- nf-md-segment , hunk count indicator
 }
 
 -- Without nerd fonts
 {
-  dot = "·",
-  circle = "•",
-  vs = "comparing to",
-  next = "->",
-  prev = "<-"
+    dot = "·",
+    circle = "•",
+    vs = "comparing to",
+    next = "->",
+    prev = "<-",
+    segment = "≡",
 }
 ```
 

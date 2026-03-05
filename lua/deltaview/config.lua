@@ -6,23 +6,26 @@ local M = {}
 --- @field vs string
 --- @field next string
 --- @field prev string
+--- @field segment string
 
---- @class ViewConfig
+--- @type ViewConfig
 M.basic_viewconfig = {
     dot = "·",
     circle = "•",
     vs = "comparing to",
     next = "->",
-    prev = "<-"
+    prev = "<-",
+    segment = "≡",
 }
 
---- @class ViewConfig
+--- @type ViewConfig
 M.nerdfont_viewconfig = {
     dot = "󰧟", -- nf-md-circle_small
     circle = "󰧞", -- nf-md-circle_medium
     vs = "", -- nf-seti-git
     next = "󰁕", -- nf-md-arrow_right_thick
-    prev = "󰁎" -- nf-md-arrow_left_thick
+    prev = "󰁎", -- nf-md-arrow_left_thick
+    segment = "󰻋", -- nf-md-segment 
 }
 
 --- @returns ViewConfig

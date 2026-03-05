@@ -595,7 +595,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         return
     end
 
-    --- @class Hunk
+    --- @class Hunk_LegacyNavigation
     --- @field after number the line number after
     --- @field before number the line number before
     --- @field is_pure_deletion boolean
@@ -617,7 +617,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         if line_after and current_file then
             assert(tonumber(line_after) ~= nil and tonumber(line_before) ~= nil, "parsing line numbers from hunks failed")
             local is_pure_deletion = additions == '0'
-            --- @type Hunk
+            --- @type Hunk_LegacyNavigation
             local hunk = {
                 after = tonumber(line_after) or 1,
                 before = tonumber(line_before) or 1,
@@ -628,7 +628,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
     end
 
     -- flattened list for when there is only one file
-    --- @type Hunk[]
+    --- @type Hunk_LegacyNavigation[]
     local matches_flat = {}
     for _, file in ipairs(file_order) do
         for _, hunk in ipairs(matches[file]) do
@@ -764,7 +764,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         end
     })
 
-    --- @param hunk Hunk
+    --- @param hunk Hunk_LegacyNavigation
     --- @param file string | nil
     local move_to_hunk = function(hunk, file)
         if hunk.is_pure_deletion then
