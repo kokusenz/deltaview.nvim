@@ -623,7 +623,6 @@ for func_name, func in pairs(PlaceCursorDeltaBufferEntry.properties) do
     end
 end
 
--- ──────────────────────────────────────────────────────────────────────────────────────────────
 -- place_cursor_delta_buffer_entry() - example based tests
 
 T['place_cursor_delta_buffer_entry() example'] = new_set()
@@ -679,7 +678,394 @@ T['place_cursor_delta_buffer_entry() example']['calls win_set_cursor manually wi
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
--- setup_cursor_placement_tracking()
+-- setup_cursor_placement_tracking() - property based tests
+
+-- fuzzable stuff is the delta_diff_data_set and the cursor position (nvim_win_get_cursor)
+-- we can actually seriously fuzzy the cursors by hitting every single possible spot
+
+local SetupCursorPlacementTracking = {}
+
+--- @class setup_cursor_placement_tracking__property_cases
+SetupCursorPlacementTracking.setup_cursor_placement_tracking__property_cases = {
+    {
+        name = 'no deleted lines',
+        buf_contents = { 'line1', 'line2', 'line3' },
+        get_cursors_set = function()
+            local buf_contents = { 'line1', 'line2', 'line3' }
+            local set = {}
+            for i, v in ipairs(buf_contents) do
+                for j = 1, #v, 1 do
+                    table.insert(set, { i, j - 1 })
+                end
+            end
+            return set
+        end,
+        --- @type DiffData[]
+        delta_diff_data_set = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            {
+                                content = 'line1',
+                                old_line_num = 1,
+                                new_line_num = 1,
+                                diff_line_num = 0,
+                                formatted_diff_line_num = 0,
+                                line_type = 'context'
+                            },
+                            {
+                                content = 'line2',
+                                old_line_num = nil,
+                                new_line_num = 2,
+                                diff_line_num = 1,
+                                formatted_diff_line_num = 1,
+                                line_type = 'added'
+                            },
+                            {
+                                content = 'line3',
+                                old_line_num = 3,
+                                new_line_num = 3,
+                                diff_line_num = 2,
+                                formatted_diff_line_num = 2,
+                                line_type = 'context'
+                            }
+                        },
+                        old_start = 1,
+                        old_count = 3,
+                        new_start = 1,
+                        new_count = 3,
+                        header = '@@ -1,3 +1,3 @@',
+                        context = nil
+                    }
+                },
+                old_path = nil,
+                new_path = nil,
+                language = nil
+            }
+        },
+    },
+    {
+        -- row 1 (fdln=0) is removed → cursor_placement nil; rows 2,3 are added/context → non-nil
+        name = 'has a removed line',
+        buf_contents = { '-removed', '+added', 'context' },
+        get_cursors_set = function()
+            local buf_contents = { '-removed', '+added', 'context' }
+            local set = {}
+            for i, v in ipairs(buf_contents) do
+                for j = 1, #v, 1 do
+                    table.insert(set, { i, j - 1 })
+                end
+            end
+            return set
+        end,
+        --- @type DiffData[]
+        delta_diff_data_set = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            {
+                                content = '-removed',
+                                old_line_num = 1,
+                                new_line_num = nil,
+                                diff_line_num = 0,
+                                formatted_diff_line_num = 0,
+                                line_type = 'removed'
+                            },
+                            {
+                                content = '+added',
+                                old_line_num = nil,
+                                new_line_num = 1,
+                                diff_line_num = 1,
+                                formatted_diff_line_num = 1,
+                                line_type = 'added'
+                            },
+                            {
+                                content = 'context',
+                                old_line_num = 2,
+                                new_line_num = 2,
+                                diff_line_num = 2,
+                                formatted_diff_line_num = 2,
+                                line_type = 'context'
+                            }
+                        },
+                        old_start = 1,
+                        old_count = 2,
+                        new_start = 1,
+                        new_count = 2,
+                        header = '@@ -1,2 +1,2 @@',
+                        context = nil
+                    }
+                },
+                old_path = nil,
+                new_path = nil,
+                language = nil
+            }
+        },
+    },
+    {
+        -- rows 1 and 4 are not covered by any diff line → cursor_placement nil; rows 2,3 → non-nil
+        name = 'buffer rows outside diff coverage',
+        buf_contents = { '~', 'line1', 'line2', '~' },
+        get_cursors_set = function()
+            local buf_contents = { '~', 'line1', 'line2', '~' }
+            local set = {}
+            for i, v in ipairs(buf_contents) do
+                for j = 1, #v, 1 do
+                    table.insert(set, { i, j - 1 })
+                end
+            end
+            return set
+        end,
+        --- @type DiffData[]
+        delta_diff_data_set = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            {
+                                content = 'line1',
+                                old_line_num = 1,
+                                new_line_num = 1,
+                                diff_line_num = 1,
+                                formatted_diff_line_num = 1,
+                                line_type = 'context'
+                            },
+                            {
+                                content = 'line2',
+                                old_line_num = nil,
+                                new_line_num = 2,
+                                diff_line_num = 2,
+                                formatted_diff_line_num = 2,
+                                line_type = 'added'
+                            }
+                        },
+                        old_start = 1,
+                        old_count = 1,
+                        new_start = 1,
+                        new_count = 2,
+                        header = '@@ -1 +1,2 @@',
+                        context = nil
+                    }
+                },
+                old_path = nil,
+                new_path = nil,
+                language = nil
+            }
+        },
+    },
+    {
+        -- hunk 1 covers rows 1,2; rows 3,4 are gap (not diff lines); hunk 2 covers rows 5,6
+        name = 'multiple hunks with gap between',
+        buf_contents = { 'h1l1', 'h1l2', '....', '....', 'h2l1', 'h2l2' },
+        get_cursors_set = function()
+            local buf_contents = { 'h1l1', 'h1l2', '....', '....', 'h2l1', 'h2l2' }
+            local set = {}
+            for i, v in ipairs(buf_contents) do
+                for j = 1, #v, 1 do
+                    table.insert(set, { i, j - 1 })
+                end
+            end
+            return set
+        end,
+        --- @type DiffData[]
+        delta_diff_data_set = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            {
+                                content = 'h1l1',
+                                old_line_num = 1,
+                                new_line_num = 1,
+                                diff_line_num = 0,
+                                formatted_diff_line_num = 0,
+                                line_type = 'context'
+                            },
+                            {
+                                content = 'h1l2',
+                                old_line_num = nil,
+                                new_line_num = 2,
+                                diff_line_num = 1,
+                                formatted_diff_line_num = 1,
+                                line_type = 'added'
+                            }
+                        },
+                        old_start = 1,
+                        old_count = 1,
+                        new_start = 1,
+                        new_count = 2,
+                        header = '@@ -1 +1,2 @@',
+                        context = nil
+                    },
+                    {
+                        lines = {
+                            {
+                                content = 'h2l1',
+                                old_line_num = 5,
+                                new_line_num = nil,
+                                diff_line_num = 4,
+                                formatted_diff_line_num = 4,
+                                line_type = 'removed'
+                            },
+                            {
+                                content = 'h2l2',
+                                old_line_num = nil,
+                                new_line_num = 5,
+                                diff_line_num = 5,
+                                formatted_diff_line_num = 5,
+                                line_type = 'added'
+                            }
+                        },
+                        old_start = 5,
+                        old_count = 1,
+                        new_start = 5,
+                        new_count = 1,
+                        header = '@@ -5 +5 @@',
+                        context = nil
+                    }
+                },
+                old_path = nil,
+                new_path = nil,
+                language = nil
+            }
+        },
+    },
+    {
+        -- new_path is set: cursor_placement.filepath should match it for all matched rows
+        name = 'filepath populated from new_path',
+        buf_contents = { 'line1', 'line2', 'line3' },
+        get_cursors_set = function()
+            local buf_contents = { 'line1', 'line2', 'line3' }
+            local set = {}
+            for i, v in ipairs(buf_contents) do
+                for j = 1, #v, 1 do
+                    table.insert(set, { i, j - 1 })
+                end
+            end
+            return set
+        end,
+        --- @type DiffData[]
+        delta_diff_data_set = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            {
+                                content = 'line1',
+                                old_line_num = 1,
+                                new_line_num = 1,
+                                diff_line_num = 0,
+                                formatted_diff_line_num = 0,
+                                line_type = 'context'
+                            },
+                            {
+                                content = 'line2',
+                                old_line_num = nil,
+                                new_line_num = 2,
+                                diff_line_num = 1,
+                                formatted_diff_line_num = 1,
+                                line_type = 'added'
+                            },
+                            {
+                                content = 'line3',
+                                old_line_num = 3,
+                                new_line_num = 3,
+                                diff_line_num = 2,
+                                formatted_diff_line_num = 2,
+                                line_type = 'context'
+                            }
+                        },
+                        old_start = 1,
+                        old_count = 3,
+                        new_start = 1,
+                        new_count = 3,
+                        header = '@@ -1,3 +1,3 @@',
+                        context = nil
+                    }
+                },
+                old_path = 'src/foo.lua',
+                new_path = 'src/foo.lua',
+                language = nil
+            }
+        },
+    },
+}
+
+SetupCursorPlacementTracking.properties = {}
+SetupCursorPlacementTracking.properties.cursor_populated_for_all_added_or_context_positions = [[(function()
+    local cursors_set = _G.fixture.cursors_set
+    local bufnr = _G.fixture.bufnr
+    local winnr = _G.fixture.winnr
+    M.setup_cursor_placement_tracking(bufnr, winnr)
+    for _, cursor in ipairs(cursors_set) do
+        vim.api.nvim_win_set_cursor(0, cursor)
+        vim.api.nvim_exec_autocmds('CursorMoved', { buffer = bufnr })
+
+        -- find which diff line (if any) this cursor row maps to
+        local diff_line = nil
+        local diff_filepath = nil
+        for _, diff_data in ipairs(_G.fixture.delta_diff_data_set) do
+            for _, hunk in ipairs(diff_data.hunks) do
+                for _, line in ipairs(hunk.lines) do
+                    if line.formatted_diff_line_num + 1 == cursor[1] then
+                        diff_line = line
+                        diff_filepath = diff_data.new_path
+                    end
+                end
+            end
+        end
+
+        if diff_line == nil then
+            -- not a diff line at all: cursor_placement should be nil
+            if M.cursor_placement ~= nil then
+                return false
+            end
+        elseif diff_line.new_line_num == nil then
+            -- removed line: cursor_placement should be nil
+            if M.cursor_placement ~= nil then
+                return false
+            end
+        else
+            -- added/context line: cursor_placement should be populated with correct values
+            if M.cursor_placement == nil then
+                return false
+            end
+            if M.cursor_placement.cursor[1] ~= diff_line.new_line_num then
+                return false
+            end
+            if M.cursor_placement.cursor[2] ~= cursor[2] then
+                return false
+            end
+            if M.cursor_placement.filepath ~= diff_filepath then
+                return false
+            end
+        end
+    end
+    return true
+end)()]]
+
+
+T['setup_cursor_placement_tracking() properties'] = new_set()
+for func_name, func in pairs(SetupCursorPlacementTracking.properties) do
+    for _, case in ipairs(SetupCursorPlacementTracking.setup_cursor_placement_tracking__property_cases) do
+        T['setup_cursor_placement_tracking() properties'][func_name .. ': ' .. case.name] = function()
+            child.lua([[_G.fixture.cursors_set = ...]], { case.get_cursors_set() })
+            child.lua([[
+            local bufnr = vim.api.nvim_create_buf(true, true)
+            vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, ...)
+            vim.api.nvim_set_current_buf(bufnr)
+            _G.fixture.bufnr = bufnr
+            _G.fixture.winnr = vim.api.nvim_get_current_win()
+        ]], { case.buf_contents })
+            child.lua([[_G.fixture.delta_diff_data_set = ...]], { case.delta_diff_data_set })
+            child.lua([[vim.b[_G.fixture.bufnr].delta_diff_data_set = _G.fixture.delta_diff_data_set]])
+            local result = child.lua_get(func)
+            eq(result, true)
+        end
+    end
+end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
 -- get_delta_buffer_cursor_exit_strategy()
