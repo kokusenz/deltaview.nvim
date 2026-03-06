@@ -259,8 +259,8 @@ end
 --- sets the view state while maintaining the cursor position relative to the top of the window. Accounts for new line wrapping.
 --- @param winnr number
 --- @param og_winline number original distance between cursor and top of window
---- @param target_row number row of where cursor should be placed
---- @param target_col number col of where the cursor should be placed
+--- @param target_row number row of where cursor should be placed 0-based
+--- @param target_col number col of where the cursor should be placed 1-based
 M.set_restview = function(winnr, og_winline, target_row, target_col)
     local success, err = pcall(function()
         vim.api.nvim_win_call(winnr, function()

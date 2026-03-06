@@ -684,22 +684,22 @@ end
 -- we can actually seriously fuzzy the cursors by hitting every single possible spot
 
 local SetupCursorPlacementTracking = {}
+SetupCursorPlacementTracking.get_cursors_set = function(buf_contents)
+    local set = {}
+    for i, v in ipairs(buf_contents) do
+        for j = 1, #v, 1 do
+            table.insert(set, { i, j - 1 })
+        end
+    end
+    return set
+end
 
 --- @class setup_cursor_placement_tracking__property_cases
 SetupCursorPlacementTracking.setup_cursor_placement_tracking__property_cases = {
     {
         name = 'no deleted lines',
         buf_contents = { 'line1', 'line2', 'line3' },
-        get_cursors_set = function()
-            local buf_contents = { 'line1', 'line2', 'line3' }
-            local set = {}
-            for i, v in ipairs(buf_contents) do
-                for j = 1, #v, 1 do
-                    table.insert(set, { i, j - 1 })
-                end
-            end
-            return set
-        end,
+        get_cursors_set = SetupCursorPlacementTracking.get_cursors_set,
         --- @type DiffData[]
         delta_diff_data_set = {
             {
@@ -749,16 +749,7 @@ SetupCursorPlacementTracking.setup_cursor_placement_tracking__property_cases = {
         -- row 1 (fdln=0) is removed → cursor_placement nil; rows 2,3 are added/context → non-nil
         name = 'has a removed line',
         buf_contents = { '-removed', '+added', 'context' },
-        get_cursors_set = function()
-            local buf_contents = { '-removed', '+added', 'context' }
-            local set = {}
-            for i, v in ipairs(buf_contents) do
-                for j = 1, #v, 1 do
-                    table.insert(set, { i, j - 1 })
-                end
-            end
-            return set
-        end,
+        get_cursors_set = SetupCursorPlacementTracking.get_cursors_set,
         --- @type DiffData[]
         delta_diff_data_set = {
             {
@@ -808,16 +799,7 @@ SetupCursorPlacementTracking.setup_cursor_placement_tracking__property_cases = {
         -- rows 1 and 4 are not covered by any diff line → cursor_placement nil; rows 2,3 → non-nil
         name = 'buffer rows outside diff coverage',
         buf_contents = { '~', 'line1', 'line2', '~' },
-        get_cursors_set = function()
-            local buf_contents = { '~', 'line1', 'line2', '~' }
-            local set = {}
-            for i, v in ipairs(buf_contents) do
-                for j = 1, #v, 1 do
-                    table.insert(set, { i, j - 1 })
-                end
-            end
-            return set
-        end,
+        get_cursors_set = SetupCursorPlacementTracking.get_cursors_set,
         --- @type DiffData[]
         delta_diff_data_set = {
             {
@@ -859,16 +841,7 @@ SetupCursorPlacementTracking.setup_cursor_placement_tracking__property_cases = {
         -- hunk 1 covers rows 1,2; rows 3,4 are gap (not diff lines); hunk 2 covers rows 5,6
         name = 'multiple hunks with gap between',
         buf_contents = { 'h1l1', 'h1l2', '....', '....', 'h2l1', 'h2l2' },
-        get_cursors_set = function()
-            local buf_contents = { 'h1l1', 'h1l2', '....', '....', 'h2l1', 'h2l2' }
-            local set = {}
-            for i, v in ipairs(buf_contents) do
-                for j = 1, #v, 1 do
-                    table.insert(set, { i, j - 1 })
-                end
-            end
-            return set
-        end,
+        get_cursors_set = SetupCursorPlacementTracking.get_cursors_set,
         --- @type DiffData[]
         delta_diff_data_set = {
             {
@@ -936,16 +909,7 @@ SetupCursorPlacementTracking.setup_cursor_placement_tracking__property_cases = {
         -- new_path is set: cursor_placement.filepath should match it for all matched rows
         name = 'filepath populated from new_path',
         buf_contents = { 'line1', 'line2', 'line3' },
-        get_cursors_set = function()
-            local buf_contents = { 'line1', 'line2', 'line3' }
-            local set = {}
-            for i, v in ipairs(buf_contents) do
-                for j = 1, #v, 1 do
-                    table.insert(set, { i, j - 1 })
-                end
-            end
-            return set
-        end,
+        get_cursors_set = SetupCursorPlacementTracking.get_cursors_set,
         --- @type DiffData[]
         delta_diff_data_set = {
             {
@@ -1051,7 +1015,7 @@ T['setup_cursor_placement_tracking() properties'] = new_set()
 for func_name, func in pairs(SetupCursorPlacementTracking.properties) do
     for _, case in ipairs(SetupCursorPlacementTracking.setup_cursor_placement_tracking__property_cases) do
         T['setup_cursor_placement_tracking() properties'][func_name .. ': ' .. case.name] = function()
-            child.lua([[_G.fixture.cursors_set = ...]], { case.get_cursors_set() })
+            child.lua([[_G.fixture.cursors_set = ...]], { case.get_cursors_set(case.buf_contents) })
             child.lua([[
             local bufnr = vim.api.nvim_create_buf(true, true)
             vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, ...)
@@ -1068,10 +1032,413 @@ for func_name, func in pairs(SetupCursorPlacementTracking.properties) do
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
--- get_delta_buffer_cursor_exit_strategy()
+-- get_delta_buffer_cursor_exit_strategy() - property based tests
+
+local GetDeltaBufferCursorExitStrategy = {}
+
+GetDeltaBufferCursorExitStrategy.get_cursors_set = function(buf_contents)
+    local set = {}
+    for i, v in ipairs(buf_contents) do
+        for j = 1, #v, 1 do
+            table.insert(set, { i, j - 1 })
+        end
+    end
+    return set
+end
+
+--- @class get_delta_buffer_cursor_exit_strategy__property_cases
+GetDeltaBufferCursorExitStrategy.get_delta_buffer_cursor_exit_strategy__property_cases = {
+    {
+        -- alternative_bufnr is provided; all lines have new_line_num → property fires for all cursor spots
+        name = 'with alternative_bufnr, no filepath',
+        use_alternative_bufnr = true,
+        buf_contents = { 'line1', 'line2', 'line3' },
+        get_cursors_set = GetDeltaBufferCursorExitStrategy.get_cursors_set,
+        --- @type DiffData[]
+        delta_diff_data_set = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            {
+                                content = 'line1',
+                                old_line_num = 1,
+                                new_line_num = 1,
+                                diff_line_num = 0,
+                                formatted_diff_line_num = 0,
+                                line_type = 'context'
+                            },
+                            {
+                                content = 'line2',
+                                old_line_num = nil,
+                                new_line_num = 2,
+                                diff_line_num = 1,
+                                formatted_diff_line_num = 1,
+                                line_type = 'added'
+                            },
+                            {
+                                content = 'line3',
+                                old_line_num = 3,
+                                new_line_num = 3,
+                                diff_line_num = 2,
+                                formatted_diff_line_num = 2,
+                                line_type = 'context'
+                            }
+                        },
+                        old_start = 1,
+                        old_count = 3,
+                        new_start = 1,
+                        new_count = 3,
+                        header = '@@ -1,3 +1,3 @@',
+                        context = nil
+                    }
+                },
+                old_path = nil,
+                new_path = nil,
+                language = nil
+            }
+        },
+    },
+    {
+        -- filepath is set, no alternative_bufnr; vim.cmd is mocked so 'e filepath' succeeds
+        name = 'with filepath, no alternative_bufnr',
+        use_alternative_bufnr = false,
+        buf_contents = { 'line1', 'line2', 'line3' },
+        get_cursors_set = GetDeltaBufferCursorExitStrategy.get_cursors_set,
+        --- @type DiffData[]
+        delta_diff_data_set = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            {
+                                content = 'line1',
+                                old_line_num = 1,
+                                new_line_num = 1,
+                                diff_line_num = 0,
+                                formatted_diff_line_num = 0,
+                                line_type = 'context'
+                            },
+                            {
+                                content = 'line2',
+                                old_line_num = nil,
+                                new_line_num = 2,
+                                diff_line_num = 1,
+                                formatted_diff_line_num = 1,
+                                line_type = 'added'
+                            },
+                            {
+                                content = 'line3',
+                                old_line_num = 3,
+                                new_line_num = 3,
+                                diff_line_num = 2,
+                                formatted_diff_line_num = 2,
+                                line_type = 'context'
+                            }
+                        },
+                        old_start = 1,
+                        old_count = 3,
+                        new_start = 1,
+                        new_count = 3,
+                        header = '@@ -1,3 +1,3 @@',
+                        context = nil
+                    }
+                },
+                old_path = 'src/foo.lua',
+                new_path = 'src/foo.lua',
+                language = nil
+            }
+        },
+    },
+    {
+        -- both filepath and alternative_bufnr provided; alternative_bufnr takes precedence in view.lua
+        name = 'with both filepath and alternative_bufnr',
+        use_alternative_bufnr = true,
+        buf_contents = { 'line1', 'line2' },
+        get_cursors_set = GetDeltaBufferCursorExitStrategy.get_cursors_set,
+        --- @type DiffData[]
+        delta_diff_data_set = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            {
+                                content = 'line1',
+                                old_line_num = 1,
+                                new_line_num = 1,
+                                diff_line_num = 0,
+                                formatted_diff_line_num = 0,
+                                line_type = 'context'
+                            },
+                            {
+                                content = 'line2',
+                                old_line_num = nil,
+                                new_line_num = 2,
+                                diff_line_num = 1,
+                                formatted_diff_line_num = 1,
+                                line_type = 'added'
+                            }
+                        },
+                        old_start = 1,
+                        old_count = 1,
+                        new_start = 1,
+                        new_count = 2,
+                        header = '@@ -1 +1,2 @@',
+                        context = nil
+                    }
+                },
+                old_path = 'src/bar.lua',
+                new_path = 'src/bar.lua',
+                language = nil
+            }
+        },
+    },
+    {
+        -- mix of removed and added lines with alternative_bufnr;
+        -- removed line row → cursor_placement nil → property vacuous;
+        -- added/context rows → property fires and should return true
+        name = 'has removed line, with alternative_bufnr',
+        use_alternative_bufnr = true,
+        buf_contents = { '-removed', '+added', 'context' },
+        get_cursors_set = GetDeltaBufferCursorExitStrategy.get_cursors_set,
+        --- @type DiffData[]
+        delta_diff_data_set = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            {
+                                content = '-removed',
+                                old_line_num = 1,
+                                new_line_num = nil,
+                                diff_line_num = 0,
+                                formatted_diff_line_num = 0,
+                                line_type = 'removed'
+                            },
+                            {
+                                content = '+added',
+                                old_line_num = nil,
+                                new_line_num = 1,
+                                diff_line_num = 1,
+                                formatted_diff_line_num = 1,
+                                line_type = 'added'
+                            },
+                            {
+                                content = 'context',
+                                old_line_num = 2,
+                                new_line_num = 2,
+                                diff_line_num = 2,
+                                formatted_diff_line_num = 2,
+                                line_type = 'context'
+                            }
+                        },
+                        old_start = 1,
+                        old_count = 2,
+                        new_start = 1,
+                        new_count = 2,
+                        header = '@@ -1,2 +1,2 @@',
+                        context = nil
+                    }
+                },
+                old_path = nil,
+                new_path = nil,
+                language = nil
+            }
+        },
+    },
+}
+
+GetDeltaBufferCursorExitStrategy.properties = {}
+GetDeltaBufferCursorExitStrategy.properties.strategy_returns_true_when_cursor_placed_and_navigation_possible = [[(function()
+    local cursors_set = _G.fixture.cursors_set
+    local bufnr = _G.fixture.bufnr
+    local winnr = _G.fixture.winnr
+    local alternative_bufnr = _G.fixture.alternative_bufnr
+    local delta_diff_data_set = _G.fixture.delta_diff_data_set
+
+    -- setup_cursor_placement_tracking is tested separately; mock it so we control cursor_placement directly
+    M.setup_cursor_placement_tracking = function() end
+    M.set_restview = function() end
+    vim.fn.winline = function() return 1 end
+    -- mock vim.cmd so 'e filepath' doesn't attempt to open a real file
+    local orig_cmd = vim.cmd
+    vim.cmd = function() end
+
+    local strategy = M.get_delta_buffer_cursor_exit_strategy(bufnr, winnr, alternative_bufnr)
+
+    for _, cursor in ipairs(cursors_set) do
+        -- mirror view.lua's row_lookup logic to determine what cursor_placement should be
+        local diff_line = nil
+        local diff_filepath = nil
+        for _, diff_data in ipairs(delta_diff_data_set) do
+            for _, hunk in ipairs(diff_data.hunks) do
+                for _, line in ipairs(hunk.lines) do
+                    if line.formatted_diff_line_num + 1 == cursor[1] then
+                        diff_line = line
+                        diff_filepath = diff_data.new_path
+                    end
+                end
+            end
+        end
+
+        if diff_line ~= nil and diff_line.new_line_num ~= nil then
+            M.cursor_placement = {
+                winnr = winnr,
+                cursor = { diff_line.new_line_num, cursor[2] },
+                filepath = diff_filepath,
+            }
+        else
+            M.cursor_placement = nil
+        end
+
+        -- save before strategy() clears it
+        local cp = M.cursor_placement
+        local result = strategy()
+
+        -- property: strategy returns true when cursor is placed and navigation is possible
+        if cp ~= nil and (alternative_bufnr ~= nil or cp.filepath ~= nil) then
+            if result ~= true then
+                vim.cmd = orig_cmd
+                return false
+            end
+        end
+    end
+
+    vim.cmd = orig_cmd
+    return true
+end)()]]
+
+T['get_delta_buffer_cursor_exit_strategy() properties'] = new_set()
+for func_name, func in pairs(GetDeltaBufferCursorExitStrategy.properties) do
+    for _, case in ipairs(GetDeltaBufferCursorExitStrategy.get_delta_buffer_cursor_exit_strategy__property_cases) do
+        T['get_delta_buffer_cursor_exit_strategy() properties'][func_name .. ': ' .. case.name] = function()
+            child.lua([[_G.fixture.cursors_set = ...]], { case.get_cursors_set(case.buf_contents) })
+            child.lua([[
+                local bufnr = vim.api.nvim_create_buf(true, true)
+                vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, ...)
+                vim.api.nvim_set_current_buf(bufnr)
+                _G.fixture.bufnr = bufnr
+                _G.fixture.winnr = vim.api.nvim_get_current_win()
+            ]], { case.buf_contents })
+            child.lua([[_G.fixture.delta_diff_data_set = ...]], { case.delta_diff_data_set })
+            child.lua([[vim.b[_G.fixture.bufnr].delta_diff_data_set = _G.fixture.delta_diff_data_set]])
+            if case.use_alternative_bufnr then
+                child.lua([[_G.fixture.alternative_bufnr = vim.api.nvim_create_buf(true, true)]])
+            else
+                child.lua([[_G.fixture.alternative_bufnr = nil]])
+            end
+            local result = child.lua_get(func)
+            eq(result, true)
+        end
+    end
+end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
--- set_restview()
+-- set_restview() - property based tests
+
+local SetRestview = {}
+
+SetRestview.get_inputs = function(buf_contents)
+    local set = {}
+    -- starting at 0 and ending 1 over for edge cases
+    for winline = -1, #buf_contents+1, 1 do
+        for row, line in ipairs(buf_contents) do
+            for col = -1, #line + 1, 1 do
+                table.insert(set, {target_row = row - 1, target_col = col, og_winline = winline})
+            end
+        end
+    end
+    table.insert(set, {target_row = 9999, target_col = 9999, og_winline = 9999})
+    table.insert(set, {target_row = -9999, target_col = -9999, og_winline = -9999})
+    return set
+end
+
+--- @class set_restview__property_cases
+SetRestview.set_restview__property_cases = {
+    {
+        name = 'short buffer',
+        buf_contents = { 'line1', 'line2', 'line3' },
+        get_inputs = SetRestview.get_inputs
+    },
+    {
+        name = 'longer buffer with varied line lengths',
+        buf_contents = {
+            'short',
+            'a longer line here for variety',
+            'x',
+            'another moderately long line of content',
+            'tiny',
+            'medium length content here',
+            'ab',
+            'the longest line with many more characters included here for wrapping',
+        },
+        get_inputs = SetRestview.get_inputs
+    },
+}
+
+SetRestview.properties = {}
+
+-- Note that the "last row bug" documented in the comments of the function is not being reflected here
+-- this may be due to different rendering with mini.test vs real terminal rendering.
+-- who knows, I can't even RCA that bug. but this test will pass regardless of that bug
+SetRestview.properties.winline_matches_og_winline_after_set_restview = [[(function()
+    local inputs = _G.fixture.inputs
+    local bufnr = _G.fixture.bufnr
+    local winnr = _G.fixture.winnr
+
+    for _, input in ipairs(inputs) do
+        local target_row = input.target_row
+        local target_col = input.target_col
+        local og_winline = input.og_winline
+
+        -- assume: target_row within buffer bounds
+        local buf_line_count = vim.api.nvim_buf_line_count(bufnr)
+        if target_row < 1 or target_row > buf_line_count then goto continue end
+
+        -- assume: target_col non-negative
+        if target_col < 0 then goto continue end
+
+        -- assume: og_winline within [1, window height]
+        local win_height = vim.api.nvim_win_get_height(winnr)
+        if og_winline < 1 or og_winline > win_height then goto continue end
+
+        -- assume: enough rows above target_row to scroll back og_winline-1 screen lines
+        -- (without wrapping, each buffer row is 1 screen line, so target_row >= og_winline is required)
+        if og_winline > target_row then goto continue end
+
+        M.set_restview(winnr, og_winline, target_row, target_col)
+
+        local actual_winline = vim.api.nvim_win_call(winnr, function()
+            return vim.fn.winline()
+        end)
+
+        if actual_winline ~= og_winline then
+            return false
+        end
+
+        ::continue::
+    end
+
+    return true
+end)()]]
+
+T['set_restview() properties'] = new_set()
+for func_name, func in pairs(SetRestview.properties) do
+    for _, case in ipairs(SetRestview.set_restview__property_cases) do
+        T['set_restview() properties'][func_name .. ': ' .. case.name] = function()
+            child.lua([[_G.fixture.inputs = ...]], { case.get_inputs(case.buf_contents) })
+            child.lua([[
+                local bufnr = vim.api.nvim_create_buf(true, true)
+                vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, ...)
+                vim.api.nvim_set_current_buf(bufnr)
+                _G.fixture.bufnr = bufnr
+                _G.fixture.winnr = vim.api.nvim_get_current_win()
+            ]], { case.buf_contents })
+            local result = child.lua_get(func)
+            eq(result, true)
+        end
+    end
+end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
 -- setup_hunk_navigation()
