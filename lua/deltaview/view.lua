@@ -304,7 +304,6 @@ end
 
 --- @param bufnr number
 M.setup_hunk_navigation = function(bufnr)
-
     vim.keymap.set('n', config.options.keyconfig.next_hunk, function()
         M.jump_to_hunk(bufnr, true)
     end, { buffer = bufnr, silent = true })
@@ -367,6 +366,8 @@ M.jump_to_hunk = function(bufnr, forward)
                             .. parsed_hunk_idx .. '/'
                             .. #parsed_git_data[data_set_idx].hunks, 'Normal' }
                         }, false, {})
+
+                        vim.defer_fn(function() vim.cmd('echo ""') end, 2000)
                         return
                     end
                 end
@@ -398,6 +399,7 @@ M.jump_to_hunk = function(bufnr, forward)
                         .. hunk_number .. '/'
                         .. #parsed_git_data[data_set_idx].hunks, 'Normal' }
                     }, false, {})
+                    vim.defer_fn(function() vim.cmd('echo ""') end, 2000)
                     return
                 end
             end
