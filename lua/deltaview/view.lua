@@ -32,11 +32,13 @@ end
 --- @param winnr number|nil Optional window number to open on.
 --- @return number | nil bufnr buf id of delta.lua buffer
 M.open_git_diff_buffer = function(filepath, ref, winnr)
-    local git_root = vim.fn.systemlist('git rev-parse --show-toplevel')[1]
-    if vim.v.shell_error ~= 0 then
+    local rev_parse_result = vim.system({'git', 'rev-parse', '--show-toplevel'}):wait()
+    if rev_parse_result.code ~= 0 and rev_parse_result.code ~= 1 then
         vim.notify('Not in a git repository. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
         return
     end
+    local git_root = vim.trim(rev_parse_result.stdout)
+
     assert(filepath ~= nil)
     if vim.fn.filereadable(filepath) == 0 then
         vim.notify('Not on a real file. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
