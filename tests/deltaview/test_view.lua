@@ -1249,7 +1249,8 @@ GetDeltaBufferCursorExitStrategy.get_delta_buffer_cursor_exit_strategy__property
 }
 
 GetDeltaBufferCursorExitStrategy.properties = {}
-GetDeltaBufferCursorExitStrategy.properties.strategy_returns_true_when_cursor_placed_and_navigation_possible = [[(function()
+GetDeltaBufferCursorExitStrategy.properties.strategy_returns_true_when_cursor_placed_and_navigation_possible =
+[[(function()
     local cursors_set = _G.fixture.cursors_set
     local bufnr = _G.fixture.bufnr
     local winnr = _G.fixture.winnr
@@ -1341,15 +1342,15 @@ local SetRestview = {}
 SetRestview.get_inputs = function(buf_contents)
     local set = {}
     -- starting at 0 and ending 1 over for edge cases
-    for winline = -1, #buf_contents+1, 1 do
+    for winline = -1, #buf_contents + 1, 1 do
         for row, line in ipairs(buf_contents) do
             for col = -1, #line + 1, 1 do
-                table.insert(set, {target_row = row - 1, target_col = col, og_winline = winline})
+                table.insert(set, { target_row = row - 1, target_col = col, og_winline = winline })
             end
         end
     end
-    table.insert(set, {target_row = 9999, target_col = 9999, og_winline = 9999})
-    table.insert(set, {target_row = -9999, target_col = -9999, og_winline = -9999})
+    table.insert(set, { target_row = 9999, target_col = 9999, og_winline = 9999 })
+    table.insert(set, { target_row = -9999, target_col = -9999, og_winline = -9999 })
     return set
 end
 
@@ -1441,9 +1442,393 @@ for func_name, func in pairs(SetRestview.properties) do
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
--- setup_hunk_navigation()
+-- setup_hunk_navigation() - example based tests
+
+T['setup_hunk_navigation()'] = new_set()
+
+T['setup_hunk_navigation()']['binds config.options.keyconfig.next_hunk to jump_to_hunk'] = function()
+    child.lua([[
+        local bufnr = vim.api.nvim_create_buf(true, true)
+        _G.fixture.bufnr = bufnr
+        _G.fixture.keymap_set_args = {}
+
+        M.jump_to_hunk = function(bufnr, forward)
+            _G.fixture.jump_to_hunk_called = true
+            _G.fixture.jump_to_hunk_called_with = {bufnr = bufnr, forward = forward}
+        end
+        vim.keymap.set = function(modes, lhs, rhs, opts)
+            _G.fixture.keymap_set_args[lhs] = { modes = modes, lhs = lhs, rhs = rhs, opts = opts }
+        end
+        M.setup_hunk_navigation(bufnr)
+        -- run the code
+    ]])
+
+    local expected_binds = { '<Tab>', '<S-Tab>' }
+    local expected_forward = { true, false }
+    for idx, b in ipairs(expected_binds) do
+        local bufnr = child.lua_get([[_G.fixture.bufnr]], {b})
+        local modes = child.lua_get([[_G.fixture.keymap_set_args[...].modes]], {b})
+        local lhs = child.lua_get([[_G.fixture.keymap_set_args[...].lhs]], {b})
+        --local rhs = child.lua_get([[_G.fixture.keymap_set_args.rhs]])
+        local buffer = child.lua_get([[_G.fixture.keymap_set_args[...].opts.buffer]], {b})
+        local silent = child.lua_get([[_G.fixture.keymap_set_args[...].opts.silent]], {b})
+
+        eq(modes, 'n')
+        eq(lhs, b)
+        eq(buffer, bufnr)
+        eq(silent, true)
+
+        child.lua([[_G.fixture.keymap_set_args[...].rhs()]], {b})
+        local called = child.lua_get([[_G.fixture.jump_to_hunk_called]], {b})
+        local called_with = child.lua_get([[_G.fixture.jump_to_hunk_called_with]], {b})
+        eq(called, true)
+        eq(called_with.bufnr, bufnr)
+        eq(called_with.forward, expected_forward[idx])
+    end
+end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
--- jump_to_hunk()
+-- jump_to_hunk() - property based tests
+
+local JumpToHunk = {}
+
+--- Fuzz cursor row (all buffer rows) and direction (forward + backward).
+--- Column is always 0 since it does not affect hunk-navigation logic.
+JumpToHunk.get_cursor_placements = function(buf_contents)
+    local set = {}
+    for i = 1, #buf_contents do
+        table.insert(set, { cursor = { i, 0 }, forward = true })
+        table.insert(set, { cursor = { i, 0 }, forward = false })
+    end
+    return set
+end
+
+--- @class jump_to_hunk__property_cases
+JumpToHunk.jump_to_hunk__property_cases = {
+    {
+        -- Single file, one delta hunk spanning all 7 buffer rows, two parsed hunks.
+        -- Because lines are indexed 1..7 matching buffer rows 1..7, the cursor-as-index
+        -- assumption in jump_to_hunk holds perfectly here.
+        -- Parsed hunk 1: added1 (new=2, old=nil).
+        -- Parsed hunk 2: added2 + removed (new=5/nil, old=nil/4).
+        name = 'single file, two parsed hunks',
+        buf_contents = { 'ctx', 'added1', 'ctx', 'ctx', 'added2', 'removed', 'ctx' },
+        get_cursor_placements = JumpToHunk.get_cursor_placements,
+        --- @type DiffData[]
+        delta_diff_data_set = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            { content = 'ctx',     old_line_num = 1,   new_line_num = 1,   diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'context' },
+                            { content = 'added1',  old_line_num = nil, new_line_num = 2,   diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'added' },
+                            { content = 'ctx',     old_line_num = 2,   new_line_num = 3,   diff_line_num = 2, formatted_diff_line_num = 2, line_type = 'context' },
+                            { content = 'ctx',     old_line_num = 3,   new_line_num = 4,   diff_line_num = 3, formatted_diff_line_num = 3, line_type = 'context' },
+                            { content = 'added2',  old_line_num = nil, new_line_num = 5,   diff_line_num = 4, formatted_diff_line_num = 4, line_type = 'added' },
+                            { content = 'removed', old_line_num = 4,   new_line_num = nil, diff_line_num = 5, formatted_diff_line_num = 5, line_type = 'removed' },
+                            { content = 'ctx',     old_line_num = 5,   new_line_num = 6,   diff_line_num = 6, formatted_diff_line_num = 6, line_type = 'context' },
+                        },
+                        old_start = 1,
+                        old_count = 6,
+                        new_start = 1,
+                        new_count = 6,
+                        header = '@@ -1,6 +1,6 @@',
+                        context = nil
+                    }
+                },
+                old_path = nil,
+                new_path = nil,
+                language = nil
+            }
+        },
+        --- @type DiffData[]
+        parsed_git_data = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            { content = 'added1', old_line_num = nil, new_line_num = 2, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'added' },
+                        },
+                        old_start = 2,
+                        old_count = 0,
+                        new_start = 2,
+                        new_count = 1,
+                        header = '@@ -2,0 +2,1 @@',
+                        context = nil
+                    },
+                    {
+                        lines = {
+                            { content = 'added2',  old_line_num = nil, new_line_num = 5,   diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'added' },
+                            { content = 'removed', old_line_num = 4,   new_line_num = nil, diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'removed' },
+                        },
+                        old_start = 4,
+                        old_count = 1,
+                        new_start = 5,
+                        new_count = 1,
+                        header = '@@ -4,1 +5,1 @@',
+                        context = nil
+                    },
+                },
+                old_path = nil,
+                new_path = nil,
+                language = nil
+            }
+        },
+    },
+    {
+        -- Single file, one delta hunk, one parsed hunk (contiguous added block).
+        -- added1 and added2 are adjacent so parsed_git_data merges them into one hunk.
+        -- From any cursor at or past the hunk start, forward always cycles back to row 2.
+        name = 'single file, contiguous added block (one parsed hunk)',
+        buf_contents = { 'ctx', 'added1', 'added2', 'ctx', 'ctx' },
+        get_cursor_placements = JumpToHunk.get_cursor_placements,
+        --- @type DiffData[]
+        delta_diff_data_set = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            { content = 'ctx',    old_line_num = 1,   new_line_num = 1, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'context' },
+                            { content = 'added1', old_line_num = nil, new_line_num = 2, diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'added' },
+                            { content = 'added2', old_line_num = nil, new_line_num = 3, diff_line_num = 2, formatted_diff_line_num = 2, line_type = 'added' },
+                            { content = 'ctx',    old_line_num = 2,   new_line_num = 4, diff_line_num = 3, formatted_diff_line_num = 3, line_type = 'context' },
+                            { content = 'ctx',    old_line_num = 3,   new_line_num = 5, diff_line_num = 4, formatted_diff_line_num = 4, line_type = 'context' },
+                        },
+                        old_start = 1,
+                        old_count = 3,
+                        new_start = 1,
+                        new_count = 5,
+                        header = '@@ -1,3 +1,5 @@',
+                        context = nil
+                    }
+                },
+                old_path = nil,
+                new_path = nil,
+                language = nil
+            }
+        },
+        --- @type DiffData[]
+        parsed_git_data = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            { content = 'added1', old_line_num = nil, new_line_num = 2, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'added' },
+                            { content = 'added2', old_line_num = nil, new_line_num = 3, diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'added' },
+                        },
+                        old_start = 2,
+                        old_count = 0,
+                        new_start = 2,
+                        new_count = 2,
+                        header = '@@ -2,0 +2,2 @@',
+                        context = nil
+                    },
+                },
+                old_path = nil,
+                new_path = nil,
+                language = nil
+            }
+        },
+    },
+    {
+        -- Single file, removed lines only.
+        -- The parsed hunk starts with a removed line (new_line_num=nil, old_line_num=2).
+        -- Exercises the old_line_num matching branch of the algorithm.
+        name = 'single file, removed lines only',
+        buf_contents = { 'ctx', 'removed1', 'removed2', 'ctx' },
+        get_cursor_placements = JumpToHunk.get_cursor_placements,
+        --- @type DiffData[]
+        delta_diff_data_set = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            { content = 'ctx',      old_line_num = 1, new_line_num = 1,   diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'context' },
+                            { content = 'removed1', old_line_num = 2, new_line_num = nil, diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'removed' },
+                            { content = 'removed2', old_line_num = 3, new_line_num = nil, diff_line_num = 2, formatted_diff_line_num = 2, line_type = 'removed' },
+                            { content = 'ctx',      old_line_num = 4, new_line_num = 2,   diff_line_num = 3, formatted_diff_line_num = 3, line_type = 'context' },
+                        },
+                        old_start = 1,
+                        old_count = 4,
+                        new_start = 1,
+                        new_count = 2,
+                        header = '@@ -1,4 +1,2 @@',
+                        context = nil
+                    }
+                },
+                old_path = nil,
+                new_path = nil,
+                language = nil
+            }
+        },
+        --- @type DiffData[]
+        parsed_git_data = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            { content = 'removed1', old_line_num = 2, new_line_num = nil, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'removed' },
+                            { content = 'removed2', old_line_num = 3, new_line_num = nil, diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'removed' },
+                        },
+                        old_start = 2,
+                        old_count = 2,
+                        new_start = 2,
+                        new_count = 0,
+                        header = '@@ -2,2 +2,0 @@',
+                        context = nil
+                    },
+                },
+                old_path = nil,
+                new_path = nil,
+                language = nil
+            }
+        },
+    },
+    -- TODO; currently, this function doesn't work well when delta_diff_data_set has multiple hunks. Due to the way Delta.text_diff works, with producing 1 hunk, this is functionally not a bug, but when we develop for Delta.git_diff, this will most likely bug out. Then, we should root cause the bug and figure it out, and uncomment this test
+    -- {
+    --     -- Two files, each with a 3-line hunk.
+    --     -- jump_to_hunk uses cursor[1] as an index into each hunk's lines[] array directly.
+    --     -- File2's hunk has only 3 elements (indices 1..3), but cursors at rows 4..6 produce
+    --     -- line_start=5..7 — past the end — so file2's loop body never executes.
+    --     -- Consequence: forward navigation from any row in file2 always cycles back to file1's
+    --     -- hunk start (row 2). This case documents that cross-file jump behavior.
+    --     name = 'two files (cross-file cycling from file2 rows)',
+    --     buf_contents = { 'f1_ctx', 'f1_added', 'f1_ctx', 'f2_ctx', 'f2_added', 'f2_ctx' },
+    --     get_cursor_placements = JumpToHunk.get_cursor_placements,
+    --     --- @type DiffData[]
+    --     delta_diff_data_set = {
+    --         {
+    --             hunks = {
+    --                 {
+    --                     lines = {
+    --                         { content = 'f1_ctx',   old_line_num = 1,   new_line_num = 1, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'context' },
+    --                         { content = 'f1_added', old_line_num = nil, new_line_num = 2, diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'added' },
+    --                         { content = 'f1_ctx',   old_line_num = 2,   new_line_num = 3, diff_line_num = 2, formatted_diff_line_num = 2, line_type = 'context' },
+    --                     },
+    --                     old_start = 1, old_count = 2, new_start = 1, new_count = 3,
+    --                     header = '@@ -1,2 +1,3 @@', context = nil
+    --                 }
+    --             },
+    --             old_path = 'file1.lua', new_path = 'file1.lua', language = nil
+    --         },
+    --         {
+    --             hunks = {
+    --                 {
+    --                     lines = {
+    --                         { content = 'f2_ctx',   old_line_num = 1,   new_line_num = 1, diff_line_num = 0, formatted_diff_line_num = 3, line_type = 'context' },
+    --                         { content = 'f2_added', old_line_num = nil, new_line_num = 2, diff_line_num = 1, formatted_diff_line_num = 4, line_type = 'added' },
+    --                         { content = 'f2_ctx',   old_line_num = 2,   new_line_num = 3, diff_line_num = 2, formatted_diff_line_num = 5, line_type = 'context' },
+    --                     },
+    --                     old_start = 1, old_count = 2, new_start = 1, new_count = 3,
+    --                     header = '@@ -1,2 +1,3 @@', context = nil
+    --                 }
+    --             },
+    --             old_path = 'file2.lua', new_path = 'file2.lua', language = nil
+    --         },
+    --     },
+    --     --- @type DiffData[]
+    --     parsed_git_data = {
+    --         {
+    --             hunks = {
+    --                 {
+    --                     lines = {
+    --                         { content = 'f1_added', old_line_num = nil, new_line_num = 2, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'added' },
+    --                     },
+    --                     old_start = 2, old_count = 0, new_start = 2, new_count = 1,
+    --                     header = '@@ -2,0 +2,1 @@', context = nil
+    --                 },
+    --             },
+    --             old_path = 'file1.lua', new_path = 'file1.lua', language = nil
+    --         },
+    --         {
+    --             hunks = {
+    --                 {
+    --                     lines = {
+    --                         { content = 'f2_added', old_line_num = nil, new_line_num = 2, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'added' },
+    --                     },
+    --                     old_start = 2, old_count = 0, new_start = 2, new_count = 1,
+    --                     header = '@@ -2,0 +2,1 @@', context = nil
+    --                 },
+    --             },
+    --             old_path = 'file2.lua', new_path = 'file2.lua', language = nil
+    --         },
+    --     },
+    -- },
+}
+
+JumpToHunk.properties = {}
+
+JumpToHunk.properties.cursor_lands_on_valid_parsed_hunk_start = [[(function()
+    local cursor_placements = _G.fixture.cursor_placements
+    local bufnr = _G.fixture.bufnr
+    local winnr = _G.fixture.winnr
+    local delta_diff_data_set = vim.b[bufnr].delta_diff_data_set
+    local parsed_git_data = vim.b[bufnr].parsed_git_data
+
+    -- build the set of all valid hunk-start rows:
+    -- a row is valid if it corresponds to a delta_diff_data_set line whose
+    -- (new_line_num, old_line_num) matches the first line of some parsed_git_data hunk
+    local hunk_start_rows = {}
+    for di, diff_data in ipairs(delta_diff_data_set) do
+        for _, hunk in ipairs(diff_data.hunks) do
+            for _, line in ipairs(hunk.lines) do
+                for _, pg_hunk in ipairs(parsed_git_data[di].hunks) do
+                    local pf = pg_hunk.lines[1]
+                    if pf.new_line_num == line.new_line_num and
+                       pf.old_line_num == line.old_line_num then
+                        hunk_start_rows[line.formatted_diff_line_num + 1] = true
+                    end
+                end
+            end
+        end
+    end
+
+    local current_cursor = nil
+    M.get_cursor_placement_current_buffer = function()
+        return { winnr = winnr, cursor = current_cursor }
+    end
+
+    -- mock side-effectful calls that are not under test
+    local orig_nvim_echo = vim.api.nvim_echo
+    local orig_defer_fn = vim.defer_fn
+    vim.api.nvim_echo = function() end
+    vim.defer_fn = function() end
+
+    local result = true
+    for _, placement in ipairs(cursor_placements) do
+        current_cursor = placement.cursor
+        vim.api.nvim_win_set_cursor(winnr, placement.cursor)
+        M.jump_to_hunk(bufnr, placement.forward)
+        local new_row = vim.api.nvim_win_get_cursor(winnr)[1]
+        if not hunk_start_rows[new_row] then
+            result = false
+            break
+        end
+    end
+
+    vim.api.nvim_echo = orig_nvim_echo
+    vim.defer_fn = orig_defer_fn
+    return result
+end)()]]
+
+T['jump_to_hunk() properties'] = new_set()
+for func_name, func in pairs(JumpToHunk.properties) do
+    for _, case in ipairs(JumpToHunk.jump_to_hunk__property_cases) do
+        T['jump_to_hunk() properties'][func_name .. ': ' .. case.name] = function()
+            child.lua([[_G.fixture.cursor_placements = ...]], { case.get_cursor_placements(case.buf_contents) })
+            child.lua([[
+                local bufnr = vim.api.nvim_create_buf(true, true)
+                vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, ...)
+                vim.api.nvim_set_current_buf(bufnr)
+                _G.fixture.bufnr = bufnr
+                _G.fixture.winnr = vim.api.nvim_get_current_win()
+            ]], { case.buf_contents })
+            child.lua([[vim.b[_G.fixture.bufnr].delta_diff_data_set = ...]], { case.delta_diff_data_set })
+            child.lua([[vim.b[_G.fixture.bufnr].parsed_git_data = ...]], { case.parsed_git_data })
+            local result = child.lua_get(func)
+            eq(result, true)
+        end
+    end
+end
 
 return T
