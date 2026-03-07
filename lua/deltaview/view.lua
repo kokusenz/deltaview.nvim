@@ -3,7 +3,7 @@ local utils = require('deltaview.utils')
 local config = require('deltaview.config')
 
 --- deltaview file diff buffer orchestrator, using delta.lua. opens a deltaview diff on top of current window
---- @param ref string|nil Optional git ref to compare against (defaults to HEAD). Can be branch, commit, tag, etc.
+--- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @return number | nil bufnr buf id of delta.lua buffer
 M.deltaview_file = function(ref)
     local filepath = vim.fn.expand('%:p')
@@ -21,15 +21,15 @@ M.deltaview_file = function(ref)
         return
     end
 
-    vim.keymap.set('n', '<Esc>', nav_back_and_place_cursor, { buffer = diff_bufnr, noremap = true, silent = true })
-    vim.keymap.set('n', 'q', nav_back_and_place_cursor, { buffer = diff_bufnr, noremap = true, silent = true })
+    vim.keymap.set('n', '<Esc>', nav_back_and_place_cursor, { buffer = diff_bufnr, silent = true })
+    vim.keymap.set('n', 'q', nav_back_and_place_cursor, { buffer = diff_bufnr, silent = true })
 end
 
 --- opens a delta.lua git diff buffer for the specified file against a git ref, using Delta.text_diff
 --- Handles both tracked and untracked files
 --- @param filepath string The file path to diff
---- @param ref string|nil Optional git ref to compare against (defaults to HEAD). Can be branch, commit, tag, etc.
---- @param winnr number|nil Optional window number to open on.
+--- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
+--- @param winnr number | nil Optional window number to open on.
 --- @return number | nil bufnr buf id of delta.lua buffer
 M.open_git_diff_buffer = function(filepath, ref, winnr)
     local rev_parse_result = vim.system({'git', 'rev-parse', '--show-toplevel'}):wait()
@@ -44,6 +44,7 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
         vim.notify('Not on a real file. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
         return
     end
+    assert(ref ~= nil)
 
     local diff_result = vim.system({ 'git', 'diff', '-U0', '--', filepath }):wait()
     if diff_result.code ~= 0 and diff_result.code ~= 1 then
@@ -65,7 +66,7 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     local s1 = ''
 
     if parsed_git_data[1].old_path then
-        local show_result = vim.system({ 'git', 'show', (ref or 'HEAD') .. ':' .. parsed_git_data[1].old_path }):wait()
+        local show_result = vim.system({ 'git', 'show', ref .. ':' .. parsed_git_data[1].old_path }):wait()
         if show_result.code ~= 0 and show_result.code ~= 1 then
             vim.notify('Failed to run git show - ' .. show_result.stderr, vim.log.levels.ERROR)
             return
@@ -80,7 +81,14 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
         return -- error already notified
     end
 
-    vim.api.nvim_win_set_buf(winnr or 0, bufnr)
+    local success, err = pcall(function()
+        vim.api.nvim_win_set_buf(winnr or 0, bufnr)
+    end)
+    if not success then
+        -- i've considered letting this just error instead, because this should only be triggered due to developer error/misuse of function. But I figure the message can be useful anyhow, and maybe this could happen during typical usage.
+        vim.notify('Failed to open buffer at window.' .. tostring(err), vim.log.levels.ERROR)
+        return
+    end
     Delta.highlight_delta_artifacts(bufnr)
     Delta.syntax_highlight_diff_set(bufnr)
     Delta.diff_highlight_diff(bufnr)
@@ -88,9 +96,9 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
         Delta.setup_delta_statuscolumn(bufnr)
     end
 
-    local delta_files_data = vim.b[bufnr].delta_diff_data_set
-    assert(delta_files_data ~= nil)
-    --- @cast delta_files_data DiffData[]
+    local delta_diff_data_set = vim.b[bufnr].delta_diff_data_set
+    assert(delta_diff_data_set ~= nil)
+    --- @cast delta_diff_data_set DiffData[]
 
     -- displays ref, filename, size of hunks
     local diff_buffer_name = filepath .. '    '
