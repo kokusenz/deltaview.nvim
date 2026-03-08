@@ -170,6 +170,9 @@ require('deltaview').setup({
     -- Only applicable if use_deltalua is true. If this setting is true, will show the delta style line numbers in the statuscolumn.
     line_numbers = false,
 
+    -- 'fzf-lua' | 'fzf' | nil - specify which picker to use. If nil, will go through the order and pick the first available. The order is fzf-lua -> fzf -> deltaview quickselect
+    fzf_picker = nil
+
     -- Custom keybindings
     keyconfig = {
         -- Global keybind to toggle DeltaMenu
