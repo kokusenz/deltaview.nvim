@@ -392,7 +392,7 @@ OpenGitDiffBuffer.open_git_diff_buffer__property_cases = {
     },
     {
         -- there is a bug when git diff and vim.text.diff do not return exactly the same diff
-        name = 'failure: parsed_git_data added/removed lines do not match delta_diff_data_set',
+        name = 'failure: no_context_delta_diff_data_set added/removed lines do not match delta_diff_data_set',
         setup_lua = open_git_diff_buffer_happy_mocks .. [=[
             package.loaded['deltaview.utils'].diff_data_sets_changed_lines_match = function()
                 return false
@@ -470,7 +470,7 @@ OpenGitDiffBuffer.properties.buffer_state_matches_expected = [[(function()
             if result == nil then return false end
             if vim.api.nvim_win_get_buf(winnr or 0) ~= result then return false end
             if vim.b[result].delta_diff_data_set == nil then return false end
-            if vim.b[result].parsed_git_data     == nil then return false end
+            if vim.b[result].no_context_delta_diff_data_set     == nil then return false end
             local name = vim.api.nvim_buf_get_name(result)
             if not name:find(filepath,      1, true) then return false end
             if not name:find(tostring(ref), 1, true) then return false end
@@ -498,6 +498,91 @@ for func_name, func in pairs(OpenGitDiffBuffer.properties) do
             eq(result, true)
         end
     end
+end
+
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- open_git_diff_buffer() - example based tests
+
+T['open_git_diff_buffer()'] = new_set({
+    hooks = {
+        pre_case = function()
+            child.lua(open_git_diff_buffer_happy_mocks)
+            -- extend the base mocks with what the fallback path requires:
+            --   Delta.parse.get_diff_data  — called by the fallback to re-parse vim's unified diff
+            --   vim.diff / vim.text.diff   — called by the fallback to produce that unified diff
+            child.lua([[
+                Delta.parse.get_diff_data = function(_diffstring, _lang)
+                    -- returns a single DiffData (not wrapped in a table; view.lua wraps it)
+                    return {
+                        hunks = {
+                            { lines = {
+                                { content = '-old', old_line_num = 2, new_line_num = nil, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'removed' },
+                                { content = '+new', old_line_num = nil, new_line_num = 2, diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'added' },
+                            } },
+                        },
+                        old_path = 'a', new_path = 'a', language = nil,
+                    }
+                end
+
+                vim.text = { diff = function(_s1, _s2, _opts) return 'fake vim unified diff' end }
+            ]])
+        end,
+    },
+})
+
+T['open_git_diff_buffer()']['fallback: validator fails once, vim.text.diff succeeds, buffer is returned'] = function()
+    -- Arrange: diff_data_sets_changed_lines_match returns false on the first call (git diff
+    -- vs delta_diff_data_set disagree), then true on the second call (vim.text.diff-derived
+    -- parsed data matches). The function should recover and return a valid bufnr.
+    child.lua([[
+        local call_count = 0
+        package.loaded['deltaview.utils'].diff_data_sets_changed_lines_match = function(_a, _b)
+            call_count = call_count + 1
+            _G.fixture.validator_call_count = call_count
+            return call_count >= 2  -- fails on first call, passes on second
+        end
+    ]])
+
+    local bufnr = child.lua_get([[(function()
+        local ok, result = pcall(M.open_git_diff_buffer, 'a', 'x', nil)
+        if not ok then return nil end
+        return result
+    end)()]])
+    local call_count = child.lua_get([[_G.fixture.validator_call_count]])
+
+    eq(call_count, 2)
+    eq(type(bufnr), 'number')
+end
+
+T['open_git_diff_buffer()']['fallback: validator fails twice, notify is called, nil is returned'] = function()
+    -- Arrange: diff_data_sets_changed_lines_match always returns false — the fallback
+    -- via vim.text.diff also produces data that disagrees. The function must notify and
+    -- return nil without throwing.
+    child.lua([[
+        local call_count = 0
+        package.loaded['deltaview.utils'].diff_data_sets_changed_lines_match = function(_a, _b)
+            call_count = call_count + 1
+            _G.fixture.validator_call_count = call_count
+            return false
+        end
+
+        _G.fixture.notify_called = false
+        vim.notify = function(_msg, _level)
+            _G.fixture.notify_called = true
+        end
+    ]])
+
+    local bufnr = child.lua_get([[(function()
+        local ok, result = pcall(M.open_git_diff_buffer, 'a', 'x', nil)
+        if not ok then return nil end
+        return result
+    end)()]])
+    local call_count    = child.lua_get([[_G.fixture.validator_call_count]])
+    local notify_called = child.lua_get([[_G.fixture.notify_called]])
+
+    eq(call_count, 2)
+    eq(notify_called, true)
+    eq(bufnr, vim.NIL)
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -1925,7 +2010,7 @@ JumpToHunk.jump_to_hunk__property_cases = {
             }
         },
         --- @type DiffData[]
-        parsed_git_data = {
+        no_context_delta_diff_data_set = {
             {
                 hunks = {
                     {
@@ -1960,7 +2045,7 @@ JumpToHunk.jump_to_hunk__property_cases = {
     },
     {
         -- Single file, one delta hunk, one parsed hunk (contiguous added block).
-        -- added1 and added2 are adjacent so parsed_git_data merges them into one hunk.
+        -- added1 and added2 are adjacent so no_context_delta_diff_data_set merges them into one hunk.
         -- From any cursor at or past the hunk start, forward always cycles back to row 2.
         name = 'single file, contiguous added block (one parsed hunk)',
         buf_contents = { 'ctx', 'added1', 'added2', 'ctx', 'ctx' },
@@ -1991,7 +2076,7 @@ JumpToHunk.jump_to_hunk__property_cases = {
             }
         },
         --- @type DiffData[]
-        parsed_git_data = {
+        no_context_delta_diff_data_set = {
             {
                 hunks = {
                     {
@@ -2045,7 +2130,7 @@ JumpToHunk.jump_to_hunk__property_cases = {
             }
         },
         --- @type DiffData[]
-        parsed_git_data = {
+        no_context_delta_diff_data_set = {
             {
                 hunks = {
                     {
@@ -2110,7 +2195,7 @@ JumpToHunk.jump_to_hunk__property_cases = {
     --         },
     --     },
     --     --- @type DiffData[]
-    --     parsed_git_data = {
+    --     no_context_delta_diff_data_set = {
     --         {
     --             hunks = {
     --                 {
@@ -2146,16 +2231,16 @@ JumpToHunk.properties.cursor_lands_on_valid_parsed_hunk_start = [[(function()
     local bufnr = _G.fixture.bufnr
     local winnr = _G.fixture.winnr
     local delta_diff_data_set = vim.b[bufnr].delta_diff_data_set
-    local parsed_git_data = vim.b[bufnr].parsed_git_data
+    local no_context_delta_diff_data_set = vim.b[bufnr].no_context_delta_diff_data_set
 
     -- build the set of all valid hunk-start rows:
     -- a row is valid if it corresponds to a delta_diff_data_set line whose
-    -- (new_line_num, old_line_num) matches the first line of some parsed_git_data hunk
+    -- (new_line_num, old_line_num) matches the first line of some no_context_delta_diff_data_set hunk
     local hunk_start_rows = {}
     for di, diff_data in ipairs(delta_diff_data_set) do
         for _, hunk in ipairs(diff_data.hunks) do
             for _, line in ipairs(hunk.lines) do
-                for _, pg_hunk in ipairs(parsed_git_data[di].hunks) do
+                for _, pg_hunk in ipairs(no_context_delta_diff_data_set[di].hunks) do
                     local pf = pg_hunk.lines[1]
                     if pf.new_line_num == line.new_line_num and
                        pf.old_line_num == line.old_line_num then
@@ -2207,7 +2292,7 @@ for func_name, func in pairs(JumpToHunk.properties) do
                 _G.fixture.winnr = vim.api.nvim_get_current_win()
             ]], { case.buf_contents })
             child.lua([[vim.b[_G.fixture.bufnr].delta_diff_data_set = ...]], { case.delta_diff_data_set })
-            child.lua([[vim.b[_G.fixture.bufnr].parsed_git_data = ...]], { case.parsed_git_data })
+            child.lua([[vim.b[_G.fixture.bufnr].no_context_delta_diff_data_set = ...]], { case.no_context_delta_diff_data_set })
             local result = child.lua_get(func)
             eq(result, true)
         end

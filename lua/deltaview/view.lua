@@ -34,7 +34,7 @@ end
 --- @param winnr number | nil Optional window number to open on.
 --- @return number | nil bufnr buf id of delta.lua buffer
 M.open_git_diff_buffer = function(filepath, ref, winnr)
-    local rev_parse_result = vim.system({'git', 'rev-parse', '--show-toplevel'}):wait()
+    local rev_parse_result = vim.system({ 'git', 'rev-parse', '--show-toplevel' }):wait()
     if rev_parse_result.code ~= 0 and rev_parse_result.code ~= 1 then
         vim.notify('Not in a git repository. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
         return
@@ -60,15 +60,15 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
         return
     end
 
-    local parsed_git_data = Delta.parse.get_diff_data_git(diffstring)
+    local no_context_delta_diff_data_set = Delta.parse.get_diff_data_git(diffstring)
 
-    local file_lines = utils.read_file_lines(git_root .. '/' .. parsed_git_data[1].new_path)
+    local file_lines = utils.read_file_lines(git_root .. '/' .. no_context_delta_diff_data_set[1].new_path)
     assert(file_lines ~= nil)
     local s2 = table.concat(file_lines, "\n")
     local s1 = ''
 
-    if parsed_git_data[1].old_path then
-        local show_result = vim.system({ 'git', 'show', ref .. ':' .. parsed_git_data[1].old_path }):wait()
+    if no_context_delta_diff_data_set[1].old_path then
+        local show_result = vim.system({ 'git', 'show', ref .. ':' .. no_context_delta_diff_data_set[1].old_path }):wait()
         if show_result.code ~= 0 and show_result.code ~= 1 then
             vim.notify('Failed to run git show - ' .. show_result.stderr, vim.log.levels.ERROR)
             return
@@ -78,7 +78,7 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
         s1 = s1:gsub('\n+$', '')
     end
 
-    local bufnr = Delta.text_diff(s1, s2, parsed_git_data[1].language, { context = #file_lines })
+    local bufnr = Delta.text_diff(s1, s2, no_context_delta_diff_data_set[1].language, { context = #file_lines })
     if bufnr == nil then
         return -- error already notified
     end
@@ -102,21 +102,30 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     assert(delta_diff_data_set ~= nil)
     --- @cast delta_diff_data_set DiffData[]
 
-    if not utils.diff_data_sets_changed_lines_match(parsed_git_data, delta_diff_data_set) then
-        vim.notify('git diff and vim text diff produced inconsistent changed lines. Cannot open diff buffer.', vim.log.levels.ERROR)
-        return
+    if not utils.diff_data_sets_changed_lines_match(no_context_delta_diff_data_set, delta_diff_data_set) then
+        -- fallback: try to replace no_context_delta_diff_data_set with the vim.text.diff equivalent
+        local diff_fn = (vim.text and vim.text.diff) or vim.diff
+        local vim_text_diffstring = diff_fn(s1, s2, { result_type = 'unified', ctxlen = 0, algorithm = 'myers' })
+        --- @cast vim_text_diffstring string
+
+        no_context_delta_diff_data_set = { Delta.parse.get_diff_data(vim_text_diffstring, no_context_delta_diff_data_set[1].language) }
+        if not utils.diff_data_sets_changed_lines_match(no_context_delta_diff_data_set, delta_diff_data_set) then
+            vim.notify('git diff and vim text diff produced inconsistent changed lines that could not be reconciled. Cannot open diff buffer.',
+                vim.log.levels.ERROR)
+            return
+        end
     end
 
     -- displays ref, filename, size of hunks
     local diff_buffer_name = filepath .. '    '
         .. config.viewconfig().vs .. ' ' .. ref .. '    '
-        .. config.viewconfig().segment .. ' ' .. #parsed_git_data[1].hunks .. ' '
+        .. config.viewconfig().segment .. ' ' .. #no_context_delta_diff_data_set[1].hunks .. ' '
 
     vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
 
     --- for Delta.text_diff buffers, because of full file context, everything is one hunk. This is the data with theoretically 0 context, meaning each hunk is separate
     --- @type DiffData[]
-    vim.b[bufnr].parsed_git_data = parsed_git_data
+    vim.b[bufnr].no_context_delta_diff_data_set = no_context_delta_diff_data_set
     return bufnr
 end
 
@@ -340,9 +349,9 @@ M.jump_to_hunk = function(bufnr, forward)
     assert(delta_diff_data_set ~= nil)
     --- @cast delta_diff_data_set DiffData[]
 
-    local parsed_git_data = vim.b[bufnr].parsed_git_data -- data set with 0 context, as to properly distinguish hunks
-    assert(parsed_git_data ~= nil)
-    --- @cast parsed_git_data DiffData[]
+    local no_context_delta_diff_data_set = vim.b[bufnr].no_context_delta_diff_data_set -- data set with 0 context, as to properly distinguish hunks
+    assert(no_context_delta_diff_data_set ~= nil)
+    --- @cast no_context_delta_diff_data_set DiffData[]
 
     local cursor_placement = M.get_cursor_placement_current_buffer()
 
@@ -362,10 +371,10 @@ M.jump_to_hunk = function(bufnr, forward)
             for line_idx = line_start, line_end, step do
                 local real_buf_line = lines[line_idx]
 
-                local parsed_hunk_start = forward and 1 or #parsed_git_data[data_set_idx].hunks
-                local parsed_hunk_end = forward and #parsed_git_data[data_set_idx].hunks or 1
+                local parsed_hunk_start = forward and 1 or #no_context_delta_diff_data_set[data_set_idx].hunks
+                local parsed_hunk_end = forward and #no_context_delta_diff_data_set[data_set_idx].hunks or 1
                 for parsed_hunk_idx = parsed_hunk_start, parsed_hunk_end, step do
-                    local hunk_line = parsed_git_data[data_set_idx].hunks[parsed_hunk_idx]
+                    local hunk_line = no_context_delta_diff_data_set[data_set_idx].hunks[parsed_hunk_idx]
 
                     if hunk_line.lines[1].new_line_num == real_buf_line.new_line_num and
                         hunk_line.lines[1].old_line_num == real_buf_line.old_line_num
@@ -381,7 +390,7 @@ M.jump_to_hunk = function(bufnr, forward)
                             { 'jumped to '
                             .. config.viewconfig().segment .. ' '
                             .. parsed_hunk_idx .. '|'
-                            .. #parsed_git_data[data_set_idx].hunks, 'Normal' }
+                            .. #no_context_delta_diff_data_set[data_set_idx].hunks, 'Normal' }
                         }, false, {})
 
                         vim.defer_fn(function() vim.cmd('echo ""') end, 2000)
@@ -395,8 +404,8 @@ M.jump_to_hunk = function(bufnr, forward)
     for data_set_idx = data_set_start, data_set_end, step do
         local diff_data = delta_diff_data_set[data_set_idx]
 
-        local hunk_number = forward and 1 or #parsed_git_data[data_set_idx].hunks
-        local hunk_line = parsed_git_data[data_set_idx].hunks[hunk_number]
+        local hunk_number = forward and 1 or #no_context_delta_diff_data_set[data_set_idx].hunks
+        local hunk_line = no_context_delta_diff_data_set[data_set_idx].hunks[hunk_number]
         for j = 1, #diff_data.hunks, 1 do
             local lines = diff_data.hunks[j].lines
             for _, real_buf_line in ipairs(lines) do
@@ -414,7 +423,7 @@ M.jump_to_hunk = function(bufnr, forward)
                         { 'jumped to '
                         .. config.viewconfig().segment .. ' '
                         .. hunk_number .. '/'
-                        .. #parsed_git_data[data_set_idx].hunks, 'Normal' }
+                        .. #no_context_delta_diff_data_set[data_set_idx].hunks, 'Normal' }
                     }, false, {})
                     vim.defer_fn(function() vim.cmd('echo ""') end, 2000)
                     return
