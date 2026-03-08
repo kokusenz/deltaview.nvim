@@ -53,10 +53,10 @@ test: setup-silent
 	nvim --headless --noplugin -u scripts/minimal_init.lua -c "luafile scripts/test.lua"
 
 # Run a specific test file
-# Usage: make test-file FILE=tests/delta/test_parsing.lua
+# Usage: make test-file FILE=tests/deltaview/test_parsing.lua
 test-file: setup-silent
 	@if [ -z "$(FILE)" ]; then \
-		echo "Error: FILE is not set. Usage: make test-file FILE=tests/delta/test_parsing.lua"; \
+		echo "Error: FILE is not set. Usage: make test-file FILE=tests/deltaview/test_parsing.lua"; \
 		exit 1; \
 	fi
 	nvim --headless --noplugin -u scripts/minimal_init.lua -c "lua MiniTest.run_file('$(FILE)')" -c "quit"

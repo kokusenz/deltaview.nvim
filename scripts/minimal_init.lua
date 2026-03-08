@@ -9,6 +9,9 @@ if #vim.api.nvim_list_uis() == 0 then
   -- Add deps/ so treesitter finds compiled parsers in deps/parser/
   vim.cmd('set rtp+=deps')
 
+  -- delta.lua
+  vim.cmd('set rtp+=deps/delta')
+
   -- Set up 'mini.test'
   require('mini.test').setup()
 end
