@@ -91,4 +91,58 @@ T['DeltaView integration']['happy path: creates a delta buffer for a tracked fil
     eq(name:match('%d+')    ~= nil, true)
 end
 
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- `:DeltaMenu` integration
+
+-- creates N tracked files with working-tree changes; each file{i}.lua starts as 'local x = i'
+-- and is modified to 'local x = i*10' after the initial commit
+local setup_tmpdir_git_repo_n_files = [[
+    local n = ...
+    local tmpdir = vim.fn.tempname()
+    vim.fn.mkdir(tmpdir, 'p')
+    vim.fn.system('git -C ' .. tmpdir .. ' init')
+    vim.fn.system('git -C ' .. tmpdir .. ' config user.email "test@test.com"')
+    vim.fn.system('git -C ' .. tmpdir .. ' config user.name "Test"')
+    for i = 1, n do
+        local fname = 'file' .. i .. '.lua'
+        local f = io.open(tmpdir .. '/' .. fname, 'w')
+        f:write('local x = ' .. i .. '\n')
+        f:close()
+        vim.fn.system('git -C ' .. tmpdir .. ' add ' .. fname)
+    end
+    vim.fn.system('git -C ' .. tmpdir .. ' commit -m "initial"')
+    for i = 1, n do
+        local fname = 'file' .. i .. '.lua'
+        local f = io.open(tmpdir .. '/' .. fname, 'w')
+        f:write('local x = ' .. (i * 10) .. '\n')
+        f:close()
+    end
+    vim.cmd('cd ' .. tmpdir)
+]]
+
+T['DeltaMenu integration'] = new_set()
+
+-- 3 files < fzf_threshold (6): goes to open_deltaview_quickselect_menu
+T['DeltaMenu integration']['quickselect path: selecting a file opens a delta buffer'] = function()
+    child.lua(setup_tmpdir_git_repo_n_files, { 3 })
+    child.cmd('DeltaMenu HEAD')
+    child.type_keys('<CR>')
+    local has_diff_data = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    local has_parsed    = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].parsed_git_data ~= nil')
+    eq(has_diff_data, true)
+    eq(has_parsed, true)
+end
+
+-- 7 files >= fzf_threshold (6): tries open_deltaview_fzf_menu first; fzf#run fails in headless
+-- mode, so it falls back to open_deltaview_quickselect_menu
+T['DeltaMenu integration']['fzf path: selecting a file opens a delta buffer'] = function()
+    child.lua(setup_tmpdir_git_repo_n_files, { 7 })
+    child.cmd('DeltaMenu HEAD')
+    child.type_keys('<CR>')
+    local has_diff_data = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    local has_parsed    = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].parsed_git_data ~= nil')
+    eq(has_diff_data, true)
+    eq(has_parsed, true)
+end
+
 return T

@@ -9,6 +9,12 @@ local config = require('deltaview.config')
 --- Creates a menu pane, and orchestrates the logic of switching between a fuzzy finder or a quick select depending on how large the diff is
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 M.create_diff_menu_pane = function(ref)
+    local rev_parse_result = vim.system({'git', 'rev-parse', '--show-toplevel'}):wait()
+    if rev_parse_result.code ~= 0 and rev_parse_result.code ~= 1 then
+        vim.notify('Not in a git repository. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
+        return
+    end
+
     assert(ref)
     local sorted_files = utils.get_sorted_diffed_files(ref)
     local mods = utils.get_filenames_from_sortedfiles(sorted_files)
