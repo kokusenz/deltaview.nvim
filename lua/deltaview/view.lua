@@ -24,6 +24,7 @@ M.deltaview_file = function(ref)
 
     vim.keymap.set('n', '<Esc>', nav_back_and_place_cursor, { buffer = diff_bufnr, silent = true })
     vim.keymap.set('n', 'q', nav_back_and_place_cursor, { buffer = diff_bufnr, silent = true })
+    return diff_bufnr
 end
 
 --- opens a delta.lua git diff buffer for the specified file against a git ref, using Delta.text_diff
@@ -374,7 +375,7 @@ M.jump_to_hunk = function(bufnr, forward)
                         vim.api.nvim_echo({
                             { 'jumped to '
                             .. config.viewconfig().segment .. ' '
-                            .. parsed_hunk_idx .. '/'
+                            .. parsed_hunk_idx .. '|'
                             .. #parsed_git_data[data_set_idx].hunks, 'Normal' }
                         }, false, {})
 

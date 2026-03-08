@@ -1,5 +1,6 @@
 local M = {}
 
+--- legacy, unused in delta.lua flow
 --- check if current working directory matches git root directory
 --- @return boolean True if cwd matches git root
 M.is_cwd_git_root = function()
@@ -12,6 +13,7 @@ M.is_cwd_git_root = function()
     return cwd == git_root
 end
 
+--- TODO unit test
 --- Get list of untracked files
 --- @return string[] list of untracked file paths
 M.get_untracked_files = function()
@@ -30,6 +32,7 @@ M.get_untracked_files = function()
     return files
 end
 
+--- TODO unit test
 --- Get list of modified and untracked files
 --- @param ref string target ref
 --- @return string[] array of file paths that have been modified or are untracked
@@ -51,6 +54,7 @@ M.get_diffed_files = function(ref)
     return files
 end
 
+--- TODO unit test
 --- Get list of modified and untracked files
 --- @param ref string target ref
 --- @return table<string, boolean> map of file paths that are diffed or untracked; key is path, value is true if tracked
@@ -76,6 +80,7 @@ M.get_diffed_and_untracked_files = function(ref)
     return files
 end
 
+--- TODO unit test
 --- gets the number of added lines and deleted lines in the diff, and sorts it
 --- @param ref string target ref
 --- @return SortedFile[] sorted files
@@ -200,6 +205,7 @@ M.get_sorted_diffed_files = function(ref)
     return sorted_files
 end
 
+--- TODO unit test
 --- factory function that creates a label extractor for file paths
 --- extracts unique single-character labels from filenames (not full paths)
 --- @return function A function that takes a filepath and returns a single-character label
@@ -222,6 +228,7 @@ M.label_filepath_item = function()
     end
 end
 
+--- legacy, unused in delta.lua flow
 --- WARNING: do not construct your own local_persisted_ui unless you've read append_cmd_ui
 --- uses vim.cmd to display a ui. Uses a table in the scope to be able to construct a ui.
 --- the cmd ui allows for displaying exactly one dynamic message, but it allows you to display other things alongside your chosen message
@@ -255,6 +262,7 @@ M.display_cmd_ui = function(local_persisted_ui, ui)
     end
 end
 
+--- legacy, unused in delta.lua flow
 --- meant to be used alongside display_cmd_ui
 --- messages are first come first serve; earlier messages are on the left, whether it's on the start or end.
 --- @param local_persisted_ui table the table declared in the scope where we want this ui to be shared
@@ -264,10 +272,11 @@ M.append_cmd_ui = function(local_persisted_ui, ui, append_start)
     local_persisted_ui[ui] = append_start
 end
 
+--- legacy, unused in delta.lua flow
 --- get the adjacent files (next and previous) for navigation with wrap-around
 --- @param diffed_files DiffedFiles table with files array and cur_idx
 --- @return table|nil Table with next and prev file info: { next = { name = string, index = number }, prev = { name = string, index = number } }
-M.get_adjacent_files = function(diffed_files)
+M.get_adjacent_files_legacy = function(diffed_files)
     if diffed_files.files == nil or diffed_files.cur_idx == nil then
         return nil
     end
@@ -303,6 +312,36 @@ M.get_adjacent_files = function(diffed_files)
     }
 end
 
+--- TODO unit test
+--- get the adjacent files (next and previous) for navigation with wrap-around
+--- @param diffed_files DiffedFiles table with files array and cur_idx
+--- @return AdjacentFiles Table with next and prev file info: { next = { name = string, index = number }, prev = { name = string, index = number } }
+M.get_adjacent_files = function(diffed_files)
+    assert(diffed_files)
+    assert(diffed_files.files)
+    assert(diffed_files.cur_idx)
+    -- calculate next index with wrap-around
+    local next_index = diffed_files.cur_idx + 1
+    if next_index > #diffed_files.files then
+        next_index = 1
+    end
+
+    -- calculate previous index with wrap-around
+    local prev_index = diffed_files.cur_idx - 1
+    if prev_index < 1 then
+        prev_index = #diffed_files.files
+    end
+
+    --- @type AdjacentFiles
+    local adjacents = {
+        next = diffed_files.files[next_index],
+        prev = diffed_files.files[prev_index],
+    }
+
+    return adjacents
+end
+
+--- TODO unit test
 --- @param sorted_files SortedFile[]
 --- @return table list of file names
 M.get_filenames_from_sortedfiles = function(sorted_files)
@@ -313,6 +352,7 @@ M.get_filenames_from_sortedfiles = function(sorted_files)
     return files
 end
 
+--- TODO unit test
 --- Read file contents without opening a vim buffer
 --- @param filepath string Full path to the file
 --- @return table|nil lines Array of lines from the file, or nil if error
@@ -331,6 +371,7 @@ M.read_file_lines = function(filepath)
     return lines
 end
 
+--- TODO unit test
 --- Filter git refs based on user input (case insensitive)
 --- @param refs table List of git refs
 --- @param arg_lead string User's partial input
@@ -357,3 +398,7 @@ return M
 --- @field name string
 --- @field added number
 --- @field removed number
+
+--- @class AdjacentFiles
+--- @field next string
+--- @field prev string

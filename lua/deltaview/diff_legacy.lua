@@ -399,7 +399,7 @@ M.display_delta_file = function(cmd, cmd_ui, on_ready_callback)
         end, { buffer = term_buf, noremap = true, silent = true })
     end
 
-    local adjacent_files = utils.get_adjacent_files(M.diffed_files)
+    local adjacent_files = utils.get_adjacent_files_legacy(M.diffed_files)
     if adjacent_files ~= nil then
         local next_diff_message = (config.options.show_verbose_nav and (vim.fn.fnamemodify(adjacent_files.prev.name, ':t') .. ' ' .. config.viewconfig().prev) or '') ..
             ' [' .. M.diffed_files.cur_idx .. '/' .. #M.diffed_files.files .. '] ' .. config.viewconfig().next .. ' ' ..
