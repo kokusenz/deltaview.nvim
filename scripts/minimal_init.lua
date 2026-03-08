@@ -15,6 +15,12 @@ if #vim.api.nvim_list_uis() == 0 then
   -- fzf
   vim.cmd('set rtp+=deps/fzf')
 
+  -- fzf_lua
+  vim.cmd('set rtp+=deps/fzf_lua')
+
+  -- telescope
+  vim.cmd('set rtp+=deps/telescope')
+
   -- Set up 'mini.test'
   require('mini.test').setup()
 end

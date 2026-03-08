@@ -29,12 +29,11 @@ M.create_diff_menu_pane = function(ref)
         changes_data[value.name] = { '+' .. value.added .. ',-' .. value.removed }
     end
 
-    --if #mods >= config.options.fzf_threshold then
-    if #mods >= 1 then
+    if #mods >= config.options.fzf_threshold then
         M.choose_deltaview_fzf_menu(ref, mods, changes_data)
         return
     end
-    M.open_deltaview_quickselect_menu(ref, mods, changes_data)
+    picker.open_deltaview_quickselect_menu(ref, mods, changes_data)
 end
 
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
