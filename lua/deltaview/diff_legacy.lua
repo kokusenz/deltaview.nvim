@@ -17,7 +17,7 @@ M.create_diff_menu_pane = function(diffing_function, ref)
         return
     end
 
-    local sorted_files = utils.get_sorted_diffed_files(ref)
+    local sorted_files = utils.get_sorted_diffed_files(ref or 'HEAD')
     local mods = utils.get_filenames_from_sortedfiles(sorted_files)
 
     if #mods == 0 then
@@ -121,7 +121,7 @@ M.programmatically_select_diff_from_menu = function(diffing_function, filepath, 
         return
     end
 
-    local sorted_files = utils.get_sorted_diffed_files(ref)
+    local sorted_files = utils.get_sorted_diffed_files(ref or 'HEAD')
     local mods = utils.get_filenames_from_sortedfiles(sorted_files)
     if #mods == 0 then
         print('DeltaView: No diffs to display')

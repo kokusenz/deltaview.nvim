@@ -82,7 +82,7 @@ M.DeltaView = function(command_argument)
         require('deltaview.view').deltaview_file(state.diff_target_ref)
     end)
     if not success then
-        vim.notify('Failed to create diff view - ' .. tostring(err), vim.log.levels.ERROR)
+        vim.notify('Failed to open DeltaView - ' .. tostring(err), vim.log.levels.ERROR)
     end
 end
 
@@ -94,11 +94,10 @@ M.DeltaMenu = function(command_argument)
             or state.diff_target_ref
         state.diffed_files.files = nil
         state.diffed_files.cur_idx = nil
-        --TODO menu.whateverfunction
-        --require('deltaview.view').run_git_diff_against_file(vim.fn.expand('%:p'), state.diff_target_ref)
+        require('deltaview.menu').create_diff_menu_pane(state.diff_target_ref)
     end)
     if not success then
-        print('ERROR: Failed to create diff view: ' .. tostring(err))
+        vim.notify('Failed to open DeltaMenu - ' .. tostring(err), vim.log.levels.ERROR)
     end
 end
 

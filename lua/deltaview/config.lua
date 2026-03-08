@@ -68,8 +68,8 @@ M.setup = function(opts)
 end
 
 --- @class KeyConfig
---- @field dv_toggle_keybind string | nil if defined, will create keybind that runs DeltaView, and exits Diff buffer if open
---- @field dm_toggle_keybind string | nil if defined, will create keybind that runs DeltaView Menu
+--- @field dv_toggle_keybind string | nil if defined, will create keybind that runs DeltaView, and exits Diff buffer if open. By default, <leader>dv.
+--- @field dm_toggle_keybind string | nil if defined, will create keybind that runs DeltaView Menu. By default, <leader>dm.
 --- @field next_hunk string skip to next hunk in diff.
 --- @field prev_hunk string skip to prev hunk in diff.
 --- @field next_diff string when diff was opened from DeltaMenu, open next file in the menu
