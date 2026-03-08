@@ -71,7 +71,7 @@ end
 
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[]
---- @param changes_data table<string, string> for each file in mods, the size of the change in the file
+--- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
 M.open_deltaview_quickselect_menu = function(ref, mods, changes_data)
     assert(ref ~= nil)
     assert(mods ~= nil)
@@ -111,8 +111,9 @@ end
 
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[]
---- @param changes_data table<string, string> for each file in mods, the size of the change in the file
+--- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
 M.open_deltaview_fzf_lua_menu = function(ref, mods, changes_data)
+    vim.print(changes_data)
     local fzf_lua = require('fzf-lua')
     local builtin = require('fzf-lua.previewer.builtin')
 
@@ -142,7 +143,8 @@ M.open_deltaview_fzf_lua_menu = function(ref, mods, changes_data)
         self:set_style_winopts()
         vim.wo[self.win.preview_winid].wrap = true
         self:safe_buf_delete(old_bufnr)
-        self.win:update_preview_title(' ' .. vim.fn.fnamemodify(entry_str, ':t') .. ' | Delta.lua ')
+        self.win:update_preview_title(' ' .. vim.fn.fnamemodify(entry_str, ':t') .. ' | '
+            .. tostring(changes_data[entry_str][1] or ''))
     end
 
     fzf_lua.fzf_exec(mods, {
@@ -177,7 +179,7 @@ end
 
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[]
---- @param changes_data table<string, string> for each file in mods, the size of the change in the file
+--- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
 M.open_deltaview_fzf_junegunn_menu = function(ref, mods, changes_data)
     assert(ref ~= nil)
     assert(mods ~= nil)
@@ -244,7 +246,7 @@ end
 
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[]
---- @param changes_data table<string, string> for each file in mods, the size of the change in the file
+--- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
 M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
     assert(ref ~= nil)
     assert(mods ~= nil)
@@ -265,7 +267,7 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
         title = 'Delta.lua',
         dyn_title = function(_, entry)
             if entry == nil then return 'Delta.lua' end
-            return ' ' .. vim.fn.fnamemodify(entry.value, ':t') .. ' | Delta.lua '
+            return ' ' .. vim.fn.fnamemodify(entry.value, ':t') .. ' | ' .. changes_data[entry.value][1]
         end,
         setup = function(_self)
             return {}
@@ -306,7 +308,7 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
             -- Set the preview border title directly; this works regardless of
             -- the user's dynamic_preview_title config value.
             if status.layout.preview.border then
-                local title = ' ' .. vim.fn.fnamemodify(entry.value, ':t') .. ' | Delta.lua '
+                local title = ' ' .. vim.fn.fnamemodify(entry.value, ':t') .. ' | ' .. changes_data[entry.value][1]
                 status.layout.preview.border:change_title(title)
             end
         end,
@@ -345,7 +347,8 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
                     M.decorate_deltaview_with_next_keybinds(bufnr)
                 end)
                 if not success then
-                    vim.notify('An error occured while trying to open DeltaView - ' .. tostring(err), vim.log.levels.ERROR)
+                    vim.notify('An error occured while trying to open DeltaView - ' .. tostring(err),
+                        vim.log.levels.ERROR)
                 end
             end)
             return true

@@ -32,7 +32,10 @@ https://github.com/user-attachments/assets/ef732ea7-e2b5-4167-8d9d-f12052f94c9d
 - Neovim >= 0.9
 - [delta](https://github.com/dandavison/delta) (git-delta)
 - Git
-- (Optional) [fzf](https://github.com/junegunn/fzf) for a fuzzy finder
+- (Optional) An fzf picker of your choice. Currently supports
+    - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
+    - [telescope](https://github.com/nvim-telescope/telescope.nvim)
+    - [fzf](https://github.com/junegunn/fzf)
 
 ## Usage
 
@@ -104,8 +107,6 @@ require('deltaview').setup({
 })
 ```
 
-The fzf file picker might be available out of the box, depending on how it was installed. If it does not work, you may need [additional setup](https://github.com/junegunn/fzf/blob/master/README-VIM.md) in your neovim config. Try adding the fzf binary to your `&runtimepath`, or installing fzf's vim integration using a package manager.
-
 ### Default Keybindings
 
 | Key | Action |
@@ -135,7 +136,7 @@ When in the file menu:
 | Key | Action |
 |-----|--------|
 | Select a file | Open diff for that file |
-| `alt-;` | Change fzf to quickselect (in fzf mode) |
+| `alt-;` | Change diff menu view to quickselect (when in fzf picker. This functionality is not available for fzf-lua and telescope) |
 
 All keybindings are configurable
 
@@ -192,7 +193,7 @@ require('deltaview').setup({
         next_diff = "]f",
         prev_diff = "[f",
 
-        -- Change diff menu view to quickselect (when in fzf mode)
+        -- Change diff menu view to quickselect (when in fzf picker. This functionality is not available for fzf-lua and telescope)
         fzf_toggle = "alt-;",
 
         -- Jump to line in view opened by Delta
@@ -234,8 +235,7 @@ By default, the UI uses nerd font icons:
 ## Feature Roadmap
 
 - Options for using the pickers in:
-    - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
-    - [telescope](https://github.com/nvim-telescope/telescope.nvim)
+    - [mini.pick](https://github.com/nvim-mini/mini.pick)
     - [snacks](https://github.com/folke/snacks.nvim)
 - delta blame view
 - delta grep. Originally, didn't see the value because many fuzzy finding plugins handle grepping, but putting all greps with lines of context in one buffer allows for searching amongst the context of grepped code. Delta provides nice formatting.

@@ -23,6 +23,7 @@ M.create_diff_menu_pane = function(ref)
         return
     end
 
+    --- @type table<string, string[]>
     local changes_data = {}
     for _, value in ipairs(sorted_files) do
         changes_data[value.name] = { '+' .. value.added .. ',-' .. value.removed }
@@ -38,7 +39,7 @@ end
 
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[]
---- @param changes_data table<string, string> for each file in mods, the size of the change in the file
+--- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
 M.choose_deltaview_fzf_menu = function(ref, mods, changes_data)
     if config.options.fzf_picker == 'fzf-lua' then
         local ok = pcall(require, 'fzf-lua')
