@@ -145,56 +145,56 @@ All keybindings are configurable
 
 ```lua
 require('deltaview').setup({
-  -- Use delta.lua as the diff viewer if true, uses dandavison/delta if false
-  use_delta_lua = true
+    -- Use delta.lua as the diff viewer if true, uses dandavison/delta if false
+    use_delta_lua = true
 
-  -- Disable nerd font icons if uninstalled (defaults to true)
-  use_nerdfonts = false,
+    -- Disable nerd font icons if uninstalled (defaults to true)
+    use_nerdfonts = false,
 
-  -- Show both previous and next filenames when navigating
-  -- false: shows "[2/5] -> next.lua"
-  -- true: shows "<- prev.lua [2/5] -> next.lua"
-  show_verbose_nav = false,
+    -- Show both previous and next filenames when navigating
+    -- false: shows "[2/5] -> next.lua"
+    -- true: shows "<- prev.lua [2/5] -> next.lua"
+    show_verbose_nav = false,
 
-  -- Configures the position of the quick select opened by DeltaMenu when under the fzf_threshold
-  -- 'hsplit': horizontal split window
-  -- 'center': centered floating window
-  -- 'bottom': centered at the bottom, floating window
-  quick_select_view = 'hsplit',
+    -- Configures the position of the quick select opened by DeltaMenu when under the fzf_threshold
+    -- 'hsplit': horizontal split window
+    -- 'center': centered floating window
+    -- 'bottom': centered at the bottom, floating window
+    quick_select_view = 'hsplit',
 
-  -- Number of files threshold for switching to fzf
-  -- When the number of modified files >= this value, use fzf instead of quickselect
-  -- Set to 0 or 1 to always use fzf
-  fzf_threshold = 6,
+    -- Number of files threshold for switching to fzf
+    -- When the number of modified files >= this value, use fzf instead of quickselect
+    -- Set to 0 or 1 to always use fzf
+    fzf_threshold = 6,
 
-  -- Only applicable if use_deltalua is true. If this setting is true, will show the delta style line numbers in the statuscolumn.
-  line_numbers = false,
+    -- Only applicable if use_deltalua is true. If this setting is true, will show the delta style line numbers in the statuscolumn.
+    line_numbers = false,
 
-  -- Custom keybindings
-  keyconfig = {
-    -- Global keybind to toggle DeltaMenu
-    dm_toggle_keybind = "<leader>dm",
+    -- Custom keybindings
+    keyconfig = {
+        -- Global keybind to toggle DeltaMenu
+        dm_toggle_keybind = "<leader>dm",
 
-    -- Global keybind to toggle DeltaView (and exit diff if open)
-    dv_toggle_keybind = "<leader>dl",
+        -- Global keybind to toggle DeltaView (and exit diff if open)
+        dv_toggle_keybind = "<leader>dl",
 
-    -- Global keybind to toggle Delta (and exit diff if open)
-    d_toggle_keybind = "<leader>da",
+        -- Global keybind to toggle Delta (and exit diff if open)
+        d_toggle_keybind = "<leader>da",
 
-    -- Navigate between hunks in a diff
-    next_hunk = "<Tab>",
-    prev_hunk = "<S-Tab>",
+        -- Navigate between hunks in a diff
+        next_hunk = "<Tab>",
+        prev_hunk = "<S-Tab>",
 
-    -- Navigate between files (when opened from DeltaMenu)
-    next_diff = "]f",
-    prev_diff = "[f",
+        -- Navigate between files (when opened from DeltaMenu)
+        next_diff = "]f",
+        prev_diff = "[f",
 
-    -- Change diff menu view to quickselect (when in fzf mode)
-    fzf_toggle = "alt-;",
+        -- Change diff menu view to quickselect (when in fzf mode)
+        fzf_toggle = "alt-;",
 
-    -- Jump to line in view opened by Delta
-    jump_to_line = "<CR>"
-  }
+        -- Jump to line in view opened by Delta
+        jump_to_line = "<CR>"
+    }
 })
 ```
 
