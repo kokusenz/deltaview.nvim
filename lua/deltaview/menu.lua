@@ -4,7 +4,6 @@ local view = require('deltaview.view')
 local state = require('deltaview.state')
 local selector = require('deltaview.selector')
 local config = require('deltaview.config')
--- TODO make all files absolute paths, make display relative to cwd, such that dm can be used from not the git root
 
 --- Creates a menu pane, and orchestrates the logic of switching between a fuzzy finder or a quick select depending on how large the diff is
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
@@ -86,7 +85,7 @@ M.programmatically_select_diff_from_menu = function(filepath)
     assert(selected_idx ~= nil, 'filepath not found in list of diffed files.')
 
     local success, err = pcall(function()
-        vim.cmd('e ' .. vim.fn.fnameescape(filepath))
+        vim.cmd('e ' .. utils.git_rel_to_abs(vim.fn.fnameescape(filepath)))
         local bufnr = view.deltaview_file(state.diff_target_ref)
         if bufnr == nil then
             return
@@ -131,7 +130,7 @@ M.open_deltaview_fzf_menu = function(ref, mods, changes_data)
         assert(selected_idx ~= nil)
 
         local success, err = pcall(function()
-            vim.cmd('e ' .. vim.fn.fnameescape(filepath))
+            vim.cmd('e ' .. utils.git_rel_to_abs(vim.fn.fnameescape(filepath)))
             local bufnr = view.deltaview_file(ref)
             if bufnr == nil then
                 return
@@ -184,7 +183,7 @@ M.open_deltaview_quickselect_menu = function(ref, mods, changes_data)
         end
 
         local success, err = pcall(function()
-            vim.cmd('e ' .. vim.fn.fnameescape(filepath))
+            vim.cmd('e ' .. utils.git_rel_to_abs(vim.fn.fnameescape(filepath)))
             local bufnr = view.deltaview_file(ref)
             if bufnr == nil then
                 return

@@ -110,11 +110,11 @@ M.get_sorted_diffed_files = function(ref)
 
         if tracked == false then
             -- untracked files have no git history; count all lines as added
-            local result = vim.fn.system({'wc', '-l', file})
+            local result = vim.fn.system({'wc', '-l', M.git_rel_to_abs(file)})
             local line_count = tonumber(result:match('^%s*(%d+)')) or 0
             parsed_numstat = { added = line_count, removed = 0 }
         else
-            local numstat = vim.fn.system({'git', 'diff', '--numstat', ref, '--', file})
+            local numstat = vim.fn.system({'git', 'diff', '--numstat', ref, '--', M.git_rel_to_abs(file)})
             if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
                 print('ERROR: Failed to get lines of code for a diffed file')
                 return {}
@@ -204,6 +204,22 @@ M.get_sorted_diffed_files = function(ref)
 
     return sorted_files
 end
+
+--- TODO unit test
+--- Resolves a path relative to the git root into an absolute path.
+--- git commands like `git diff --name-only` and `git ls-files` output paths
+--- relative to the repository root, not cwd, so this must be used over vim.fn.fnamemodify.
+--- @param rel_path string path relative to the git root
+--- @return string | nil absolute path, or nil if git root could not be determined
+M.git_rel_to_abs = function(rel_path)
+    local result = vim.system({ 'git', 'rev-parse', '--show-toplevel' }):wait()
+    if result.code ~= 0 then
+        vim.notify('Failed to get git root.', vim.log.levels.ERROR)
+        return nil
+    end
+    return vim.trim(result.stdout) .. '/' .. rel_path
+end
+
 
 --- TODO unit test
 --- factory function that creates a label extractor for file paths
