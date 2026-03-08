@@ -6,6 +6,7 @@ local config = require('deltaview.config')
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @return number | nil bufnr buf id of delta.lua buffer
 M.deltaview_file = function(ref)
+    assert(ref ~= nil)
     local filepath = vim.fn.expand('%:p')
     local cur_bufnr = vim.api.nvim_get_current_buf()
     local cursor_placement = M.get_cursor_placement_current_buffer()

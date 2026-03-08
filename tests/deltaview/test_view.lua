@@ -139,7 +139,7 @@ T['deltaview_file()']['binds escaping keys'] = function()
         vim.keymap.set = function(modes, lhs, rhs, opts)
             _G.fixture.keymap_set_args[lhs] = { modes = modes, lhs = lhs, rhs = rhs, opts = opts }
         end
-        M.deltaview_file(bufnr)
+        M.deltaview_file('HEAD')
     ]])
 
     local expected_binds = { '<Esc>', 'q' }
