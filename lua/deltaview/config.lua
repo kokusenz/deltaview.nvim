@@ -88,6 +88,6 @@ end
 --- @field fzf_threshold number | nil if the number of diffed files is equal to or greater than this threshold, it will show up in a fuzzy finding picker. Defaults to 6. Set to 1 or 0 if you would always like a fuzzy picker
 --- @field default_context number | nil if running deltaview on a directory rather than a file, it will show a typical delta view with limited context. Defaults to 3. Set here, or pass it in as a second param to DeltaView, which will persist as the context for this session
 --- @field line_numbers boolean | nil only applicable if use_deltalua is true. If this setting is true, will show the delta style line numbers in the statuscolumn.
---- @field fzf_picker 'fzf-lua' | 'fzf' | nil specify which picker to use. If nil, will go through the order and pick the first available.
+--- @field fzf_picker 'fzf-lua' | 'telescope' | 'fzf' | nil specify which picker to use. If nil, will go through the order and pick the first available. fzf-lua -> telescope -> fzf -> quickselect
 
 return M
