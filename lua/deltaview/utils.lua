@@ -403,6 +403,53 @@ M.filter_refs = function(refs, arg_lead)
     return filtered
 end
 
+--- Validates that the added/removed lines in two DiffData[] tables are consistent.
+--- The tables may differ structurally (hunk count, formatted_diff_line_num, etc.), but
+--- the sequence of changed lines must agree on content, old_line_num, new_line_num, and line_type.
+--- @param a DiffData[]
+--- @param b DiffData[]
+--- @return boolean
+M.diff_data_sets_changed_lines_match = function(a, b)
+    local function collect_changed_lines(diff_data_set)
+        local lines = {}
+        for _, diff_data in ipairs(diff_data_set) do
+            for _, hunk in ipairs(diff_data.hunks) do
+                for _, line in ipairs(hunk.lines) do
+                    if line.line_type == 'added' or line.line_type == 'removed' then
+                        table.insert(lines, {
+                            content      = line.content,
+                            old_line_num = line.old_line_num,
+                            new_line_num = line.new_line_num,
+                            line_type    = line.line_type,
+                        })
+                    end
+                end
+            end
+        end
+        return lines
+    end
+
+    local a_lines = collect_changed_lines(a)
+    local b_lines = collect_changed_lines(b)
+
+    if #a_lines ~= #b_lines then
+        return false
+    end
+
+    for i, a_line in ipairs(a_lines) do
+        local b_line = b_lines[i]
+        if a_line.content      ~= b_line.content
+        or a_line.old_line_num ~= b_line.old_line_num
+        or a_line.new_line_num ~= b_line.new_line_num
+        or a_line.line_type    ~= b_line.line_type
+        then
+            return false
+        end
+    end
+
+    return true
+end
+
 
 return M
 

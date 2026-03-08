@@ -144,19 +144,19 @@ T['deltaview_file()']['binds escaping keys'] = function()
 
     local expected_binds = { '<Esc>', 'q' }
     for _, b in ipairs(expected_binds) do
-        local bufnr = child.lua_get([[_G.fixture.bufnr]], {b})
-        local modes = child.lua_get([[_G.fixture.keymap_set_args[...].modes]], {b})
-        local lhs = child.lua_get([[_G.fixture.keymap_set_args[...].lhs]], {b})
-        local buffer = child.lua_get([[_G.fixture.keymap_set_args[...].opts.buffer]], {b})
-        local silent = child.lua_get([[_G.fixture.keymap_set_args[...].opts.silent]], {b})
+        local bufnr = child.lua_get([[_G.fixture.bufnr]], { b })
+        local modes = child.lua_get([[_G.fixture.keymap_set_args[...].modes]], { b })
+        local lhs = child.lua_get([[_G.fixture.keymap_set_args[...].lhs]], { b })
+        local buffer = child.lua_get([[_G.fixture.keymap_set_args[...].opts.buffer]], { b })
+        local silent = child.lua_get([[_G.fixture.keymap_set_args[...].opts.silent]], { b })
 
         eq(modes, 'n')
         eq(lhs, b)
         eq(buffer, bufnr)
         eq(silent, true)
 
-        child.lua([[_G.fixture.keymap_set_args[...].rhs()]], {b})
-        local called = child.lua_get([[_G.fixture.nav_back_and_place_cursor_called]], {b})
+        child.lua([[_G.fixture.keymap_set_args[...].rhs()]], { b })
+        local called = child.lua_get([[_G.fixture.nav_back_and_place_cursor_called]], { b })
         eq(called, true)
     end
 end
@@ -210,10 +210,10 @@ local open_git_diff_buffer_happy_mocks = [=[
                 hunks = {
                     {
                         lines = {
-                            { content = 'a', old_line_num = 1, new_line_num = 1, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'context' }
+                            { content = 'added line2', old_line_num = nil, new_line_num = 2, diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'added' }
                         },
-                        old_start = 1, old_count = 1, new_start = 1, new_count = 1,
-                        header = '@@ -1,1 +1,1 @@', context = nil
+                        old_start = 1, old_count = 1, new_start = 2, new_count = 1,
+                        header = '@@ -1,1 +2,1 @@', context = nil
                     }
                 },
                 old_path = 'a',
@@ -224,13 +224,27 @@ local open_git_diff_buffer_happy_mocks = [=[
     end
 
     package.loaded['deltaview.utils'].read_file_lines = function(_)
-        return { 'line1', 'line2', 'line3' }
+        return { 'line1', 'added line2', 'line3' }
+    end
+
+    package.loaded['deltaview.utils'].diff_data_sets_changed_lines_match = function()
+        return true
     end
 
     Delta.text_diff = function(_s1, _s2, _lang, _opts)
         local bufnr = vim.api.nvim_create_buf(true, true)
         vim.b[bufnr].delta_diff_data_set = {
-            { hunks = {{}}, old_path = 'a', new_path = 'a', language = nil }
+            { hunks = {
+                {
+                    lines = {
+                        { content = 'line1', old_line_num = 1, new_line_num = 1, diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'context' },
+                        { content = 'added line2', old_line_num = nil, new_line_num = 2, diff_line_num = 2, formatted_diff_line_num = 2, line_type = 'added' },
+                        { content = 'line3', old_line_num = 2, new_line_num = 3, diff_line_num = 3, formatted_diff_line_num = 3, line_type = 'context' }
+                    },
+                    old_start = 1, old_count = 1, new_start = 2, new_count = 1,
+                    header = '@@ -1,3 +1,3 @@', context = nil
+                }
+            }, old_path = 'a', new_path = 'a', language = nil }
         }
         return bufnr
     end
@@ -377,6 +391,18 @@ OpenGitDiffBuffer.open_git_diff_buffer__property_cases = {
         },
     },
     {
+        -- there is a bug when git diff and vim.text.diff do not return exactly the same diff
+        name = 'failure: parsed_git_data added/removed lines do not match delta_diff_data_set',
+        setup_lua = open_git_diff_buffer_happy_mocks .. [=[
+            package.loaded['deltaview.utils'].diff_data_sets_changed_lines_match = function()
+                return false
+            end
+        ]=],
+        inputs = {
+            { filepath = 'a', ref = 'y', winnr = nil, expected_ok = false },
+        },
+    },
+    {
         -- filepath=nil hits `assert(filepath ~= nil)` immediately after rev-parse.
         name = 'asserts: nil filepath triggers assert',
         setup_lua = open_git_diff_buffer_happy_mocks,
@@ -406,7 +432,7 @@ OpenGitDiffBuffer.open_git_diff_buffer__property_cases = {
         name = 'mixed: valid and invalid filepath',
         setup_lua = open_git_diff_buffer_happy_mocks,
         inputs = {
-            { filepath = 'a', ref = 'x', winnr = nil, expected_ok = true  },
+            { filepath = 'a', ref = 'x', winnr = nil, expected_ok = true },
             { filepath = 'b', ref = 'x', winnr = nil, expected_ok = false },
         },
     },
@@ -415,7 +441,7 @@ OpenGitDiffBuffer.open_git_diff_buffer__property_cases = {
         name = 'mixed: valid and invalid ref',
         setup_lua = open_git_diff_buffer_happy_mocks,
         inputs = {
-            { filepath = 'a', ref = 'x', winnr = nil, expected_ok = true  },
+            { filepath = 'a', ref = 'x', winnr = nil, expected_ok = true },
             { filepath = 'a', ref = 'y', winnr = nil, expected_ok = false },
         },
     },
@@ -439,6 +465,7 @@ OpenGitDiffBuffer.properties.buffer_state_matches_expected = [[(function()
         local ok, result = pcall(M.open_git_diff_buffer, filepath, ref, winnr)
 
         if expected == true then
+            if not ok then print(result) end
             if not ok        then return false end
             if result == nil then return false end
             if vim.api.nvim_win_get_buf(winnr or 0) ~= result then return false end
@@ -1822,21 +1849,21 @@ T['setup_hunk_navigation()']['binds config.options.keyconfig.next_hunk to jump_t
     local expected_binds = { '<Tab>', '<S-Tab>' }
     local expected_forward = { true, false }
     for idx, b in ipairs(expected_binds) do
-        local bufnr = child.lua_get([[_G.fixture.bufnr]], {b})
-        local modes = child.lua_get([[_G.fixture.keymap_set_args[...].modes]], {b})
-        local lhs = child.lua_get([[_G.fixture.keymap_set_args[...].lhs]], {b})
+        local bufnr = child.lua_get([[_G.fixture.bufnr]], { b })
+        local modes = child.lua_get([[_G.fixture.keymap_set_args[...].modes]], { b })
+        local lhs = child.lua_get([[_G.fixture.keymap_set_args[...].lhs]], { b })
         --local rhs = child.lua_get([[_G.fixture.keymap_set_args.rhs]])
-        local buffer = child.lua_get([[_G.fixture.keymap_set_args[...].opts.buffer]], {b})
-        local silent = child.lua_get([[_G.fixture.keymap_set_args[...].opts.silent]], {b})
+        local buffer = child.lua_get([[_G.fixture.keymap_set_args[...].opts.buffer]], { b })
+        local silent = child.lua_get([[_G.fixture.keymap_set_args[...].opts.silent]], { b })
 
         eq(modes, 'n')
         eq(lhs, b)
         eq(buffer, bufnr)
         eq(silent, true)
 
-        child.lua([[_G.fixture.keymap_set_args[...].rhs()]], {b})
-        local called = child.lua_get([[_G.fixture.jump_to_hunk_called]], {b})
-        local called_with = child.lua_get([[_G.fixture.jump_to_hunk_called_with]], {b})
+        child.lua([[_G.fixture.keymap_set_args[...].rhs()]], { b })
+        local called = child.lua_get([[_G.fixture.jump_to_hunk_called]], { b })
+        local called_with = child.lua_get([[_G.fixture.jump_to_hunk_called_with]], { b })
         eq(called, true)
         eq(called_with.bufnr, bufnr)
         eq(called_with.forward, expected_forward[idx])

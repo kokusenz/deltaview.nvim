@@ -102,6 +102,11 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     assert(delta_diff_data_set ~= nil)
     --- @cast delta_diff_data_set DiffData[]
 
+    if not utils.diff_data_sets_changed_lines_match(parsed_git_data, delta_diff_data_set) then
+        vim.notify('git diff and vim text diff produced inconsistent changed lines. Cannot open diff buffer.', vim.log.levels.ERROR)
+        return
+    end
+
     -- displays ref, filename, size of hunks
     local diff_buffer_name = filepath .. '    '
         .. config.viewconfig().vs .. ' ' .. ref .. '    '
