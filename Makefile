@@ -29,6 +29,12 @@ setup:
 	else \
 		echo "delta already installed"; \
 	fi
+	@if [ ! -d "deps/fzf" ]; then \
+		echo "Installing fzf (not fzf.vim) for integration..."; \
+		git clone --filter=blob:none https://github.com/junegunn/fzf deps/fzf; \
+	else \
+		echo "fzf already installed"; \
+	fi
 	@for entry in $(PARSERS); do \
 		name=$${entry%%,*}; \
 		rest=$${entry#*,}; \
@@ -42,6 +48,7 @@ setup-silent:
 	@mkdir -p deps deps/parser
 	@[ -d "deps/mini.test" ] || git clone -q --filter=blob:none https://github.com/nvim-mini/mini.test deps/mini.test
 	@[ -d "deps/delta" ] || git clone -q --filter=blob:none https://github.com/kokusenz/delta.lua deps/delta
+	@[ -d "deps/fzf" ] || git clone -q --filter=blob:none https://github.com/junegunn/fzf deps/fzf
 	@for entry in $(PARSERS); do \
 		name=$${entry%%,*}; \
 		url=$${entry#*,}; \

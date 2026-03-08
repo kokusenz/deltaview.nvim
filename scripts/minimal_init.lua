@@ -12,6 +12,9 @@ if #vim.api.nvim_list_uis() == 0 then
   -- delta.lua
   vim.cmd('set rtp+=deps/delta')
 
+  -- fzf
+  vim.cmd('set rtp+=deps/fzf')
+
   -- Set up 'mini.test'
   require('mini.test').setup()
 end

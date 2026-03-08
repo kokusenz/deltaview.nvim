@@ -234,16 +234,19 @@ T['DeltaMenu integration']['quickselect path: selecting a file opens a delta buf
     eq(has_parsed, true)
 end
 
--- 7 files >= fzf_threshold (6): tries open_deltaview_fzf_menu first; fzf#run fails in headless
--- mode, so it falls back to open_deltaview_quickselect_menu
-T['DeltaMenu integration']['fzf path: selecting a file opens a delta buffer'] = function()
+-- 7 files >= fzf_threshold (6): fzf#run opens a terminal window
+T['DeltaMenu integration']['fzf path: opens a terminal window'] = function()
     child.lua(setup_tmpdir_git_repo_n_files, { 7 })
     child.cmd('DeltaMenu HEAD')
-    child.type_keys('<CR>')
-    local has_diff_data = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
-    local has_parsed    = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].no_context_delta_diff_data_set ~= nil')
-    eq(has_diff_data, true)
-    eq(has_parsed, true)
+    local has_terminal = child.lua_get([[
+        (function()
+            for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+                if vim.bo[buf].buftype == 'terminal' then return true end
+            end
+            return false
+        end)()
+    ]])
+    eq(has_terminal, true)
 end
 
 return T
