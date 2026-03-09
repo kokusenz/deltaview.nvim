@@ -48,7 +48,7 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     end
     assert(ref ~= nil)
 
-    local diff_result = vim.system({ 'git', 'diff', '-U0', '--', filepath }):wait()
+    local diff_result = vim.system({ 'git', 'diff', '-U0', ref, '--', filepath }):wait()
     if diff_result.code ~= 0 and diff_result.code ~= 1 then
         vim.notify('Failed to run git diff - ' .. diff_result.stderr, vim.log.levels.ERROR)
         return
