@@ -30,12 +30,15 @@ https://github.com/user-attachments/assets/ef732ea7-e2b5-4167-8d9d-f12052f94c9d
 ## Requirements
 
 - Neovim >= 0.9
-- [delta](https://github.com/dandavison/delta) (git-delta)
 - Git
+- [delta.lua](https://github.com/kokusenz/delta.lua). Install this separately into your neovim config using the plugin manager of your choice.
+    - the legacy flow (< v0.1.3) will still work without this plugin, provided git-delta is installed
 - (Optional) An fzf picker of your choice. Currently supports
     - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
     - [telescope](https://github.com/nvim-telescope/telescope.nvim)
     - [fzf](https://github.com/junegunn/fzf)
+- (Optional) [delta](https://github.com/dandavison/delta) (git-delta). 
+    - This is required for delta before v0.1.3.
 
 ## Usage
 
@@ -165,8 +168,7 @@ require('deltaview').setup({
 
     -- Number of files threshold for switching to fzf
     -- When the number of modified files >= this value, use fzf instead of quickselect
-    -- Set to 0 or 1 to always use fzf
-    fzf_threshold = 6,
+    fzf_threshold = 0,
 
     -- Only applicable if use_deltalua is true. If this setting is true, will show the delta style line numbers in the statuscolumn.
     line_numbers = false,

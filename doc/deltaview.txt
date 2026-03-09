@@ -26,7 +26,7 @@ If you aren't looking for an inline diff view, or are just looking for a code re
 ==============================================================================
 SETUP/CONFIGURATION                                               *deltaview-setup*, *deltaview-configuration*
 
-No configuration is needed by default. If you want to change the configured defaults, you must put the setup in the `after/plugin/` directory. These are the options
+No configuration is needed by default, but these are the options.
 
 setup>lua
 require('deltaview').setup({
@@ -50,7 +50,7 @@ require('deltaview').setup({
     -- Number of files threshold for switching to fzf
     -- When the number of modified files >= this value, use fzf instead of quickselect
     -- Set to 0 or 1 to always use fzf
-    fzf_threshold = 6,
+    fzf_threshold = 0,
 
     -- Only applicable if use_deltalua is true. If this setting is true, will show the delta style line numbers in the statuscolumn.
     line_numbers = false,

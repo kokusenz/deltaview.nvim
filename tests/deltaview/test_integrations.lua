@@ -223,8 +223,10 @@ local setup_tmpdir_git_repo_n_files = [[
 
 T['DeltaMenu integration'] = new_set()
 
--- 3 files < fzf_threshold (6): goes to open_deltaview_quickselect_menu
 T['DeltaMenu integration']['quickselect path: selecting a file opens a delta buffer'] = function()
+    child.lua([[
+        M.setup({fzf_threshold = 6})
+    ]])
     child.lua(setup_tmpdir_git_repo_n_files, { 3 })
     child.cmd('DeltaMenu HEAD')
     child.type_keys('<CR>')
@@ -234,8 +236,10 @@ T['DeltaMenu integration']['quickselect path: selecting a file opens a delta buf
     eq(has_parsed, true)
 end
 
--- 7 files >= fzf_threshold (6): fzf#run opens a terminal window
 T['DeltaMenu integration']['fzf path: opens a terminal window'] = function()
+    child.lua([[
+        M.setup({fzf_threshold = 6})
+    ]])
     child.lua(setup_tmpdir_git_repo_n_files, { 7 })
     child.cmd('DeltaMenu HEAD')
     local has_terminal = child.lua_get([[

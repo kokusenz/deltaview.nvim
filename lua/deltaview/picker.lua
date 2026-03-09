@@ -223,6 +223,7 @@ M.open_deltaview_fzf_junegunn_menu = function(ref, mods, changes_data)
         end
     end
 
+    -- TODO now that there is no expectation of having delta installed, make this delta if exists, otherwise, just regular git diff is ok
     local success, err = pcall(function()
         vim.fn['fzf#run'](vim.fn['fzf#wrap']({
             source = mods,
