@@ -42,10 +42,11 @@ M.defaults = {
     use_nerdfonts = true,
     show_verbose_nav = false,
     quick_select_view = 'hsplit',
+    -- TODO the fuzzy pickers for fzf-lua and telescope with the preview is so nice, consider making this by default
     fzf_threshold = 6,
     default_context = 3,
     line_numbers = false,
-    fzf_picker = 'telescope',
+    fzf_picker = nil,
     keyconfig = {
         dm_toggle_keybind = "<leader>dm",
         dv_toggle_keybind = "<leader>dl",

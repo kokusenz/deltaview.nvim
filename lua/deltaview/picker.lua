@@ -34,7 +34,7 @@ M.decorate_deltaview_with_next_keybinds = function(bufnr)
     end
 end
 
---- select from diff menu programmatically
+--- @param filepath string
 M.programmatically_select_diff_from_menu = function(filepath)
     local rev_parse_result = vim.system({ 'git', 'rev-parse', '--show-toplevel' }):wait()
     if rev_parse_result.code ~= 0 and rev_parse_result.code ~= 1 then
@@ -109,11 +109,12 @@ M.open_deltaview_quickselect_menu = function(ref, mods, changes_data)
 end
 
 
+--- TODO replace the total diff with full context with a git specific diff after implementing git diff
+--- this will also address the issue where new files don't preview
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[]
 --- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
 M.open_deltaview_fzf_lua_menu = function(ref, mods, changes_data)
-    vim.print(changes_data)
     local fzf_lua = require('fzf-lua')
     local builtin = require('fzf-lua.previewer.builtin')
 
@@ -244,6 +245,8 @@ M.open_deltaview_fzf_junegunn_menu = function(ref, mods, changes_data)
     end
 end
 
+--- TODO replace the total diff with full context with a git specific diff after implementing git diff
+--- this will also address the issue where new files don't preview
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[]
 --- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
