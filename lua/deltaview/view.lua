@@ -27,8 +27,36 @@ M.deltaview_file = function(ref)
     return diff_bufnr
 end
 
+--- delta git diff buffer orchestrator, using delta.lua. opens a delta diff on top of current window
+--- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
+--- @param context number size of context for the diff
+--- @param path string path we want to diff
+--- @return number | nil bufnr buf id of delta.lua buffer
+M.delta_path = function(ref, context, path)
+    assert(ref ~= nil)
+    assert(context ~= nil)
+    assert(path ~= nil)
+    local cur_bufnr = vim.api.nvim_get_current_buf()
+    local cursor_placement = M.get_cursor_placement_current_buffer()
+    local og_winline = vim.fn.winline()
+    local diff_bufnr = M.open_git_diff_buffer_for_path(path, ref, context)
+    if diff_bufnr == nil then
+        return
+    end
+    --M.place_cursor_delta_buffer_entry(diff_bufnr, 0, cursor_placement, og_winline)
+    --M.setup_hunk_navigation(diff_bufnr)
+    --local nav_back_and_place_cursor = M.get_delta_buffer_cursor_exit_strategy(diff_bufnr, 0, cur_bufnr)
+    --if nav_back_and_place_cursor == nil then
+    --    return
+    --end
+
+    --vim.keymap.set('n', '<Esc>', nav_back_and_place_cursor, { buffer = diff_bufnr, silent = true })
+    --vim.keymap.set('n', 'q', nav_back_and_place_cursor, { buffer = diff_bufnr, silent = true })
+    return diff_bufnr
+end
+
 --- opens a delta.lua git diff buffer for the specified file against a git ref, using Delta.text_diff
---- Handles both tracked and untracked files
+--- this diff has unlimited context, and allows for one file
 --- @param filepath string The file path to diff
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param winnr number | nil Optional window number to open on.
@@ -102,6 +130,12 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     assert(delta_diff_data_set ~= nil)
     --- @cast delta_diff_data_set DiffData[]
 
+    -- displays ref, filename
+    local diff_buffer_name = filepath .. '    '
+        .. config.viewconfig().vs .. ' ' .. ref .. '    '
+        .. config.viewconfig().segment
+    vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
+
     if not utils.diff_data_sets_changed_lines_match(no_context_delta_diff_data_set, delta_diff_data_set) then
         -- fallback: try to replace no_context_delta_diff_data_set with the vim.text.diff equivalent
         local diff_fn = (vim.text and vim.text.diff) or vim.diff
@@ -110,18 +144,100 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
 
         no_context_delta_diff_data_set = { Delta.parse.get_diff_data(vim_text_diffstring, no_context_delta_diff_data_set[1].language) }
         if not utils.diff_data_sets_changed_lines_match(no_context_delta_diff_data_set, delta_diff_data_set) then
-            vim.notify('git diff and vim text diff produced inconsistent changed lines that could not be reconciled. Cannot open diff buffer.',
+            vim.notify('Something went wrong with parsing. Deltaview features such as hunk navigation and cursor placement will be missing.',
                 vim.log.levels.ERROR)
             return
         end
     end
 
-    -- displays ref, filename, size of hunks
-    local diff_buffer_name = filepath .. '    '
+    -- adds size of hunks
+    diff_buffer_name = diff_buffer_name .. ' ' .. #no_context_delta_diff_data_set[1].hunks .. ' '
+    vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
+
+
+    --- for Delta.text_diff buffers, because of full file context, everything is one hunk. This is the data with theoretically 0 context, meaning each hunk is separate
+    --- @type DiffData[]
+    vim.b[bufnr].no_context_delta_diff_data_set = no_context_delta_diff_data_set
+    return bufnr
+end
+
+--- opens a delta.lua git diff buffer for the specified path against a git ref, using Delta.git_diff
+--- this diff has limited context, and allows for multiple files
+--- Handles both tracked and untracked files
+--- @param path string The path to diff
+--- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
+--- @param context number lines of context to show
+--- @param winnr number | nil Optional window number to open on.
+--- @return number | nil bufnr buf id of delta.lua buffer
+M.open_git_diff_buffer_for_path = function(path, ref, context, winnr)
+    local rev_parse_result = vim.system({ 'git', 'rev-parse', '--show-toplevel' }):wait()
+    if rev_parse_result.code ~= 0 and rev_parse_result.code ~= 1 then
+        vim.notify('Not in a git repository. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
+        return
+    end
+
+    assert(path ~= nil)
+    assert(ref ~= nil)
+
+    local diff_result = vim.system({ 'git', 'diff', '-U0', ref, '--', path }):wait()
+    if diff_result.code ~= 0 and diff_result.code ~= 1 then
+        vim.notify('Failed to run git diff - ' .. diff_result.stderr, vim.log.levels.ERROR)
+        return
+    end
+    local diffstring = diff_result.stdout
+
+    if diffstring == nil or diffstring == "" then
+        vim.notify('No changes detected in current file', vim.log.levels.WARN)
+        return
+    end
+
+    local no_context_delta_diff_data_set = Delta.parse.get_diff_data_git(diffstring)
+
+    --- @type DeltaOpts
+    local opts = { context = 1 }
+    local bufnr = Delta.git_diff(ref, path, opts)
+    if bufnr == nil then
+        return -- error already notified
+    end
+
+    local success, err = pcall(function()
+        vim.api.nvim_win_set_buf(winnr or 0, bufnr)
+    end)
+    if not success then
+        -- i've considered letting this just error instead, because this should only be triggered due to developer error/misuse of function. But I figure the message can be useful anyhow, and maybe this could happen during typical usage.
+        vim.notify('Failed to open buffer at window.' .. tostring(err), vim.log.levels.ERROR)
+        return
+    end
+    Delta.highlight_delta_artifacts(bufnr)
+    Delta.syntax_highlight_diff_set(bufnr)
+    Delta.diff_highlight_diff(bufnr)
+    if config.options.line_numbers then
+        Delta.setup_delta_statuscolumn(bufnr)
+    end
+
+    local total_hunk_count = 0
+    for _, d in ipairs(no_context_delta_diff_data_set) do
+        total_hunk_count = total_hunk_count + #d.hunks
+    end
+    -- displays ref, filename, size of hunks.
+    local diff_buffer_name = path .. '    '
         .. config.viewconfig().vs .. ' ' .. ref .. '    '
-        .. config.viewconfig().segment .. ' ' .. #no_context_delta_diff_data_set[1].hunks .. ' '
+        .. config.viewconfig().segment .. ' ' .. total_hunk_count .. ' '
 
     vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
+
+    local delta_diff_data_set = vim.b[bufnr].delta_diff_data_set
+    assert(delta_diff_data_set ~= nil)
+    --- @cast delta_diff_data_set DiffData[]
+
+    -- no context to normal diff
+    if not utils.diff_data_sets_changed_lines_match(no_context_delta_diff_data_set, delta_diff_data_set) then
+        -- TODO instead of recalling git diff with U0, which is more inconsistent than vim.text.diff (sometimes omitting \n), we can create a parser for our context included data set to split out hunk
+        -- that parser function can be reused for the other deltaview function as well
+        vim.notify('Something went wrong with parsing. Deltaview features such as hunk navigation and cursor placement will be missing.',
+            vim.log.levels.ERROR)
+        return
+    end
 
     --- for Delta.text_diff buffers, because of full file context, everything is one hunk. This is the data with theoretically 0 context, meaning each hunk is separate
     --- @type DiffData[]

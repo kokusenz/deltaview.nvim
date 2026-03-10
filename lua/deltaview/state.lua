@@ -5,10 +5,12 @@ local M = {}
 M.diffed_files = { files = nil, cur_idx = nil }
 
 --- stores the last used ref
+--- @type string
 M.diff_target_ref = 'HEAD'
 
 --- stores the last used context
-M.default_context = nil
+--- @type number
+M.default_context = 3
 
 --- enables the user to go to "next diff in menu" if the current diff was opened via the menu.
 --- @class DiffedFiles

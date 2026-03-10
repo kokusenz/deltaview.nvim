@@ -103,15 +103,9 @@ end
 
 --- @param command_argument vim.api.keyset.create_user_command.command_args
 M.Delta = function(command_argument)
-    -- TODO figure out function structure
-    -- what if I want to use the cur file functionality while also specifying a ref?
-    -- what if I don't want to specify the ref, but I want to specify a path?
-    -- what if I don't want to change the context, but I want to specify the ref? lot of options
-    -- could consider tossing the cur file functionality, or specifying a specific thing like . for it
-    -- so it's easy for somebody to type it. ref is harder to write, especially if you want to maintain the ref in memory that is very specific (like a three dot ref for a code review)
     local success, err = pcall(function()
         local custom_path = command_argument.fargs[1]
-        state.default_context = command_argument.fargs[1] ~= nil and
+        state.default_context = command_argument.fargs[2] ~= nil and
             tonumber(command_argument.fargs[2]) or state.default_context
         state.diff_target_ref = command_argument.fargs[3] ~= nil
             and command_argument.fargs[3]
@@ -129,7 +123,7 @@ M.Delta = function(command_argument)
                 path = vim.fn.getcwd()
             end
         end
-        -- TODO delta.functiontobeimplemented
+        require('deltaview.view').delta_path(state.diff_target_ref, state.default_context, path)
     end)
     if not success then
         print('ERROR: Failed to create diff view: ' .. tostring(err))

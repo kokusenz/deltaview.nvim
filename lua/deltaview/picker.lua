@@ -110,6 +110,7 @@ end
 
 
 --- TODO replace the total diff with full context with a git specific diff after implementing git diff
+--- should also make sure the "buffer with this name already exists" bug when opening deltamenu from a deltaview buffer gets resolved by this
 --- this will also address the issue where new files don't preview
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[]
