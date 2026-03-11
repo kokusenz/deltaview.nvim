@@ -450,6 +450,36 @@ M.diff_data_sets_changed_lines_match = function(a, b)
     return true
 end
 
+--- @param diff_data_set DiffData[]
+--- @return DiffData[]
+M.get_separated_diff_data_set_into_hunks_wo_context = function(diff_data_set)
+    local new_diff_data_set = {}
+    for idx, diff_data in ipairs(diff_data_set) do
+        --- @type DiffData
+        local new_diff_data = { hunks = {} }
+        for _, hunk in ipairs(diff_data.hunks) do
+            local new_hunk = {
+                lines = {}
+            }
+            for _, line in ipairs(hunk.lines) do
+                if line.line_type == 'added' or line.line_type == 'removed' then
+                    table.insert(new_hunk.lines, line)
+                else
+                    if #new_hunk.lines > 0 then
+                        table.insert(new_diff_data.hunks, new_hunk)
+                        new_hunk = { lines = {} }
+                    end
+                end
+            end
+            if #new_hunk.lines > 0 then
+                table.insert(new_diff_data.hunks, new_hunk)
+            end
+        end
+        new_diff_data_set[idx] = new_diff_data
+    end
+    return new_diff_data_set
+end
+
 
 return M
 

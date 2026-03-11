@@ -231,6 +231,14 @@ local open_git_diff_buffer_happy_mocks = [=[
         return true
     end
 
+    package.loaded['deltaview.utils'].get_separated_diff_data_set_into_hunks_wo_context = function()
+        return {
+            {
+                hunks = {}
+            }
+        }
+    end
+
     Delta.text_diff = function(_s1, _s2, _lang, _opts)
         local bufnr = vim.api.nvim_create_buf(true, true)
         vim.b[bufnr].delta_diff_data_set = {
@@ -529,61 +537,6 @@ T['open_git_diff_buffer()'] = new_set({
         end,
     },
 })
-
-T['open_git_diff_buffer()']['fallback: validator fails once, vim.text.diff succeeds, buffer is returned'] = function()
-    -- Arrange: diff_data_sets_changed_lines_match returns false on the first call (git diff
-    -- vs delta_diff_data_set disagree), then true on the second call (vim.text.diff-derived
-    -- parsed data matches). The function should recover and return a valid bufnr.
-    child.lua([[
-        local call_count = 0
-        package.loaded['deltaview.utils'].diff_data_sets_changed_lines_match = function(_a, _b)
-            call_count = call_count + 1
-            _G.fixture.validator_call_count = call_count
-            return call_count >= 2  -- fails on first call, passes on second
-        end
-    ]])
-
-    local bufnr = child.lua_get([[(function()
-        local ok, result = pcall(M.open_git_diff_buffer, 'a', 'x', nil)
-        if not ok then return nil end
-        return result
-    end)()]])
-    local call_count = child.lua_get([[_G.fixture.validator_call_count]])
-
-    eq(call_count, 2)
-    eq(type(bufnr), 'number')
-end
-
-T['open_git_diff_buffer()']['fallback: validator fails twice, notify is called, nil is returned'] = function()
-    -- Arrange: diff_data_sets_changed_lines_match always returns false — the fallback
-    -- via vim.text.diff also produces data that disagrees. The function must notify and
-    -- return nil without throwing.
-    child.lua([[
-        local call_count = 0
-        package.loaded['deltaview.utils'].diff_data_sets_changed_lines_match = function(_a, _b)
-            call_count = call_count + 1
-            _G.fixture.validator_call_count = call_count
-            return false
-        end
-
-        _G.fixture.notify_called = false
-        vim.notify = function(_msg, _level)
-            _G.fixture.notify_called = true
-        end
-    ]])
-
-    local bufnr = child.lua_get([[(function()
-        local ok, result = pcall(M.open_git_diff_buffer, 'a', 'x', nil)
-        if not ok then return nil end
-        return result
-    end)()]])
-    local call_count    = child.lua_get([[_G.fixture.validator_call_count]])
-    local notify_called = child.lua_get([[_G.fixture.notify_called]])
-
-    eq(call_count, 2)
-    eq(notify_called, true)
-    eq(bufnr, vim.NIL)
-end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
 -- get_cursor_placement_current_buffer() - example based tests

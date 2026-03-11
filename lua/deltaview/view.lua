@@ -88,15 +88,15 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
         return
     end
 
-    local no_context_delta_diff_data_set = Delta.parse.get_diff_data_git(diffstring)
+    local git_data = Delta.parse.get_diff_data_git(diffstring)
 
-    local file_lines = utils.read_file_lines(git_root .. '/' .. no_context_delta_diff_data_set[1].new_path)
+    local file_lines = utils.read_file_lines(git_root .. '/' .. git_data[1].new_path)
     assert(file_lines ~= nil)
     local s2 = table.concat(file_lines, "\n")
     local s1 = ''
 
-    if no_context_delta_diff_data_set[1].old_path then
-        local show_result = vim.system({ 'git', 'show', ref .. ':' .. no_context_delta_diff_data_set[1].old_path }):wait()
+    if git_data[1].old_path then
+        local show_result = vim.system({ 'git', 'show', ref .. ':' .. git_data[1].old_path }):wait()
         if show_result.code ~= 0 and show_result.code ~= 1 then
             vim.notify('Failed to run git show - ' .. show_result.stderr, vim.log.levels.ERROR)
             return
@@ -106,7 +106,7 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
         s1 = s1:gsub('\n+$', '')
     end
 
-    local bufnr = Delta.text_diff(s1, s2, no_context_delta_diff_data_set[1].language, { context = #file_lines })
+    local bufnr = Delta.text_diff(s1, s2, git_data[1].language, { context = #file_lines })
     if bufnr == nil then
         return -- error already notified
     end
@@ -136,18 +136,11 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
         .. config.viewconfig().segment
     vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
 
+    local no_context_delta_diff_data_set = utils.get_separated_diff_data_set_into_hunks_wo_context(delta_diff_data_set)
     if not utils.diff_data_sets_changed_lines_match(no_context_delta_diff_data_set, delta_diff_data_set) then
-        -- fallback: try to replace no_context_delta_diff_data_set with the vim.text.diff equivalent
-        local diff_fn = (vim.text and vim.text.diff) or vim.diff
-        local vim_text_diffstring = diff_fn(s1, s2, { result_type = 'unified', ctxlen = 0, algorithm = 'myers' })
-        --- @cast vim_text_diffstring string
-
-        no_context_delta_diff_data_set = { Delta.parse.get_diff_data(vim_text_diffstring, no_context_delta_diff_data_set[1].language) }
-        if not utils.diff_data_sets_changed_lines_match(no_context_delta_diff_data_set, delta_diff_data_set) then
-            vim.notify('Something went wrong with parsing. Deltaview features such as hunk navigation and cursor placement will be missing.',
-                vim.log.levels.ERROR)
-            return
-        end
+        vim.notify('Something went wrong with parsing. Deltaview features such as hunk navigation and cursor placement will be missing.',
+            vim.log.levels.ERROR)
+        return bufnr
     end
 
     -- adds size of hunks
@@ -191,10 +184,8 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr)
         return
     end
 
-    local no_context_delta_diff_data_set = Delta.parse.get_diff_data_git(diffstring)
-
     --- @type DeltaOpts
-    local opts = { context = 1 }
+    local opts = { context = context }
     local bufnr = Delta.git_diff(ref, path, opts)
     if bufnr == nil then
         return -- error already notified
@@ -215,14 +206,10 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr)
         Delta.setup_delta_statuscolumn(bufnr)
     end
 
-    local total_hunk_count = 0
-    for _, d in ipairs(no_context_delta_diff_data_set) do
-        total_hunk_count = total_hunk_count + #d.hunks
-    end
-    -- displays ref, filename, size of hunks.
+    -- displays ref, filename
     local diff_buffer_name = path .. '    '
         .. config.viewconfig().vs .. ' ' .. ref .. '    '
-        .. config.viewconfig().segment .. ' ' .. total_hunk_count .. ' '
+        .. config.viewconfig().segment
 
     vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
 
@@ -230,18 +217,24 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr)
     assert(delta_diff_data_set ~= nil)
     --- @cast delta_diff_data_set DiffData[]
 
-    -- no context to normal diff
+    local no_context_delta_diff_data_set = utils.get_separated_diff_data_set_into_hunks_wo_context(delta_diff_data_set)
     if not utils.diff_data_sets_changed_lines_match(no_context_delta_diff_data_set, delta_diff_data_set) then
-        -- TODO instead of recalling git diff with U0, which is more inconsistent than vim.text.diff (sometimes omitting \n), we can create a parser for our context included data set to split out hunk
-        -- that parser function can be reused for the other deltaview function as well
         vim.notify('Something went wrong with parsing. Deltaview features such as hunk navigation and cursor placement will be missing.',
             vim.log.levels.ERROR)
-        return
+        return bufnr
     end
 
-    --- for Delta.text_diff buffers, because of full file context, everything is one hunk. This is the data with theoretically 0 context, meaning each hunk is separate
     --- @type DiffData[]
     vim.b[bufnr].no_context_delta_diff_data_set = no_context_delta_diff_data_set
+
+    -- display size of hunks if parsing was successful
+    local total_hunk_count = 0
+    for _, d in ipairs(no_context_delta_diff_data_set) do
+        total_hunk_count = total_hunk_count + #d.hunks
+    end
+    diff_buffer_name = diff_buffer_name ..  ' ' .. total_hunk_count .. ' '
+    vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
+
     return bufnr
 end
 
@@ -538,7 +531,7 @@ M.jump_to_hunk = function(bufnr, forward)
                     vim.api.nvim_echo({
                         { 'jumped to '
                         .. config.viewconfig().segment .. ' '
-                        .. hunk_number .. '/'
+                        .. hunk_number .. '|'
                         .. #no_context_delta_diff_data_set[data_set_idx].hunks, 'Normal' }
                     }, false, {})
                     vim.defer_fn(function() vim.cmd('echo ""') end, 2000)

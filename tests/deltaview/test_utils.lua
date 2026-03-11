@@ -215,4 +215,194 @@ for func_name, func in pairs(DiffDataSetsChangedLinesMatch.properties) do
     end
 end
 
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- get_separated_diff_data_set_into_hunks_wo_context() - property based tests
+
+local GetSeparated = {}
+
+--- Build a DiffData[] (one file, one hunk) from a list of line_type strings.
+local function make_diff_data_from_types(line_types)
+    local lines = {}
+    local old_n, new_n = 1, 1
+    for i, lt in ipairs(line_types) do
+        local line = {
+            content                 = lt .. '_' .. i,
+            diff_line_num           = i - 1,
+            formatted_diff_line_num = i - 1,
+            line_type               = lt,
+        }
+        if lt == 'removed' then
+            line.old_line_num = old_n; old_n = old_n + 1
+            line.new_line_num = nil
+        elseif lt == 'added' then
+            line.old_line_num = nil
+            line.new_line_num = new_n; new_n = new_n + 1
+        else -- context
+            line.old_line_num = old_n; old_n = old_n + 1
+            line.new_line_num = new_n; new_n = new_n + 1
+        end
+        table.insert(lines, line)
+    end
+    return { {
+        hunks    = { { lines = lines } },
+        old_path = 'a', new_path = 'b', language = nil,
+    } }
+end
+
+--- Returns every line-type sequence of length 0..4 as a DiffData[] input.
+--- Produces 1+3+9+27+81 = 121 inputs, covering all-context, all-changed,
+--- mixed, boundary-only context, and every intermediate pattern.
+GetSeparated.get_exhaustive_single_hunk_inputs = function()
+    local types  = { 'added', 'removed', 'context' }
+    local inputs = { make_diff_data_from_types({}) }
+
+    local function gen(seq)
+        if #seq >= 4 then return end
+        for _, t in ipairs(types) do
+            local next_seq = {}
+            for _, v in ipairs(seq) do table.insert(next_seq, v) end
+            table.insert(next_seq, t)
+            table.insert(inputs, make_diff_data_from_types(next_seq))
+            gen(next_seq)
+        end
+    end
+    gen({})
+
+    return inputs
+end
+
+--- @class get_separated__case
+--- @field name string
+--- @field get_inputs fun(): DiffData[][]  -- list of DiffData[] inputs to iterate per property
+
+GetSeparated.cases = {
+    {
+        -- Exhaustive: all permutations of line types up to length 4 in a single hunk.
+        -- Covers all-context (all lines dropped), all-changed (passed through), mixed,
+        -- context at boundaries, and consecutive-context runs that create multiple splits.
+        name       = 'exhaustive: single-hunk line type sequences of length 0-4',
+        get_inputs = GetSeparated.get_exhaustive_single_hunk_inputs,
+    },
+    {
+        -- Two DiffData entries in one set; each has a hunk with mixed lines.
+        -- Verifies that output[idx] is populated correctly for each file independently.
+        name       = 'multi-file: two files with mixed line types',
+        get_inputs = function()
+            return { {
+                {
+                    hunks = { { lines = {
+                        { content = 'ctx',  old_line_num = 1,   new_line_num = 1,   diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'context' },
+                        { content = 'add',  old_line_num = nil, new_line_num = 2,   diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'added'   },
+                    } } },
+                    old_path = 'a', new_path = 'b', language = nil,
+                },
+                {
+                    hunks = { { lines = {
+                        { content = 'rem',  old_line_num = 1,   new_line_num = nil, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'removed' },
+                        { content = 'ctx2', old_line_num = 2,   new_line_num = 1,   diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'context' },
+                    } } },
+                    old_path = 'c', new_path = 'd', language = nil,
+                },
+            } }
+        end,
+    },
+    {
+        -- One file with two hunks; first hunk has a context gap that triggers a split,
+        -- second hunk has no context (passes through).
+        -- Verifies that each hunk in a file is processed independently.
+        name       = 'multi-hunk: one file with two hunks, first has a context gap',
+        get_inputs = function()
+            return { { {
+                hunks = {
+                    { lines = {
+                        { content = 'a1', old_line_num = nil, new_line_num = 1,   diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'added'   },
+                        { content = 'c1', old_line_num = 2,   new_line_num = 2,   diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'context' },
+                        { content = 'r1', old_line_num = 3,   new_line_num = nil, diff_line_num = 2, formatted_diff_line_num = 2, line_type = 'removed' },
+                    } },
+                    { lines = {
+                        { content = 'r2', old_line_num = 10,  new_line_num = nil, diff_line_num = 3, formatted_diff_line_num = 3, line_type = 'removed' },
+                        { content = 'a2', old_line_num = nil, new_line_num = 10,  diff_line_num = 4, formatted_diff_line_num = 4, line_type = 'added'   },
+                    } },
+                },
+                old_path = 'x', new_path = 'y', language = nil,
+            } } }
+        end,
+    },
+    {
+        -- Edge case: empty diff data set — no files, no hunks.
+        name       = 'empty: empty diff data set',
+        get_inputs = function() return { {} } end,
+    },
+}
+
+GetSeparated.properties = {}
+
+-- No line in any output hunk may have line_type == 'context'.
+GetSeparated.properties.no_context_lines_in_output = [[(function()
+    for _, input in ipairs(_G.fixture.inputs) do
+        local output = M.get_separated_diff_data_set_into_hunks_wo_context(input)
+        for _, diff_data in ipairs(output) do
+            for _, hunk in ipairs(diff_data.hunks) do
+                for _, line in ipairs(hunk.lines) do
+                    if line.line_type == 'context' then return false end
+                end
+            end
+        end
+    end
+    return true
+end)()]]
+
+-- Every added/removed line from the input appears in the output with the same
+-- content, old_line_num, new_line_num, and line_type (order preserved).
+GetSeparated.properties.changed_lines_preserved = [[(function()
+    for _, input in ipairs(_G.fixture.inputs) do
+        local output = M.get_separated_diff_data_set_into_hunks_wo_context(input)
+        if not M.diff_data_sets_changed_lines_match(input, output) then
+            return false
+        end
+    end
+    return true
+end)()]]
+
+-- The output has exactly as many DiffData entries as the input.
+GetSeparated.properties.output_length_equals_input_length = [[(function()
+    for _, input in ipairs(_G.fixture.inputs) do
+        local output = M.get_separated_diff_data_set_into_hunks_wo_context(input)
+        if #output ~= #input then return false end
+    end
+    return true
+end)()]]
+
+-- Applying the function twice must be a no-op: f(f(x)) == f(x).
+-- The output already has no context lines, so a second pass cannot split hunks further.
+GetSeparated.properties.idempotent = [[(function()
+    for _, input in ipairs(_G.fixture.inputs) do
+        local output1 = M.get_separated_diff_data_set_into_hunks_wo_context(input)
+        local output2 = M.get_separated_diff_data_set_into_hunks_wo_context(output1)
+
+        if not M.diff_data_sets_changed_lines_match(output1, output2) then
+            return false
+        end
+
+        -- Per-file hunk count must be identical; a second pass must not create new splits.
+        if #output1 ~= #output2 then return false end
+        for i = 1, #output1 do
+            if #output1[i].hunks ~= #output2[i].hunks then return false end
+        end
+    end
+    return true
+end)()]]
+
+T['get_separated_diff_data_set_into_hunks_wo_context() properties'] = new_set()
+for func_name, func in pairs(GetSeparated.properties) do
+    for _, case in ipairs(GetSeparated.cases) do
+        local test_name = func_name .. ': ' .. case.name
+        T['get_separated_diff_data_set_into_hunks_wo_context() properties'][test_name] = function()
+            child.lua([[_G.fixture.inputs = ...]], { case.get_inputs() })
+            local result = child.lua_get(func)
+            eq(result, true)
+        end
+    end
+end
+
 return T
