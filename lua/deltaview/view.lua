@@ -45,7 +45,7 @@ M.delta_path = function(ref, context, path)
         return
     end
     M.place_cursor_delta_buffer_entry(diff_bufnr, 0, cursor_placement, og_winline)
-    --M.setup_hunk_navigation(diff_bufnr)
+    M.setup_hunk_navigation(diff_bufnr)
     local nav_back_and_place_cursor = M.get_delta_buffer_cursor_exit_strategy(diff_bufnr, 0)
     if nav_back_and_place_cursor == nil then
         return
@@ -204,6 +204,9 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr)
         Delta.setup_delta_statuscolumn(bufnr)
     end
 
+    -- TODO, display number of files. Also, condition the buf set name behind a parameter as a flag
+    -- reason why is because opening delta menu from a delta buffer errors
+    -- do this for other flow too
     -- displays ref, filename
     local diff_buffer_name = (path or '/') .. '    '
         .. config.viewconfig().vs .. ' ' .. ref .. '    '
@@ -282,7 +285,7 @@ M.place_cursor_delta_buffer_entry = function(bufnr, winnr, cursor_placement, og_
                 vim.api.nvim_win_set_cursor(winnr, { diff_data.hunks[1].lines[1].formatted_diff_line_num + 1, 0 })
                 if cursor_placement.filepath ~= nil then
                     -- git diff path flow, meaning it is worth alerting the user the file was found
-                    vim.notify("File synced, Cursor at top of file.", vim.log.levels.INFO)
+                    vim.notify("File synced, entering at top of file.", vim.log.levels.INFO)
                 end
             end)
             if not success then
@@ -482,6 +485,10 @@ M.jump_to_hunk = function(bufnr, forward)
     --- @cast no_context_delta_diff_data_set DiffData[]
 
     local cursor_placement = M.get_cursor_placement_current_buffer()
+    local total_hunk_count = 0
+    for _, d in ipairs(no_context_delta_diff_data_set) do
+        total_hunk_count = total_hunk_count + #d.hunks
+    end
 
     local step = forward and 1 or -1
     local data_set_start = forward and 1 or #delta_diff_data_set
@@ -494,10 +501,21 @@ M.jump_to_hunk = function(bufnr, forward)
             local lines = diff_data.hunks[hunk_idx].lines
 
             local line_start = forward and cursor_placement.cursor[1] + 1 or cursor_placement.cursor[1] - 1
-            local line_end = forward and #lines or 1
+            local line_end = forward and
+                lines[1].formatted_diff_line_num + 1 + #lines or
+                lines[1].formatted_diff_line_num + 1
 
             for line_idx = line_start, line_end, step do
-                local real_buf_line = lines[line_idx]
+                local real_buf_line
+                -- TODO we are uneccessarily iterating every line. Find out what performance optimizations we can do here.
+                for _, real_line in ipairs(lines) do
+                    if real_line.formatted_diff_line_num + 1 == line_idx then
+                        real_buf_line = real_line
+                    end
+                end
+                if real_buf_line == nil then
+                    goto continue
+                end
 
                 local parsed_hunk_start = forward and 1 or #no_context_delta_diff_data_set[data_set_idx].hunks
                 local parsed_hunk_end = forward and #no_context_delta_diff_data_set[data_set_idx].hunks or 1
@@ -514,48 +532,52 @@ M.jump_to_hunk = function(bufnr, forward)
                         if target_lnum < w0 or target_lnum > wend then
                             vim.cmd('normal! zz')
                         end
+                        local running_hunk_count = 0 
+                        for dt_idx = 1, data_set_idx - 1, 1 do
+                            running_hunk_count = running_hunk_count + #no_context_delta_diff_data_set[dt_idx].hunks
+                        end
                         vim.api.nvim_echo({
                             { 'jumped to '
                             .. config.viewconfig().segment .. ' '
-                            .. parsed_hunk_idx .. '|'
-                            .. #no_context_delta_diff_data_set[data_set_idx].hunks, 'Normal' }
+                            .. running_hunk_count + parsed_hunk_idx .. '|'
+                            .. total_hunk_count, 'Normal' }
                         }, false, {})
 
                         vim.defer_fn(function() vim.cmd('echo ""') end, 2000)
                         return
                     end
                 end
+                ::continue::
             end
         end
     end
     -- fallback: jump to first hunk if forward, last hunk if not forward
-    for data_set_idx = data_set_start, data_set_end, step do
-        local diff_data = delta_diff_data_set[data_set_idx]
-
-        local hunk_number = forward and 1 or #no_context_delta_diff_data_set[data_set_idx].hunks
-        local hunk_line = no_context_delta_diff_data_set[data_set_idx].hunks[hunk_number]
-        for j = 1, #diff_data.hunks, 1 do
-            local lines = diff_data.hunks[j].lines
-            for _, real_buf_line in ipairs(lines) do
-                if hunk_line.lines[1].new_line_num == real_buf_line.new_line_num and
-                    hunk_line.lines[1].old_line_num == real_buf_line.old_line_num
-                then
-                    local target_lnum = real_buf_line.formatted_diff_line_num + 1
-                    local w0 = vim.fn.line('w0')
-                    local wend = vim.fn.line('w$')
-                    vim.api.nvim_win_set_cursor(0, { target_lnum, 0 })
-                    if target_lnum < w0 or target_lnum > wend then
-                        vim.cmd('normal! zz')
-                    end
-                    vim.api.nvim_echo({
-                        { 'jumped to '
-                        .. config.viewconfig().segment .. ' '
-                        .. hunk_number .. '|'
-                        .. #no_context_delta_diff_data_set[data_set_idx].hunks, 'Normal' }
-                    }, false, {})
-                    vim.defer_fn(function() vim.cmd('echo ""') end, 2000)
-                    return
+    local data_set_idx = forward and 1 or #delta_diff_data_set
+    local diff_data = delta_diff_data_set[data_set_idx]
+    local hunk_number = forward and 1 or #no_context_delta_diff_data_set[data_set_idx].hunks
+    local hunk_line = no_context_delta_diff_data_set[data_set_idx].hunks[hunk_number]
+    local hunk_display_number = forward and 1 or total_hunk_count
+    for j = 1, #diff_data.hunks, 1 do
+        local lines = diff_data.hunks[j].lines
+        for _, real_buf_line in ipairs(lines) do
+            if hunk_line.lines[1].new_line_num == real_buf_line.new_line_num and
+                hunk_line.lines[1].old_line_num == real_buf_line.old_line_num
+            then
+                local target_lnum = real_buf_line.formatted_diff_line_num + 1
+                local w0 = vim.fn.line('w0')
+                local wend = vim.fn.line('w$')
+                vim.api.nvim_win_set_cursor(0, { target_lnum, 0 })
+                if target_lnum < w0 or target_lnum > wend then
+                    vim.cmd('normal! zz')
                 end
+                vim.api.nvim_echo({
+                    { 'jumped to '
+                    .. config.viewconfig().segment .. ' '
+                    .. hunk_display_number .. '|'
+                    .. total_hunk_count, 'Normal' }
+                }, false, {})
+                vim.defer_fn(function() vim.cmd('echo ""') end, 2000)
+                return
             end
         end
     end

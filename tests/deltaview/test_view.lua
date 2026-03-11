@@ -2113,76 +2113,138 @@ JumpToHunk.jump_to_hunk__property_cases = {
             }
         },
     },
-    -- TODO; currently, this function doesn't work well when delta_diff_data_set has multiple hunks. Due to the way Delta.text_diff works, with producing 1 hunk, this is functionally not a bug, but when we develop for Delta.git_diff, this will most likely bug out. Then, we should root cause the bug and figure it out, and uncomment this test
-    -- {
-    --     -- Two files, each with a 3-line hunk.
-    --     -- jump_to_hunk uses cursor[1] as an index into each hunk's lines[] array directly.
-    --     -- File2's hunk has only 3 elements (indices 1..3), but cursors at rows 4..6 produce
-    --     -- line_start=5..7 — past the end — so file2's loop body never executes.
-    --     -- Consequence: forward navigation from any row in file2 always cycles back to file1's
-    --     -- hunk start (row 2). This case documents that cross-file jump behavior.
-    --     name = 'two files (cross-file cycling from file2 rows)',
-    --     buf_contents = { 'f1_ctx', 'f1_added', 'f1_ctx', 'f2_ctx', 'f2_added', 'f2_ctx' },
-    --     get_cursor_placements = JumpToHunk.get_cursor_placements,
-    --     --- @type DiffData[]
-    --     delta_diff_data_set = {
-    --         {
-    --             hunks = {
-    --                 {
-    --                     lines = {
-    --                         { content = 'f1_ctx',   old_line_num = 1,   new_line_num = 1, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'context' },
-    --                         { content = 'f1_added', old_line_num = nil, new_line_num = 2, diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'added' },
-    --                         { content = 'f1_ctx',   old_line_num = 2,   new_line_num = 3, diff_line_num = 2, formatted_diff_line_num = 2, line_type = 'context' },
-    --                     },
-    --                     old_start = 1, old_count = 2, new_start = 1, new_count = 3,
-    --                     header = '@@ -1,2 +1,3 @@', context = nil
-    --                 }
-    --             },
-    --             old_path = 'file1.lua', new_path = 'file1.lua', language = nil
-    --         },
-    --         {
-    --             hunks = {
-    --                 {
-    --                     lines = {
-    --                         { content = 'f2_ctx',   old_line_num = 1,   new_line_num = 1, diff_line_num = 0, formatted_diff_line_num = 3, line_type = 'context' },
-    --                         { content = 'f2_added', old_line_num = nil, new_line_num = 2, diff_line_num = 1, formatted_diff_line_num = 4, line_type = 'added' },
-    --                         { content = 'f2_ctx',   old_line_num = 2,   new_line_num = 3, diff_line_num = 2, formatted_diff_line_num = 5, line_type = 'context' },
-    --                     },
-    --                     old_start = 1, old_count = 2, new_start = 1, new_count = 3,
-    --                     header = '@@ -1,2 +1,3 @@', context = nil
-    --                 }
-    --             },
-    --             old_path = 'file2.lua', new_path = 'file2.lua', language = nil
-    --         },
-    --     },
-    --     --- @type DiffData[]
-    --     no_context_delta_diff_data_set = {
-    --         {
-    --             hunks = {
-    --                 {
-    --                     lines = {
-    --                         { content = 'f1_added', old_line_num = nil, new_line_num = 2, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'added' },
-    --                     },
-    --                     old_start = 2, old_count = 0, new_start = 2, new_count = 1,
-    --                     header = '@@ -2,0 +2,1 @@', context = nil
-    --                 },
-    --             },
-    --             old_path = 'file1.lua', new_path = 'file1.lua', language = nil
-    --         },
-    --         {
-    --             hunks = {
-    --                 {
-    --                     lines = {
-    --                         { content = 'f2_added', old_line_num = nil, new_line_num = 2, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'added' },
-    --                     },
-    --                     old_start = 2, old_count = 0, new_start = 2, new_count = 1,
-    --                     header = '@@ -2,0 +2,1 @@', context = nil
-    --                 },
-    --             },
-    --             old_path = 'file2.lua', new_path = 'file2.lua', language = nil
-    --         },
-    --     },
-    -- },
+    {
+        -- Single file, two separate delta hunks (limited-context diff).
+        -- delta_diff_data_set[1] has two hunks: hunk1 at fdln 0-2, hunk2 at fdln 3-5.
+        -- The old code indexed lines[line_idx] directly; for cursors at rows 4-6 and
+        -- hunk2, line_start exceeded #hunk1.lines (3), causing nil access.
+        -- The fix computes line_end as lines[1].formatted_diff_line_num+1+#lines and
+        -- looks up lines by formatted_diff_line_num, so both hunks are found correctly.
+        -- Valid hunk-start rows: 2 (added5, fdln=1) and 5 (added10, fdln=4).
+        name = 'single file, two delta hunks (limited context)',
+        buf_contents = { 'ctx4', 'added5', 'ctx6', 'ctx9', 'added10', 'ctx11' },
+        get_cursor_placements = JumpToHunk.get_cursor_placements,
+        --- @type DiffData[]
+        delta_diff_data_set = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            { content = 'ctx4',    old_line_num = 4,   new_line_num = 4,  diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'context' },
+                            { content = 'added5',  old_line_num = nil, new_line_num = 5,  diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'added' },
+                            { content = 'ctx6',    old_line_num = 5,   new_line_num = 6,  diff_line_num = 2, formatted_diff_line_num = 2, line_type = 'context' },
+                        },
+                        old_start = 4, old_count = 2, new_start = 4, new_count = 3,
+                        header = '@@ -4,2 +4,3 @@', context = nil
+                    },
+                    {
+                        lines = {
+                            { content = 'ctx9',    old_line_num = 8,   new_line_num = 9,  diff_line_num = 0, formatted_diff_line_num = 3, line_type = 'context' },
+                            { content = 'added10', old_line_num = nil, new_line_num = 10, diff_line_num = 1, formatted_diff_line_num = 4, line_type = 'added' },
+                            { content = 'ctx11',   old_line_num = 9,   new_line_num = 11, diff_line_num = 2, formatted_diff_line_num = 5, line_type = 'context' },
+                        },
+                        old_start = 8, old_count = 2, new_start = 9, new_count = 3,
+                        header = '@@ -8,2 +9,3 @@', context = nil
+                    },
+                },
+                old_path = nil, new_path = nil, language = nil
+            }
+        },
+        --- @type DiffData[]
+        no_context_delta_diff_data_set = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            { content = 'added5',  old_line_num = nil, new_line_num = 5,  diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'added' },
+                        },
+                        old_start = 5, old_count = 0, new_start = 5, new_count = 1,
+                        header = '@@ -5,0 +5,1 @@', context = nil
+                    },
+                    {
+                        lines = {
+                            { content = 'added10', old_line_num = nil, new_line_num = 10, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'added' },
+                        },
+                        old_start = 10, old_count = 0, new_start = 10, new_count = 1,
+                        header = '@@ -10,0 +10,1 @@', context = nil
+                    },
+                },
+                old_path = nil, new_path = nil, language = nil
+            }
+        },
+    },
+    {
+        -- Two files, each with one hunk (multi-file navigation, forward and backward).
+        -- File2's lines have formatted_diff_line_num starting at 3 (buffer rows 4-6).
+        -- The old line-lookup indexed lines[line_idx] directly, so cursors at rows 4-6
+        -- tried lines[4]-lines[6] on a 3-element array — out of bounds.
+        -- The old backward fallback looped over all files using total_hunk_count as a
+        -- per-file array index, which overflowed for files with fewer hunks.
+        -- Both are fixed: lookup by formatted_diff_line_num; fallback targets the last
+        -- file's last hunk directly without looping.
+        -- Valid hunk-start rows: 2 (f1_added, fdln=1) and 5 (f2_added, fdln=4).
+        name = 'two files, each with one hunk (multi-file navigation)',
+        buf_contents = { 'f1_ctx', 'f1_added', 'f1_ctx', 'f2_ctx', 'f2_added', 'f2_ctx' },
+        get_cursor_placements = JumpToHunk.get_cursor_placements,
+        --- @type DiffData[]
+        delta_diff_data_set = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            { content = 'f1_ctx',   old_line_num = 1,   new_line_num = 1, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'context' },
+                            { content = 'f1_added', old_line_num = nil, new_line_num = 2, diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'added' },
+                            { content = 'f1_ctx',   old_line_num = 2,   new_line_num = 3, diff_line_num = 2, formatted_diff_line_num = 2, line_type = 'context' },
+                        },
+                        old_start = 1, old_count = 2, new_start = 1, new_count = 3,
+                        header = '@@ -1,2 +1,3 @@', context = nil
+                    },
+                },
+                old_path = 'file1.lua', new_path = 'file1.lua', language = nil
+            },
+            {
+                hunks = {
+                    {
+                        lines = {
+                            { content = 'f2_ctx',   old_line_num = 1,   new_line_num = 1, diff_line_num = 0, formatted_diff_line_num = 3, line_type = 'context' },
+                            { content = 'f2_added', old_line_num = nil, new_line_num = 2, diff_line_num = 1, formatted_diff_line_num = 4, line_type = 'added' },
+                            { content = 'f2_ctx',   old_line_num = 2,   new_line_num = 3, diff_line_num = 2, formatted_diff_line_num = 5, line_type = 'context' },
+                        },
+                        old_start = 1, old_count = 2, new_start = 1, new_count = 3,
+                        header = '@@ -1,2 +1,3 @@', context = nil
+                    },
+                },
+                old_path = 'file2.lua', new_path = 'file2.lua', language = nil
+            },
+        },
+        --- @type DiffData[]
+        no_context_delta_diff_data_set = {
+            {
+                hunks = {
+                    {
+                        lines = {
+                            { content = 'f1_added', old_line_num = nil, new_line_num = 2, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'added' },
+                        },
+                        old_start = 2, old_count = 0, new_start = 2, new_count = 1,
+                        header = '@@ -2,0 +2,1 @@', context = nil
+                    },
+                },
+                old_path = 'file1.lua', new_path = 'file1.lua', language = nil
+            },
+            {
+                hunks = {
+                    {
+                        lines = {
+                            { content = 'f2_added', old_line_num = nil, new_line_num = 2, diff_line_num = 0, formatted_diff_line_num = 0, line_type = 'added' },
+                        },
+                        old_start = 2, old_count = 0, new_start = 2, new_count = 1,
+                        header = '@@ -2,0 +2,1 @@', context = nil
+                    },
+                },
+                old_path = 'file2.lua', new_path = 'file2.lua', language = nil
+            },
+        },
+    },
 }
 
 JumpToHunk.properties = {}
