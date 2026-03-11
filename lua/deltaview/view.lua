@@ -485,10 +485,13 @@ M.jump_to_hunk = function(bufnr, forward)
     --- @cast no_context_delta_diff_data_set DiffData[]
 
     local cursor_placement = M.get_cursor_placement_current_buffer()
-    local total_hunk_count = 0
-    for _, d in ipairs(no_context_delta_diff_data_set) do
-        total_hunk_count = total_hunk_count + #d.hunks
+
+    -- used exclusively for messaging in fallback scenarios
+    local hunk_prefix = { 0 }
+    for i, d in ipairs(no_context_delta_diff_data_set) do
+        hunk_prefix[i + 1] = hunk_prefix[i] + #d.hunks
     end
+    local total_hunk_count = hunk_prefix[#hunk_prefix]
 
     local step = forward and 1 or -1
     local data_set_start = forward and 1 or #delta_diff_data_set
@@ -497,6 +500,8 @@ M.jump_to_hunk = function(bufnr, forward)
         local diff_data = delta_diff_data_set[data_set_idx]
         local hunk_start = forward and 1 or #diff_data.hunks
         local hunk_end = forward and #diff_data.hunks or 1
+        local parsed_hunk_start = forward and 1 or #no_context_delta_diff_data_set[data_set_idx].hunks
+        local parsed_hunk_end = forward and #no_context_delta_diff_data_set[data_set_idx].hunks or 1
         for hunk_idx = hunk_start, hunk_end, step do
             local lines = diff_data.hunks[hunk_idx].lines
 
@@ -505,20 +510,17 @@ M.jump_to_hunk = function(bufnr, forward)
                 lines[1].formatted_diff_line_num + 1 + #lines or
                 lines[1].formatted_diff_line_num + 1
 
+            local lines_by_row = {}
+            for _, real_line in ipairs(lines) do
+                lines_by_row[real_line.formatted_diff_line_num + 1] = real_line
+            end
+
             for line_idx = line_start, line_end, step do
-                local real_buf_line
-                -- TODO we are uneccessarily iterating every line. Find out what performance optimizations we can do here.
-                for _, real_line in ipairs(lines) do
-                    if real_line.formatted_diff_line_num + 1 == line_idx then
-                        real_buf_line = real_line
-                    end
-                end
+                local real_buf_line = lines_by_row[line_idx]
                 if real_buf_line == nil then
                     goto continue
                 end
 
-                local parsed_hunk_start = forward and 1 or #no_context_delta_diff_data_set[data_set_idx].hunks
-                local parsed_hunk_end = forward and #no_context_delta_diff_data_set[data_set_idx].hunks or 1
                 for parsed_hunk_idx = parsed_hunk_start, parsed_hunk_end, step do
                     local hunk_line = no_context_delta_diff_data_set[data_set_idx].hunks[parsed_hunk_idx]
 
@@ -532,14 +534,10 @@ M.jump_to_hunk = function(bufnr, forward)
                         if target_lnum < w0 or target_lnum > wend then
                             vim.cmd('normal! zz')
                         end
-                        local running_hunk_count = 0 
-                        for dt_idx = 1, data_set_idx - 1, 1 do
-                            running_hunk_count = running_hunk_count + #no_context_delta_diff_data_set[dt_idx].hunks
-                        end
                         vim.api.nvim_echo({
                             { 'jumped to '
                             .. config.viewconfig().segment .. ' '
-                            .. running_hunk_count + parsed_hunk_idx .. '|'
+                            .. hunk_prefix[data_set_idx] + parsed_hunk_idx .. '|'
                             .. total_hunk_count, 'Normal' }
                         }, false, {})
 
