@@ -253,4 +253,64 @@ T['DeltaMenu integration']['fzf path: opens a terminal window'] = function()
     eq(has_terminal, true)
 end
 
+T['DeltaMenu integration']['buffer name conflict: DeltaMenu from a Delta buffer with one diffed file throws no errors. fzf-lua'] = function()
+    -- Reproduces the bug where opening DeltaMenu while on a delta buffer created by :Delta would
+    -- attempt to create a new buffer with an already-taken name, causing an error.
+    -- _buf_name_seq in picker.lua fixes this by assigning unique sequential names.
+    child.lua([[
+        M.setup({fzf_threshold = 0, fzf_picker='fzf-lua'})
+    ]])
+    -- setup_tmpdir_git_repo gives us exactly one diffed file (test.lua) and opens it as current buffer
+    child.lua(setup_tmpdir_git_repo)
+    -- :Delta (no args) opens a delta buffer for the current file against HEAD
+    child.cmd('Delta')
+    local on_delta_buf = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    eq(on_delta_buf, true)
+    -- Intercept error-level notifications so we can assert none are raised
+    child.lua([[
+        _G.error_notifications = {}
+        local orig_notify = vim.notify
+        vim.notify = function(msg, level, opts)
+            if level == vim.log.levels.ERROR then
+                table.insert(_G.error_notifications, msg)
+            end
+            orig_notify(msg, level, opts)
+        end
+    ]])
+    -- :DeltaMenu from the delta buffer previously errored with "buffer with this name already exists"
+    child.cmd('DeltaMenu')
+    local errors = child.lua_get('_G.error_notifications')
+    eq(#errors, 0)
+end
+
+T['DeltaMenu integration']['buffer name conflict: DeltaMenu from a Delta buffer with one diffed file throws no errors. telescope'] = function()
+    -- Reproduces the bug where opening DeltaMenu while on a delta buffer created by :Delta would
+    -- attempt to create a new buffer with an already-taken name, causing an error.
+    -- _buf_name_seq in picker.lua fixes this by assigning unique sequential names.
+    child.lua([[
+        M.setup({fzf_threshold = 0, fzf_picker='telescope'})
+    ]])
+    -- setup_tmpdir_git_repo gives us exactly one diffed file (test.lua) and opens it as current buffer
+    child.lua(setup_tmpdir_git_repo)
+    -- :Delta (no args) opens a delta buffer for the current file against HEAD
+    child.cmd('Delta')
+    local on_delta_buf = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    eq(on_delta_buf, true)
+    -- Intercept error-level notifications so we can assert none are raised
+    child.lua([[
+        _G.error_notifications = {}
+        local orig_notify = vim.notify
+        vim.notify = function(msg, level, opts)
+            if level == vim.log.levels.ERROR then
+                table.insert(_G.error_notifications, msg)
+            end
+            orig_notify(msg, level, opts)
+        end
+    ]])
+    -- :DeltaMenu from the delta buffer previously errored with "buffer with this name already exists"
+    child.cmd('DeltaMenu')
+    local errors = child.lua_get('_G.error_notifications')
+    eq(#errors, 0)
+end
+
 return T

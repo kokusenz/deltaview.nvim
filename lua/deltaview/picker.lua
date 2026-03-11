@@ -5,6 +5,8 @@ local view = require('deltaview.view')
 local selector = require('deltaview.selector')
 local config = require('deltaview.config')
 
+local _buf_name_seq = 0
+
 --- @param bufnr number
 M.decorate_deltaview_with_next_keybinds = function(bufnr)
     local adjacent_files = utils.get_adjacent_files(state.diffed_files)
@@ -133,7 +135,8 @@ M.open_deltaview_fzf_lua_menu = function(ref, mods, changes_data)
         if filepath == nil then return end
         local preview_winid = self.win.preview_winid
         local old_bufnr = vim.api.nvim_win_get_buf(preview_winid)
-        local bufnr = view.open_git_diff_buffer(filepath, ref, preview_winid)
+        _buf_name_seq = _buf_name_seq + 1
+        local bufnr = view.open_git_diff_buffer_for_path(filepath, ref, state.default_context, preview_winid, tostring(_buf_name_seq))
         if bufnr == nil then
             local tmp = self:get_tmp_buffer()
             vim.api.nvim_buf_set_lines(tmp, 0, -1, false, { 'No diff available for: ' .. entry_str })
@@ -179,6 +182,7 @@ M.open_deltaview_fzf_lua_menu = function(ref, mods, changes_data)
     })
 end
 
+--- LEGACY. Incapable of showing my delta.lua diffs in the preview window
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[]
 --- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
@@ -298,7 +302,8 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
                 return
             end
 
-            local bufnr = view.open_git_diff_buffer(filepath, ref, preview_winid)
+            _buf_name_seq = _buf_name_seq + 1
+            local bufnr = view.open_git_diff_buffer_for_path(filepath, ref, state.default_context, preview_winid, tostring(_buf_name_seq))
             if bufnr == nil then
                 local fallback = vim.api.nvim_create_buf(false, true)
                 table.insert(preview_bufs, fallback)
@@ -350,6 +355,8 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
                     state.diffed_files.files = mods
                     state.diffed_files.cur_idx = selected_idx
                     M.decorate_deltaview_with_next_keybinds(bufnr)
+                    vim.api.nvim_buf_set_name(bufnr, tostring(_buf_name_seq))
+                    _buf_name_seq = _buf_name_seq + 1
                 end)
                 if not success then
                     vim.notify('An error occured while trying to open DeltaView - ' .. tostring(err),

@@ -160,8 +160,9 @@ end
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param context number lines of context to show
 --- @param winnr number | nil Optional window number to open on.
+--- @param buf_name string | nil Optional name to assign to the buffer
 --- @return number | nil bufnr buf id of delta.lua buffer
-M.open_git_diff_buffer_for_path = function(path, ref, context, winnr)
+M.open_git_diff_buffer_for_path = function(path, ref, context, winnr, buf_name)
     local rev_parse_result = vim.system({ 'git', 'rev-parse', '--show-toplevel' }):wait()
     if rev_parse_result.code ~= 0 and rev_parse_result.code ~= 1 then
         vim.notify('Not in a git repository. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
@@ -209,15 +210,12 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr)
     assert(delta_diff_data_set ~= nil)
     --- @cast delta_diff_data_set DiffData[]
 
-    -- TODO, display number of files. Also, condition the buf set name behind a parameter as a flag
-    -- reason why is because opening delta menu from a delta buffer errors
-    -- do this for other flow too
     -- displays ref, filename
     local diff_buffer_name = (path or '/') .. '    '
         .. config.viewconfig().vs .. ' ' .. ref .. '    '
         .. config.viewconfig().file .. ' ' .. #delta_diff_data_set .. '    '
 
-    vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
+    vim.api.nvim_buf_set_name(bufnr, buf_name or diff_buffer_name)
 
     local no_context_delta_diff_data_set = utils.get_separated_diff_data_set_into_hunks_wo_context(delta_diff_data_set)
     -- this buffer variable allows hunk navigation later. having accurate hunk count also allows us to display it in the name
@@ -233,7 +231,7 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr)
         diff_buffer_name = diff_buffer_name ..
             config.viewconfig().segment ..
             ' ' .. total_hunk_count .. '   '
-        vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
+        vim.api.nvim_buf_set_name(bufnr, buf_name or diff_buffer_name)
     end
 
     return bufnr
