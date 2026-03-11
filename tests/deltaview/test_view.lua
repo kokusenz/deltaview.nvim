@@ -942,7 +942,7 @@ PlaceCursorDeltaBufferEntry.properties.cursor_placed_on_matching_line = [[(funct
     -- assume: cursor row must match a new_line_num in the applicable diff entry
     local cursor_row_in_diff = false
     for _, diff_data in ipairs(vim.b[bufnr].delta_diff_data_set) do
-        if cursor_placement.filepath == nil or diff_data.new_path == cursor_placement.filepath then
+        if cursor_placement.filepath == nil or ('/' .. diff_data.new_path) == cursor_placement.filepath then
             for _, hunk in ipairs(diff_data.hunks) do
                 for _, line in ipairs(hunk.lines) do
                     if line.new_line_num == cursor_placement.cursor[1] then
@@ -999,7 +999,7 @@ PlaceCursorDeltaBufferEntry.properties.fails_open = [[(function()
 
     local notify_called = false
     vim.notify = function(args)
-        notify_called = true
+        notify_called = args[2] == vim.log.levels.WARN
     end
 
     M.set_restview = function() end
@@ -1035,6 +1035,10 @@ for func_name, func in pairs(PlaceCursorDeltaBufferEntry.properties) do
             local bufnr = vim.api.nvim_create_buf(true, true)
             vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, ...)
             vim.api.nvim_set_current_buf(bufnr)
+            vim.system = function(cmd, _opts)
+                local code = (cmd[2] == 'rev-parse') and 0 or 2
+                return { wait = function() return { code = code, stdout = '', stderr = '' } end }
+            end
             _G.fixture.bufnr = bufnr
         ]], { case.buf_contents })
             child.lua([[_G.fixture.delta_diff_data_set = ...]], { case.delta_diff_data_set })
@@ -1063,6 +1067,10 @@ T['place_cursor_delta_buffer_entry() example']['calls win_set_cursor manually wi
         local bufnr = vim.api.nvim_create_buf(true, true)
         vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, ...)
         vim.api.nvim_set_current_buf(bufnr)
+        vim.system = function(cmd, _opts)
+            local code = (cmd[2] == 'rev-parse') and 0 or 2
+            return { wait = function() return { code = code, stdout = '', stderr = '' } end }
+        end
         _G.fixture.bufnr = bufnr
     ]], { case.buf_contents })
     child.lua([[_G.fixture.delta_diff_data_set = ...]], { case.delta_diff_data_set })

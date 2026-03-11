@@ -38,12 +38,13 @@ M.delta_path = function(ref, context, path)
     assert(path ~= nil)
     local cur_bufnr = vim.api.nvim_get_current_buf()
     local cursor_placement = M.get_cursor_placement_current_buffer()
+    cursor_placement.filepath = vim.fn.expand('%:p')
     local og_winline = vim.fn.winline()
     local diff_bufnr = M.open_git_diff_buffer_for_path(path, ref, context)
     if diff_bufnr == nil then
         return
     end
-    --M.place_cursor_delta_buffer_entry(diff_bufnr, 0, cursor_placement, og_winline)
+    M.place_cursor_delta_buffer_entry(diff_bufnr, 0, cursor_placement, og_winline)
     --M.setup_hunk_navigation(diff_bufnr)
     --local nav_back_and_place_cursor = M.get_delta_buffer_cursor_exit_strategy(diff_bufnr, 0, cur_bufnr)
     --if nav_back_and_place_cursor == nil then
@@ -76,6 +77,7 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     end
     assert(ref ~= nil)
 
+    -- todo handle new file, which doesn't show on git diff and is seen as "no changes"
     local diff_result = vim.system({ 'git', 'diff', '-U0', ref, '--', filepath }):wait()
     if diff_result.code ~= 0 and diff_result.code ~= 1 then
         vim.notify('Failed to run git diff - ' .. diff_result.stderr, vim.log.levels.ERROR)
@@ -98,6 +100,7 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     if git_data[1].old_path then
         local show_result = vim.system({ 'git', 'show', ref .. ':' .. git_data[1].old_path }):wait()
         if show_result.code ~= 0 and show_result.code ~= 1 then
+            -- todo; handle failed to run git show on staged new file
             vim.notify('Failed to run git show - ' .. show_result.stderr, vim.log.levels.ERROR)
             return
         end
@@ -137,20 +140,15 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
 
     local no_context_delta_diff_data_set = utils.get_separated_diff_data_set_into_hunks_wo_context(delta_diff_data_set)
-    if not utils.diff_data_sets_changed_lines_match(no_context_delta_diff_data_set, delta_diff_data_set) then
-        vim.notify('Something went wrong with parsing. Deltaview features such as hunk navigation and cursor placement will be missing.',
-            vim.log.levels.ERROR)
-        return bufnr
+    -- this buffer variable allows hunk navigation later. having accurate hunk count also allows us to display it in the name
+    if utils.diff_data_sets_changed_lines_match(no_context_delta_diff_data_set, delta_diff_data_set) then
+        --- @type DiffData[]
+        vim.b[bufnr].no_context_delta_diff_data_set = no_context_delta_diff_data_set
+        -- adds size of hunks
+        diff_buffer_name = diff_buffer_name .. ' ' .. #no_context_delta_diff_data_set[1].hunks .. ' '
+        vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
     end
 
-    -- adds size of hunks
-    diff_buffer_name = diff_buffer_name .. ' ' .. #no_context_delta_diff_data_set[1].hunks .. ' '
-    vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
-
-
-    --- for Delta.text_diff buffers, because of full file context, everything is one hunk. This is the data with theoretically 0 context, meaning each hunk is separate
-    --- @type DiffData[]
-    vim.b[bufnr].no_context_delta_diff_data_set = no_context_delta_diff_data_set
     return bufnr
 end
 
@@ -207,7 +205,7 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr)
     end
 
     -- displays ref, filename
-    local diff_buffer_name = path .. '    '
+    local diff_buffer_name = (path or '/') .. '    '
         .. config.viewconfig().vs .. ' ' .. ref .. '    '
         .. config.viewconfig().segment
 
@@ -218,22 +216,19 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr)
     --- @cast delta_diff_data_set DiffData[]
 
     local no_context_delta_diff_data_set = utils.get_separated_diff_data_set_into_hunks_wo_context(delta_diff_data_set)
-    if not utils.diff_data_sets_changed_lines_match(no_context_delta_diff_data_set, delta_diff_data_set) then
-        vim.notify('Something went wrong with parsing. Deltaview features such as hunk navigation and cursor placement will be missing.',
-            vim.log.levels.ERROR)
-        return bufnr
-    end
+    -- this buffer variable allows hunk navigation later. having accurate hunk count also allows us to display it in the name
+    if utils.diff_data_sets_changed_lines_match(no_context_delta_diff_data_set, delta_diff_data_set) then
+        --- @type DiffData[]
+        vim.b[bufnr].no_context_delta_diff_data_set = no_context_delta_diff_data_set
 
-    --- @type DiffData[]
-    vim.b[bufnr].no_context_delta_diff_data_set = no_context_delta_diff_data_set
-
-    -- display size of hunks if parsing was successful
-    local total_hunk_count = 0
-    for _, d in ipairs(no_context_delta_diff_data_set) do
-        total_hunk_count = total_hunk_count + #d.hunks
+        -- display size of hunks if parsing was successful
+        local total_hunk_count = 0
+        for _, d in ipairs(no_context_delta_diff_data_set) do
+            total_hunk_count = total_hunk_count + #d.hunks
+        end
+        diff_buffer_name = diff_buffer_name ..  ' ' .. total_hunk_count .. ' '
+        vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
     end
-    diff_buffer_name = diff_buffer_name ..  ' ' .. total_hunk_count .. ' '
-    vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
 
     return bufnr
 end
@@ -257,15 +252,27 @@ M.place_cursor_delta_buffer_entry = function(bufnr, winnr, cursor_placement, og_
     assert(delta_diff_data_set ~= nil)
     --- @cast delta_diff_data_set DiffData[]
 
+    local rev_parse_result = vim.system({ 'git', 'rev-parse', '--show-toplevel' }):wait()
+    if rev_parse_result.code ~= 0 and rev_parse_result.code ~= 1 then
+        vim.notify('Not in a git repository. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
+        return
+    end
+    local git_root = vim.trim(rev_parse_result.stdout)
+
     for _, diff_data in ipairs(delta_diff_data_set) do
         -- when using Delta.text_diff, there is no filepath in diff_data to compare to.
         -- in the interest of making this usable with Delta.text_diff, we do a fail open (if we can't find a filepath, we try to do a cursor placement anyways)
-        if cursor_placement.filepath == nil or diff_data.new_path == cursor_placement.filepath then
+        local full_path = git_root .. '/' .. (diff_data.new_path or '')
+        if cursor_placement.filepath == nil or full_path == cursor_placement.filepath then
             for _, hunk in ipairs(diff_data.hunks) do
                 for _, line in ipairs(hunk.lines) do
                     if line.new_line_num == cursor_placement.cursor[1] then
                         local target_lnum = line.formatted_diff_line_num + 1
                         M.set_restview(winnr, og_winline, target_lnum, cursor_placement.cursor[2])
+                        if cursor_placement.filepath ~= nil then
+                            -- git diff path flow, meaning it is worth alerting the user the file was found
+                            vim.notify("Cursor synced.", vim.log.levels.INFO)
+                        end
                         return
                     end
                 end
@@ -273,6 +280,10 @@ M.place_cursor_delta_buffer_entry = function(bufnr, winnr, cursor_placement, og_
             -- fallback: just place at top of first hunk of matched filepath
             local success, err = pcall(function()
                 vim.api.nvim_win_set_cursor(winnr, { diff_data.hunks[1].lines[1].formatted_diff_line_num + 1, 0 })
+                if cursor_placement.filepath ~= nil then
+                    -- git diff path flow, meaning it is worth alerting the user the file was found
+                    vim.notify("File synced.", vim.log.levels.INFO)
+                end
             end)
             if not success then
                 vim.notify('Failed to place cursor.' .. tostring(err), vim.log.levels.ERROR)
@@ -280,8 +291,11 @@ M.place_cursor_delta_buffer_entry = function(bufnr, winnr, cursor_placement, og_
             return
         end
     end
-    vim.notify("Corresponding cursor location or filepath could not be found. Cursor will not be placed.",
-        vim.log.levels.WARN)
+    if cursor_placement.filepath == nil then
+        -- only worth notifying on non path flow. This notification will be common on path flow
+        vim.notify("Corresponding cursor location or filepath could not be found. Cursor will not be placed.",
+            vim.log.levels.WARN)
+    end
 end
 
 --- @type CursorPlacement | nil
@@ -454,11 +468,16 @@ end
 --- @param bufnr number
 --- @param forward boolean
 M.jump_to_hunk = function(bufnr, forward)
+    local no_context_delta_diff_data_set = vim.b[bufnr].no_context_delta_diff_data_set -- data set with 0 context, as to properly distinguish hunks
+    if no_context_delta_diff_data_set == nil then
+        vim.notify('Something went wrong with parsing. Deltaview feature of hunk navigation will not be available.',
+            vim.log.levels.WARN)
+        return
+    end
+
     local delta_diff_data_set = vim.b[bufnr].delta_diff_data_set -- real data set of buffer
     assert(delta_diff_data_set ~= nil)
     --- @cast delta_diff_data_set DiffData[]
-
-    local no_context_delta_diff_data_set = vim.b[bufnr].no_context_delta_diff_data_set -- data set with 0 context, as to properly distinguish hunks
     assert(no_context_delta_diff_data_set ~= nil)
     --- @cast no_context_delta_diff_data_set DiffData[]
 
