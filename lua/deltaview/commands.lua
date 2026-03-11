@@ -60,7 +60,7 @@ M.setup = function()
             return {}
         end,
         desc =
-        'Open Diff View for a path against a git ref. Usage: Delta [TODO]. Defaults to current buffer path or cwd.'
+        'Open Diff View for a path against a git ref. Usage: Delta [path] [context] [ref]. Defaults to current buffer path or cwd.'
     })
 
     -- :Delta global keybind

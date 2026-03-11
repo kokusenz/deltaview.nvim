@@ -64,7 +64,6 @@ M.create_diff_menu_pane = function(diffing_function, ref)
     end
 
     if #mods >= config.options.fzf_threshold then
-        -- TODO: allow integration with fzf-lua and telescope pickers; use those pickers if available
         local on_select_with_key = function(result)
             if result == nil or #result == 0 then
                 return
@@ -303,7 +302,6 @@ M.display_delta_file = function(cmd, cmd_ui, on_ready_callback)
         on_exit = function()
             vim.schedule(function()
                 -- place cursor upon entry
-                -- TODO does not handle wrapped lines well. When entering while cursor is on a wrapped line, it enters at the right line but the wrong position
                 local diff_buf_lines = vim.api.nvim_buf_get_lines(term_buf, 0, -1, false)
                 for key, value in ipairs(diff_buf_lines) do
                     if string.match(value, '⋮%s*' .. cur_cursor_pos[1]) ~= nil then
@@ -327,7 +325,6 @@ M.display_delta_file = function(cmd, cmd_ui, on_ready_callback)
                 end
 
                 -- update where cursor should be upon exit
-                -- TODO does not handle wrapped lines well. When exiting while cursor is on a wrapped line, it exits at the right line but the wrong position
                 vim.api.nvim_create_autocmd('CursorMoved', {
                     buffer = term_buf,
                     callback = function()
@@ -482,7 +479,6 @@ M.display_delta_directory = function(cmd, cmd_ui, on_ready_callback)
                 vim.api.nvim_create_autocmd('CursorMoved', {
                     buffer = term_buf,
                     callback = function()
-                        -- TODO getting current line means this does not detect the wrapped part of a wrapped line as a real valid line.
                         -- Figure out how to handle jumping (<CR>) on a wrapped line, highlighting a wrapped line, confirm that hunk jumping when cursor is on wrapped lines works as intended
                         local term_buf_cur_line = vim.api.nvim_get_current_line()
                         local term_buf_cur_cursor_pos = vim.api.nvim_win_get_cursor(0)
