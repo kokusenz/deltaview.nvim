@@ -111,9 +111,6 @@ M.open_deltaview_quickselect_menu = function(ref, mods, changes_data)
 end
 
 
---- TODO replace the total diff with full context with a git specific diff after implementing git diff
---- should also make sure the "buffer with this name already exists" bug when opening deltamenu from a deltaview buffer gets resolved by this
---- this will also address the issue where new files don't preview
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[]
 --- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
@@ -182,77 +179,6 @@ M.open_deltaview_fzf_lua_menu = function(ref, mods, changes_data)
     })
 end
 
---- LEGACY. Incapable of showing my delta.lua diffs in the preview window
---- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
---- @param mods string[]
---- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
-M.open_deltaview_fzf_junegunn_menu = function(ref, mods, changes_data)
-    assert(ref ~= nil)
-    assert(mods ~= nil)
-    assert(changes_data ~= nil)
-
-    local on_select_with_key = function(result)
-        assert(result ~= nil)
-        assert(result[1] ~= nil)
-        assert(result[2] ~= nil)
-
-        local key = result[1]
-        local filepath = result[2]
-
-        if key == config.options.keyconfig.fzf_toggle then
-            M.open_deltaview_quickselect_menu(ref, mods, changes_data)
-            return
-        end
-
-        local selected_idx = nil
-        for idx, value in ipairs(mods) do
-            if value == filepath then
-                selected_idx = idx
-            end
-        end
-        assert(selected_idx ~= nil)
-
-        local success, err = pcall(function()
-            vim.cmd('e ' .. utils.git_rel_to_abs(vim.fn.fnameescape(filepath)))
-            local bufnr = view.deltaview_file(ref)
-            if bufnr == nil then
-                return
-            end
-            state.diffed_files.files = mods
-            state.diffed_files.cur_idx = selected_idx
-            M.decorate_deltaview_with_next_keybinds(bufnr)
-        end)
-        if not success then
-            vim.notify('An error occured while trying to open DeltaView - ' .. tostring(err), vim.log.levels.ERROR)
-            return
-        end
-    end
-
-    -- TODO now that there is no expectation of having delta installed, make this delta if exists, otherwise, just regular git diff is ok
-    local success, err = pcall(function()
-        vim.fn['fzf#run'](vim.fn['fzf#wrap']({
-            source = mods,
-            ['sink*'] = on_select_with_key,
-            options = {
-                '--style', 'minimal',
-                '--layout', 'reverse',
-                '--prompt', 'DeltaView Menu > ',
-                '--preview', 'if [ -z "$(git ls-files -- {})" ]; then git diff --no-index /dev/null {}; else git diff ' ..
-            state.diff_target_ref .. ' -- {}; fi | delta --paging=never',
-                '--border-label', 'comparing to ' .. state.diff_target_ref,
-                '--expect', config.options.keyconfig.fzf_toggle,
-            },
-            window = { width = 0.8, height = 0.9, border = 'rounded' }
-        }))
-    end)
-    if not success then
-        vim.notify('fzf#run failed: ' .. tostring(err) .. '. Using default picker.', vim.log.levels.WARN)
-        M.open_deltaview_quickselect_menu(ref, mods, changes_data)
-    end
-end
-
---- TODO replace the total diff with full context with a git specific diff after implementing git diff
---- this will also address the issue where new files don't preview
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[]
 --- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
@@ -366,6 +292,74 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
             return true
         end,
     }):find()
+end
+
+--- LEGACY. Incapable of showing my delta.lua diffs in the preview window
+--- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
+--- @param mods string[]
+--- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
+M.open_deltaview_fzf_junegunn_menu = function(ref, mods, changes_data)
+    assert(ref ~= nil)
+    assert(mods ~= nil)
+    assert(changes_data ~= nil)
+
+    local on_select_with_key = function(result)
+        assert(result ~= nil)
+        assert(result[1] ~= nil)
+        assert(result[2] ~= nil)
+
+        local key = result[1]
+        local filepath = result[2]
+
+        if key == config.options.keyconfig.fzf_toggle then
+            M.open_deltaview_quickselect_menu(ref, mods, changes_data)
+            return
+        end
+
+        local selected_idx = nil
+        for idx, value in ipairs(mods) do
+            if value == filepath then
+                selected_idx = idx
+            end
+        end
+        assert(selected_idx ~= nil)
+
+        local success, err = pcall(function()
+            vim.cmd('e ' .. utils.git_rel_to_abs(vim.fn.fnameescape(filepath)))
+            local bufnr = view.deltaview_file(ref)
+            if bufnr == nil then
+                return
+            end
+            state.diffed_files.files = mods
+            state.diffed_files.cur_idx = selected_idx
+            M.decorate_deltaview_with_next_keybinds(bufnr)
+        end)
+        if not success then
+            vim.notify('An error occured while trying to open DeltaView - ' .. tostring(err), vim.log.levels.ERROR)
+            return
+        end
+    end
+
+    local success, err = pcall(function()
+        vim.fn['fzf#run'](vim.fn['fzf#wrap']({
+            source = mods,
+            ['sink*'] = on_select_with_key,
+            options = {
+                '--style', 'minimal',
+                '--layout', 'reverse',
+                '--prompt', 'DeltaView Menu > ',
+                '--preview', 'if [ -z "$(git ls-files -- {})" ]; then git diff --no-index /dev/null {}; else git diff ' ..
+            state.diff_target_ref .. ' -- {}; fi | delta --paging=never',
+                '--border-label', 'comparing to ' .. state.diff_target_ref,
+                '--expect', config.options.keyconfig.fzf_toggle,
+            },
+            window = { width = 0.8, height = 0.9, border = 'rounded' }
+        }))
+    end)
+    if not success then
+        vim.notify('fzf#run failed: ' .. tostring(err) .. '. Using default picker.', vim.log.levels.WARN)
+        M.open_deltaview_quickselect_menu(ref, mods, changes_data)
+    end
 end
 
 return M

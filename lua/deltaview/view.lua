@@ -153,6 +153,7 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     return bufnr
 end
 
+--- TODO new files won't open for this
 --- opens a delta.lua git diff buffer for the specified path against a git ref, using Delta.git_diff
 --- this diff has limited context, and allows for multiple files
 --- Handles both tracked and untracked files

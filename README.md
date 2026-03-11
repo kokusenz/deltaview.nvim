@@ -36,7 +36,7 @@ https://github.com/user-attachments/assets/ef732ea7-e2b5-4167-8d9d-f12052f94c9d
 - (Optional) An fzf picker of your choice. Currently supports
     - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
     - [telescope](https://github.com/nvim-telescope/telescope.nvim)
-    - [fzf](https://github.com/junegunn/fzf)
+    - [fzf](https://github.com/junegunn/fzf) *note that this is the legacy picker. the preview window does not show the delta.lua previews, but rather the original delta previews. I recommend using one of the above two, or setting the fzf_threshold to something high if you prefer not to fuzzy find.
 - (Optional) [delta](https://github.com/dandavison/delta) (git-delta). 
     - This is required for delta before v0.1.3.
 
@@ -133,7 +133,7 @@ When in the file menu:
 | Key | Action |
 |-----|--------|
 | Select a file | Open diff for that file |
-| `alt-;` | Change diff menu view to quickselect (when in fzf picker. This functionality is not available for fzf-lua and telescope) |
+| `alt-;` | Change diff menu view to quickselect (when in the legacy fzf picker. This functionality is not available for fzf-lua and telescope) |
 
 All keybindings are configurable
 
