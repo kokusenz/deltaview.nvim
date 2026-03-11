@@ -49,7 +49,7 @@ local T = new_set({
                         line_numbers = false,
                         keyconfig = { next_hunk = '<Tab>', prev_hunk = '<S-Tab>' },
                     },
-                    viewconfig = function() return { vs = 'vs', segment = '§' } end,
+                    viewconfig = function() return { vs = 'vs', segment = '§', file = '§' } end,
                 }
                 _G.Delta = {
                     parse = { get_diff_data_git = function(_) return {} end },

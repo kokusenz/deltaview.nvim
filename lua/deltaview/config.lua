@@ -7,6 +7,7 @@ local M = {}
 --- @field next string
 --- @field prev string
 --- @field segment string
+--- @field file string
 
 --- @type ViewConfig
 M.basic_viewconfig = {
@@ -16,6 +17,7 @@ M.basic_viewconfig = {
     next = "->",
     prev = "<-",
     segment = "≡",
+    file = "🗎"
 }
 
 --- @type ViewConfig
@@ -26,6 +28,7 @@ M.nerdfont_viewconfig = {
     next = "󰁕", -- nf-md-arrow_right_thick
     prev = "󰁎", -- nf-md-arrow_left_thick
     segment = "󰻋", -- nf-md-segment 
+    file = "󰈔" -- nf-md-file
 }
 
 --- @returns ViewConfig

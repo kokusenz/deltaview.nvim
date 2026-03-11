@@ -136,7 +136,6 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     -- displays ref, filename
     local diff_buffer_name = filepath .. '    '
         .. config.viewconfig().vs .. ' ' .. ref .. '    '
-        .. config.viewconfig().segment
     vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
 
     local no_context_delta_diff_data_set = utils.get_separated_diff_data_set_into_hunks_wo_context(delta_diff_data_set)
@@ -145,7 +144,9 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
         --- @type DiffData[]
         vim.b[bufnr].no_context_delta_diff_data_set = no_context_delta_diff_data_set
         -- adds size of hunks
-        diff_buffer_name = diff_buffer_name .. ' ' .. #no_context_delta_diff_data_set[1].hunks .. ' '
+        diff_buffer_name = diff_buffer_name ..
+            config.viewconfig().segment ..
+            ' ' .. #no_context_delta_diff_data_set[1].hunks .. '   '
         vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
     end
 
@@ -204,19 +205,19 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr)
         Delta.setup_delta_statuscolumn(bufnr)
     end
 
+    local delta_diff_data_set = vim.b[bufnr].delta_diff_data_set
+    assert(delta_diff_data_set ~= nil)
+    --- @cast delta_diff_data_set DiffData[]
+
     -- TODO, display number of files. Also, condition the buf set name behind a parameter as a flag
     -- reason why is because opening delta menu from a delta buffer errors
     -- do this for other flow too
     -- displays ref, filename
     local diff_buffer_name = (path or '/') .. '    '
         .. config.viewconfig().vs .. ' ' .. ref .. '    '
-        .. config.viewconfig().segment
+        .. config.viewconfig().file .. ' ' .. #delta_diff_data_set .. '    '
 
     vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
-
-    local delta_diff_data_set = vim.b[bufnr].delta_diff_data_set
-    assert(delta_diff_data_set ~= nil)
-    --- @cast delta_diff_data_set DiffData[]
 
     local no_context_delta_diff_data_set = utils.get_separated_diff_data_set_into_hunks_wo_context(delta_diff_data_set)
     -- this buffer variable allows hunk navigation later. having accurate hunk count also allows us to display it in the name
@@ -229,7 +230,9 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr)
         for _, d in ipairs(no_context_delta_diff_data_set) do
             total_hunk_count = total_hunk_count + #d.hunks
         end
-        diff_buffer_name = diff_buffer_name ..  ' ' .. total_hunk_count .. ' '
+        diff_buffer_name = diff_buffer_name ..
+            config.viewconfig().segment ..
+            ' ' .. total_hunk_count .. '   '
         vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
     end
 
@@ -535,12 +538,18 @@ M.jump_to_hunk = function(bufnr, forward)
                             vim.cmd('normal! zz')
                         end
                         vim.api.nvim_echo({
-                            { 'jumped to '
+                            { 'jumped to  '
+                            .. config.viewconfig().file .. ' '
+                            .. data_set_idx .. '|'
+                            .. #delta_diff_data_set .. '  '
                             .. config.viewconfig().segment .. ' '
                             .. hunk_prefix[data_set_idx] + parsed_hunk_idx .. '|'
                             .. total_hunk_count, 'Normal' }
                         }, false, {})
 
+                        -- TODO handle bug where if you trigger two of the above echos within 2 seconds, the second gets erased quickly
+                        -- need to figure out how to not trigger what is set to happen in 2 seconds if this code happens again.
+                        -- maybe set a flag? do not echo if this flag is up, or something like that. Seems like a job for a closure
                         vim.defer_fn(function() vim.cmd('echo ""') end, 2000)
                         return
                     end
@@ -569,7 +578,10 @@ M.jump_to_hunk = function(bufnr, forward)
                     vim.cmd('normal! zz')
                 end
                 vim.api.nvim_echo({
-                    { 'jumped to '
+                    { 'jumped to  '
+                    .. config.viewconfig().file .. ' '
+                    .. (forward and 1 or #delta_diff_data_set) .. '|'
+                    .. #delta_diff_data_set .. '  '
                     .. config.viewconfig().segment .. ' '
                     .. hunk_display_number .. '|'
                     .. total_hunk_count, 'Normal' }

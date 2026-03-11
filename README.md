@@ -211,6 +211,7 @@ By default, the UI uses nerd font icons:
     next = "󰁕", -- nf-md-arrow_right_thick, next file indicator
     prev = "󰁎", -- nf-md-arrow_left_thick, previous file indicator
     segment = "󰻋", -- nf-md-segment , hunk count indicator
+    file = "󰈔" -- nf-md-file
 }
 
 -- Without nerd fonts
@@ -221,6 +222,7 @@ By default, the UI uses nerd font icons:
     next = "->",
     prev = "<-",
     segment = "≡",
+    file = "🗎"
 }
 ```
 
