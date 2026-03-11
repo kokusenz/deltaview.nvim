@@ -46,13 +46,13 @@ M.delta_path = function(ref, context, path)
     end
     M.place_cursor_delta_buffer_entry(diff_bufnr, 0, cursor_placement, og_winline)
     --M.setup_hunk_navigation(diff_bufnr)
-    --local nav_back_and_place_cursor = M.get_delta_buffer_cursor_exit_strategy(diff_bufnr, 0, cur_bufnr)
-    --if nav_back_and_place_cursor == nil then
-    --    return
-    --end
+    local nav_back_and_place_cursor = M.get_delta_buffer_cursor_exit_strategy(diff_bufnr, 0)
+    if nav_back_and_place_cursor == nil then
+        return
+    end
 
-    --vim.keymap.set('n', '<Esc>', nav_back_and_place_cursor, { buffer = diff_bufnr, silent = true })
-    --vim.keymap.set('n', 'q', nav_back_and_place_cursor, { buffer = diff_bufnr, silent = true })
+    vim.keymap.set('n', '<Esc>', nav_back_and_place_cursor, { buffer = diff_bufnr, silent = true })
+    vim.keymap.set('n', 'q', nav_back_and_place_cursor, { buffer = diff_bufnr, silent = true })
     return diff_bufnr
 end
 
@@ -271,7 +271,7 @@ M.place_cursor_delta_buffer_entry = function(bufnr, winnr, cursor_placement, og_
                         M.set_restview(winnr, og_winline, target_lnum, cursor_placement.cursor[2])
                         if cursor_placement.filepath ~= nil then
                             -- git diff path flow, meaning it is worth alerting the user the file was found
-                            vim.notify("Cursor synced.", vim.log.levels.INFO)
+                            vim.notify("File and Cursor synced.", vim.log.levels.INFO)
                         end
                         return
                     end
@@ -282,7 +282,7 @@ M.place_cursor_delta_buffer_entry = function(bufnr, winnr, cursor_placement, og_
                 vim.api.nvim_win_set_cursor(winnr, { diff_data.hunks[1].lines[1].formatted_diff_line_num + 1, 0 })
                 if cursor_placement.filepath ~= nil then
                     -- git diff path flow, meaning it is worth alerting the user the file was found
-                    vim.notify("File synced.", vim.log.levels.INFO)
+                    vim.notify("File synced, Cursor at top of file.", vim.log.levels.INFO)
                 end
             end)
             if not success then

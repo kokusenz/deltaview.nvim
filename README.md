@@ -65,9 +65,9 @@ Open an interactive menu to select and view diffs from all modified files.
 :DeltaMenu develop   " Show all files changed from develop branch
 ```
 
-#### `:Delta [ref] [context] [path]`
+#### `:Delta [path] [context] [ref]`
 
-Open the inline delta diff view for the current path. Does not have two way cursor tracking like DeltaView. <CR> to jump to the cursor is on.
+Open the inline delta diff view for the current path. This view has a configurable amount of context to show alongside your diff hunks. Attempts to place the cursor on entry if there is a corresponding line in the diff. Will sync the cursor on exit, same as DeltaView.
 This works on both files and directories, by being in a directory path using netrw or some other filetree plugin. This can be useful for if you want to diff specific directories rather than the whole git directory. 
 If you are unable to navigate to a directory because you use something like [oil.nvim](https://github.com/stevearc/oil.nvim), you can pass the path as an argument
 Context can be specified. This can be useful for searching your modified code (eg. looking for stray print statements).
@@ -127,12 +127,6 @@ When viewing a diff (DeltaView or Delta):
 | `<Shift-Tab>` | Jump to previous hunk |
 | `]f` | Open next file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
 | `[f` | Open previous file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
-
-When viewing a diff (Delta):
-
-| Key | Action |
-|-----|--------|
-| `<CR>` | Jump to line |
 
 When in the file menu:
 

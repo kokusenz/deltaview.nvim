@@ -139,12 +139,6 @@ When viewing a diff (DeltaView):
 | `]f` | Open next file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
 | `[f` | Open previous file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
 
-When viewing a diff (Delta):
-
-| Key | Action |
-|-----|--------|
-| `<CR>` | Jump to line |
-
 When in the file menu:
 
 | Key | Action |

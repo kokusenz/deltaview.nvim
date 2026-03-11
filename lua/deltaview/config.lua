@@ -55,7 +55,6 @@ M.defaults = {
         next_diff = "]f",
         prev_diff = "[f",
         fzf_toggle = "alt-;",
-        jump_to_line = "<CR>"
     }
 }
 
@@ -76,7 +75,6 @@ end
 --- @field next_diff string when diff was opened from DeltaMenu, open next file in the menu
 --- @field prev_diff string when diff was opened from DeltaMenu, open prev file in the menu
 --- @field fzf_toggle string when DeltaMenu is opened in fzf mode (eg. when count exceeds the threshold), can switch back to default quick select.
---- @field jump_to_line string jump to line in Delta buffer
 --- @field d_toggle_keybind string | nil if defined, will create keybind that runs Delta, and exits Diff buffer if open
 
 --- @class DeltaViewOpts
