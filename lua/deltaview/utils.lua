@@ -1,19 +1,5 @@
 local M = {}
 
---- legacy, unused in delta.lua flow
---- check if current working directory matches git root directory
---- @return boolean True if cwd matches git root
-M.is_cwd_git_root = function()
-    local git_root = vim.fn.system({'git', 'rev-parse', '--show-toplevel'})
-    if vim.v.shell_error ~= 0 then
-        return false
-    end
-    git_root = vim.trim(git_root)
-    local cwd = vim.fn.getcwd()
-    return cwd == git_root
-end
-
---- TODO unit test
 --- Get list of untracked files
 --- @return string[] list of untracked file paths
 M.get_untracked_files = function()
@@ -32,7 +18,6 @@ M.get_untracked_files = function()
     return files
 end
 
---- TODO unit test
 --- Get list of modified and untracked files
 --- @param ref string target ref
 --- @return string[] array of file paths that have been modified or are untracked
@@ -54,7 +39,6 @@ M.get_diffed_files = function(ref)
     return files
 end
 
---- TODO unit test
 --- Get list of modified and untracked files
 --- @param ref string target ref
 --- @return table<string, boolean> map of file paths that are diffed or untracked; key is path, value is true if tracked
@@ -80,7 +64,6 @@ M.get_diffed_and_untracked_files = function(ref)
     return files
 end
 
---- TODO unit test
 --- gets the number of added lines and deleted lines in the diff, and sorts it
 --- @param ref string target ref
 --- @return SortedFile[] sorted files
@@ -205,7 +188,6 @@ M.get_sorted_diffed_files = function(ref)
     return sorted_files
 end
 
---- TODO unit test
 --- Resolves a path relative to the git root into an absolute path.
 --- git commands like `git diff --name-only` and `git ls-files` output paths
 --- relative to the repository root, not cwd, so this must be used over vim.fn.fnamemodify.
@@ -221,7 +203,6 @@ M.git_rel_to_abs = function(rel_path)
 end
 
 
---- TODO unit test
 --- factory function that creates a label extractor for file paths
 --- extracts unique single-character labels from filenames (not full paths)
 --- @return function A function that takes a filepath and returns a single-character label
@@ -244,91 +225,6 @@ M.label_filepath_item = function()
     end
 end
 
---- legacy, unused in delta.lua flow
---- WARNING: do not construct your own local_persisted_ui unless you've read append_cmd_ui
---- uses vim.cmd to display a ui. Uses a table in the scope to be able to construct a ui.
---- the cmd ui allows for displaying exactly one dynamic message, but it allows you to display other things alongside your chosen message
---- ex: I want two things in my ui. However, I only want this ui per diff buffer. In the function where I create my diff buffer, create a table. Because of closure, that scoped variable can be reused in other functions. A ui can be persisted, then any time I want to display it, I can.
---- @param local_persisted_ui table the table declared in the scope where we want this ui to be shared
---- @param ui string | nil the ui I want to display 
-M.display_cmd_ui = function(local_persisted_ui, ui)
-    -- whatever want displayed to the user (not in statusline) we can put in here, and use vim.cmd to do it
-    local start_message = ""
-    local end_message = ""
-    for key, append_start in pairs(local_persisted_ui) do
-        if key == nil or append_start == nil then
-            print('ERROR: cmd_ui')
-            return
-        end
-        if append_start == true then
-            start_message = start_message .. key .. "    "
-        else
-            end_message = end_message .. key .. "    "
-        end
-    end
-    -- if message exceeds viewport, requires an annoying confirmation with "ENTER TO CONTINUE". remove need for confirmation, crop message to viewport
-    local max_width = vim.api.nvim_win_get_width(0) - 10  -- leave some padding
-    local full_message = start_message .. ui .. "    " .. end_message
-    if #full_message > max_width then
-        -- truncate the message to fit within the viewport
-        local truncated = string.sub(full_message, 1, max_width - 3) .. "..."
-        vim.api.nvim_echo({{truncated, "Normal"}}, false, {})
-    else
-        vim.api.nvim_echo({{full_message, "Normal"}}, false, {})
-    end
-end
-
---- legacy, unused in delta.lua flow
---- meant to be used alongside display_cmd_ui
---- messages are first come first serve; earlier messages are on the left, whether it's on the start or end.
---- @param local_persisted_ui table the table declared in the scope where we want this ui to be shared
---- @param ui string the ui I want to display 
---- @param append_start boolean true if I want the message to display on the left, false if I want the message to display on the right
-M.append_cmd_ui = function(local_persisted_ui, ui, append_start)
-    local_persisted_ui[ui] = append_start
-end
-
---- legacy, unused in delta.lua flow
---- get the adjacent files (next and previous) for navigation with wrap-around
---- @param diffed_files DiffedFiles table with files array and cur_idx
---- @return table|nil Table with next and prev file info: { next = { name = string, index = number }, prev = { name = string, index = number } }
-M.get_adjacent_files_legacy = function(diffed_files)
-    if diffed_files.files == nil or diffed_files.cur_idx == nil then
-        return nil
-    end
-
-    local files = diffed_files.files
-    local current_index = diffed_files.cur_idx
-
-    if files == nil or #files == 0 or #files == 1 then
-        return nil
-    end
-
-    -- calculate next index with wrap-around
-    local next_index = current_index + 1
-    if next_index > #files then
-        next_index = 1
-    end
-
-    -- calculate previous index with wrap-around
-    local prev_index = current_index - 1
-    if prev_index < 1 then
-        prev_index = #files
-    end
-
-    return {
-        next = {
-            name = files[next_index],
-            index = next_index
-        },
-        prev = {
-            name = files[prev_index],
-            index = prev_index
-        }
-    }
-end
-
---- TODO unit test
 --- get the adjacent files (next and previous) for navigation with wrap-around
 --- @param diffed_files DiffedFiles table with files array and cur_idx
 --- @return AdjacentFiles Table with next and prev file info: { next = { name = string, index = number }, prev = { name = string, index = number } }
@@ -357,7 +253,6 @@ M.get_adjacent_files = function(diffed_files)
     return adjacents
 end
 
---- TODO unit test
 --- @param sorted_files SortedFile[]
 --- @return table list of file names
 M.get_filenames_from_sortedfiles = function(sorted_files)
@@ -368,7 +263,6 @@ M.get_filenames_from_sortedfiles = function(sorted_files)
     return files
 end
 
---- TODO unit test
 --- Read file contents without opening a vim buffer
 --- @param filepath string Full path to the file
 --- @return table|nil lines Array of lines from the file, or nil if error
@@ -387,7 +281,6 @@ M.read_file_lines = function(filepath)
     return lines
 end
 
---- TODO unit test
 --- Filter git refs based on user input (case insensitive)
 --- @param refs table List of git refs
 --- @param arg_lead string User's partial input
@@ -480,6 +373,102 @@ M.get_separated_diff_data_set_into_hunks_wo_context = function(diff_data_set)
     return new_diff_data_set
 end
 
+--- legacy, unused in delta.lua flow
+--- check if current working directory matches git root directory
+--- @return boolean True if cwd matches git root
+M.is_cwd_git_root = function()
+    local git_root = vim.fn.system({'git', 'rev-parse', '--show-toplevel'})
+    if vim.v.shell_error ~= 0 then
+        return false
+    end
+    git_root = vim.trim(git_root)
+    local cwd = vim.fn.getcwd()
+    return cwd == git_root
+end
+
+--- legacy, unused in delta.lua flow
+--- WARNING: do not construct your own local_persisted_ui unless you've read append_cmd_ui
+--- uses vim.cmd to display a ui. Uses a table in the scope to be able to construct a ui.
+--- the cmd ui allows for displaying exactly one dynamic message, but it allows you to display other things alongside your chosen message
+--- ex: I want two things in my ui. However, I only want this ui per diff buffer. In the function where I create my diff buffer, create a table. Because of closure, that scoped variable can be reused in other functions. A ui can be persisted, then any time I want to display it, I can.
+--- @param local_persisted_ui table the table declared in the scope where we want this ui to be shared
+--- @param ui string | nil the ui I want to display 
+M.display_cmd_ui = function(local_persisted_ui, ui)
+    -- whatever want displayed to the user (not in statusline) we can put in here, and use vim.cmd to do it
+    local start_message = ""
+    local end_message = ""
+    for key, append_start in pairs(local_persisted_ui) do
+        if key == nil or append_start == nil then
+            print('ERROR: cmd_ui')
+            return
+        end
+        if append_start == true then
+            start_message = start_message .. key .. "    "
+        else
+            end_message = end_message .. key .. "    "
+        end
+    end
+    -- if message exceeds viewport, requires an annoying confirmation with "ENTER TO CONTINUE". remove need for confirmation, crop message to viewport
+    local max_width = vim.api.nvim_win_get_width(0) - 10  -- leave some padding
+    local full_message = start_message .. ui .. "    " .. end_message
+    if #full_message > max_width then
+        -- truncate the message to fit within the viewport
+        local truncated = string.sub(full_message, 1, max_width - 3) .. "..."
+        vim.api.nvim_echo({{truncated, "Normal"}}, false, {})
+    else
+        vim.api.nvim_echo({{full_message, "Normal"}}, false, {})
+    end
+end
+
+--- legacy, unused in delta.lua flow
+--- meant to be used alongside display_cmd_ui
+--- messages are first come first serve; earlier messages are on the left, whether it's on the start or end.
+--- @param local_persisted_ui table the table declared in the scope where we want this ui to be shared
+--- @param ui string the ui I want to display 
+--- @param append_start boolean true if I want the message to display on the left, false if I want the message to display on the right
+M.append_cmd_ui = function(local_persisted_ui, ui, append_start)
+    local_persisted_ui[ui] = append_start
+end
+
+--- legacy, unused in delta.lua flow
+--- get the adjacent files (next and previous) for navigation with wrap-around
+--- @param diffed_files DiffedFiles table with files array and cur_idx
+--- @return table|nil Table with next and prev file info: { next = { name = string, index = number }, prev = { name = string, index = number } }
+M.get_adjacent_files_legacy = function(diffed_files)
+    if diffed_files.files == nil or diffed_files.cur_idx == nil then
+        return nil
+    end
+
+    local files = diffed_files.files
+    local current_index = diffed_files.cur_idx
+
+    if files == nil or #files == 0 or #files == 1 then
+        return nil
+    end
+
+    -- calculate next index with wrap-around
+    local next_index = current_index + 1
+    if next_index > #files then
+        next_index = 1
+    end
+
+    -- calculate previous index with wrap-around
+    local prev_index = current_index - 1
+    if prev_index < 1 then
+        prev_index = #files
+    end
+
+    return {
+        next = {
+            name = files[next_index],
+            index = next_index
+        },
+        prev = {
+            name = files[prev_index],
+            index = prev_index
+        }
+    }
+end
 
 return M
 
