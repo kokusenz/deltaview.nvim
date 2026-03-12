@@ -313,4 +313,21 @@ T['DeltaMenu integration']['buffer name conflict: DeltaMenu from a Delta buffer 
     eq(#errors, 0)
 end
 
+T['DeltaMenu integration']['telescope path: opens a TelescopePrompt buffer'] = function()
+    child.lua([[
+        M.setup({fzf_threshold = 0, fzf_picker = 'telescope'})
+    ]])
+    child.lua(setup_tmpdir_git_repo_n_files, { 3 })
+    child.cmd('DeltaMenu HEAD')
+    local has_telescope_prompt = child.lua_get([[
+        (function()
+            for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+                if vim.bo[buf].filetype == 'TelescopePrompt' then return true end
+            end
+            return false
+        end)()
+    ]])
+    eq(has_telescope_prompt, true)
+end
+
 return T

@@ -47,6 +47,12 @@ setup:
 	else \
 		echo "telescope already installed"; \
 	fi
+	@if [ ! -d "deps/plenary" ]; then \
+		echo "Installing plenary.nvim (telescope dependency) for integration tests..."; \
+		git clone --filter=blob:none https://github.com/nvim-lua/plenary.nvim deps/plenary; \
+	else \
+		echo "plenary already installed"; \
+	fi
 	@for entry in $(PARSERS); do \
 		name=$${entry%%,*}; \
 		rest=$${entry#*,}; \
@@ -63,6 +69,7 @@ setup-silent:
 	@[ -d "deps/fzf" ] || git clone -q --filter=blob:none https://github.com/junegunn/fzf deps/fzf
 	@[ -d "deps/fzf_lua" ] || git clone -q --filter=blob:none https://github.com/ibhagwan/fzf-lua deps/fzf_lua
 	@[ -d "deps/telescope" ] || git clone -q --filter=blob:none https://github.com/nvim-telescope/telescope.nvim deps/telescope
+	@[ -d "deps/plenary" ] || git clone -q --filter=blob:none https://github.com/nvim-lua/plenary.nvim deps/plenary
 	@for entry in $(PARSERS); do \
 		name=$${entry%%,*}; \
 		url=$${entry#*,}; \
