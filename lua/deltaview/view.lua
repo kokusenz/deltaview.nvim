@@ -98,7 +98,8 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     local s1 = ''
 
     if git_data[1].old_path then
-        local show_result = vim.system({ 'git', 'show', ref .. ':' .. git_data[1].old_path }):wait()
+        local show_ref = utils.resolve_ref_for_show(ref)
+        local show_result = vim.system({ 'git', 'show', show_ref .. ':' .. git_data[1].old_path }):wait()
         if show_result.code ~= 0 and show_result.code ~= 1 then
             -- todo; handle failed to run git show on staged new file
             vim.notify('Failed to run git show - ' .. show_result.stderr, vim.log.levels.ERROR)

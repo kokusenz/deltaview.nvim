@@ -155,6 +155,34 @@ local setup_tmpdir_patch_scenario = [[
     vim.cmd('edit ' .. tmpdir .. '/utils.lua')
 ]]
 
+-- Two-commit repo: commit A (initial) then commit B (modified line).
+-- HEAD^...HEAD is a valid three-dot ref whose merge-base is HEAD^ (the parent),
+-- so `git diff HEAD^...HEAD` shows the change introduced by the second commit.
+-- This fixture exercises the path where `git show <ref>:<path>` must NOT receive
+-- the raw three-dot string but a resolved merge-base SHA.
+local setup_tmpdir_git_repo_three_dot = [[
+    local tmpdir = vim.fn.tempname()
+    vim.fn.mkdir(tmpdir, 'p')
+    vim.fn.system('git -C ' .. tmpdir .. ' init')
+    vim.fn.system('git -C ' .. tmpdir .. ' config user.email "test@test.com"')
+    vim.fn.system('git -C ' .. tmpdir .. ' config user.name "Test"')
+    -- commit A: initial content
+    local f = io.open(tmpdir .. '/test.lua', 'w')
+    f:write('local x = 1\nlocal y = 2\n')
+    f:close()
+    vim.fn.system('git -C ' .. tmpdir .. ' add test.lua')
+    vim.fn.system('git -C ' .. tmpdir .. ' commit -m "initial"')
+    -- commit B: modified content (HEAD)
+    local f2 = io.open(tmpdir .. '/test.lua', 'w')
+    f2:write('local x = 1\nlocal y = 99\n')
+    f2:close()
+    vim.fn.system('git -C ' .. tmpdir .. ' add test.lua')
+    vim.fn.system('git -C ' .. tmpdir .. ' commit -m "second"')
+    -- working tree matches HEAD (clean); the diff is between the two commits
+    vim.cmd('cd ' .. tmpdir)
+    vim.cmd('edit ' .. tmpdir .. '/test.lua')
+]]
+
 T['DeltaView integration'] = new_set({
     hooks = {
         pre_case = function()
@@ -190,6 +218,34 @@ T['DeltaView integration']['fallback path: git diff vs vim.text.diff mismatch (p
     eq(name:find('HEAD',      1, true) ~= nil, true)
     eq(name:find('utils.lua', 1, true) ~= nil, true)
     eq(name:match('%d+')      ~= nil, true)
+end
+
+T['DeltaView integration']['three-dot ref: HEAD^...HEAD opens delta buffer without error'] = function()
+    -- Reproduces: 'object <hash> is a blob, not a commit' / 'Failed to run git show'
+    -- when the user passes a three-dot ref like main...HEAD.
+    -- git diff natively handles three-dot refs, but `git show <ref>:<path>` does not —
+    -- the ref must first be resolved to its merge-base commit SHA.
+    child.lua(setup_tmpdir_git_repo_three_dot)
+    child.lua([[
+        _G.error_notifications = {}
+        local orig_notify = vim.notify
+        vim.notify = function(msg, level, opts)
+            if level == vim.log.levels.ERROR then
+                table.insert(_G.error_notifications, msg)
+            end
+            orig_notify(msg, level, opts)
+        end
+    ]])
+    child.cmd('DeltaView HEAD^...HEAD')
+    local errors        = child.lua_get('_G.error_notifications')
+    local has_diff_data = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    local buf_on_window = child.lua_get('vim.api.nvim_win_get_buf(0) == vim.api.nvim_get_current_buf()')
+    local name          = child.lua_get('vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())')
+    eq(#errors, 0)
+    eq(has_diff_data, true)
+    eq(buf_on_window, true)
+    eq(name:find('HEAD',     1, true) ~= nil, true)
+    eq(name:find('test.lua', 1, true) ~= nil, true)
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────

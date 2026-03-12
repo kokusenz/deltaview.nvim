@@ -470,6 +470,23 @@ M.get_adjacent_files_legacy = function(diffed_files)
     }
 end
 
+--- Resolve a git ref for use in `git show <ref>:<path>`.
+--- `git show` does not support three-dot symmetric-difference notation
+--- (e.g. `main...HEAD`), while `git diff` does. When a three-dot ref is
+--- @param ref string  The ref string to resolve (e.g. `'main...HEAD'`).
+--- @return string ref (a plain SHA for three-dot inputs, or the original string for all other inputs).
+M.resolve_ref_for_show = function(ref)
+    local a, b = ref:match('^(.-)%.%.%.(.+)$')
+    if not a then
+        return ref  -- not a three-dot ref; return as-is
+    end
+    local result = vim.system({ 'git', 'merge-base', a, b }):wait()
+    if result.code ~= 0 then
+        return ref  -- can't resolve; return original so the caller gets a clear git error
+    end
+    return vim.trim(result.stdout)
+end
+
 return M
 
 --- @class DiffNumstat

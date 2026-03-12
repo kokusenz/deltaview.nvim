@@ -227,6 +227,10 @@ local open_git_diff_buffer_happy_mocks = [=[
         return { 'line1', 'added line2', 'line3' }
     end
 
+    package.loaded['deltaview.utils'].resolve_ref_for_show = function(ref)
+        return ref
+    end
+
     package.loaded['deltaview.utils'].diff_data_sets_changed_lines_match = function()
         return true
     end
