@@ -537,14 +537,16 @@ M.jump_to_hunk = function(bufnr, forward)
                         if target_lnum < w0 or target_lnum > wend then
                             vim.cmd('normal! zz')
                         end
-                        vim.api.nvim_echo({
-                            { 'jumped to  '
-                            .. config.viewconfig().file .. ' '
-                            .. data_set_idx .. '|'
+                        local file_ui = config.viewconfig().file .. ' '
+                            ..  data_set_idx .. '|'
                             .. #delta_diff_data_set .. '  '
-                            .. config.viewconfig().segment .. ' '
+                        if #delta_diff_data_set == 1 then
+                            file_ui = ''
+                        end
+                        local hunk_ui = config.viewconfig().segment .. ' '
                             .. hunk_prefix[data_set_idx] + parsed_hunk_idx .. '|'
-                            .. total_hunk_count, 'Normal' }
+                            .. total_hunk_count
+                        vim.api.nvim_echo({ { 'jumped to  ' .. file_ui .. hunk_ui, 'Normal' }
                         }, false, {})
 
                         -- TODO handle bug where if you trigger two of the above echos within 2 seconds, the second gets erased quickly
@@ -577,14 +579,16 @@ M.jump_to_hunk = function(bufnr, forward)
                 if target_lnum < w0 or target_lnum > wend then
                     vim.cmd('normal! zz')
                 end
-                vim.api.nvim_echo({
-                    { 'jumped to  '
-                    .. config.viewconfig().file .. ' '
+                local file_ui = config.viewconfig().file .. ' '
                     .. (forward and 1 or #delta_diff_data_set) .. '|'
                     .. #delta_diff_data_set .. '  '
-                    .. config.viewconfig().segment .. ' '
+                if #delta_diff_data_set == 1 then
+                    file_ui = ''
+                end
+                local hunk_ui = config.viewconfig().segment .. ' '
                     .. hunk_display_number .. '|'
-                    .. total_hunk_count, 'Normal' }
+                    .. total_hunk_count
+                vim.api.nvim_echo({ { 'jumped to  ' .. file_ui .. hunk_ui, 'Normal' }
                 }, false, {})
                 vim.defer_fn(function() vim.cmd('echo ""') end, 2000)
                 return
