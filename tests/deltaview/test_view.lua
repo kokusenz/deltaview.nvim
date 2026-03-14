@@ -2617,4 +2617,99 @@ for func_name, func in pairs(JumpToHunk.properties) do
     end
 end
 
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- jump_to_hunk() - example based tests
+
+T['jump_to_hunk()'] = new_set({
+    hooks = {
+        pre_case = function()
+            -- Use the first property case fixture (single file, two parsed hunks) as a
+            -- stable, minimal buffer to drive jump_to_hunk() in example tests.
+            local case = JumpToHunk.jump_to_hunk__property_cases[1]
+            child.lua([[
+                local bufnr = vim.api.nvim_create_buf(true, true)
+                vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, ...)
+                vim.api.nvim_set_current_buf(bufnr)
+                _G.fixture.bufnr = bufnr
+                _G.fixture.winnr = vim.api.nvim_get_current_win()
+            ]], { case.buf_contents })
+            child.lua([[vim.b[_G.fixture.bufnr].delta_diff_data_set = ...]], { case.delta_diff_data_set })
+            child.lua([[vim.b[_G.fixture.bufnr].no_context_delta_diff_data_set = ...]], { case.no_context_delta_diff_data_set })
+            child.lua([[
+                -- always return the first buffer row so jump_to_hunk always finds a forward hunk
+                M.get_cursor_placement_current_buffer = function()
+                    return { winnr = _G.fixture.winnr, cursor = { 1, 0 } }
+                end
+                vim.api.nvim_echo = function() end
+            ]])
+        end,
+    },
+})
+
+T['jump_to_hunk()']['echo clear fires only once when jump_to_hunk is called twice in quick succession'] = function()
+    -- Arrange: replace vim.defer_fn with a spy that returns a plain Lua table acting
+    -- as a fake timer. The production debounce code only calls :stop() on the returned
+    -- handle, so a table with a stop() method is sufficient. Callbacks are stored so
+    -- we can fire them manually without waiting for real wall-clock time.
+    child.lua([[
+        _G.fixture.defer_fn_calls   = 0   -- total defer_fn invocations
+        _G.fixture.stop_calls       = 0   -- total timer:stop() calls
+        _G.fixture.echo_clear_calls = 0   -- times 'echo ""' was executed
+
+        -- spy on vim.cmd to count echo-clear invocations
+        local orig_cmd = vim.cmd
+        vim.cmd = function(arg)
+            if arg == 'echo ""' then
+                _G.fixture.echo_clear_calls = _G.fixture.echo_clear_calls + 1
+            else
+                orig_cmd(arg)
+            end
+        end
+
+        _G.fixture.timers = {}
+        vim.defer_fn = function(cb, _delay)
+            _G.fixture.defer_fn_calls = _G.fixture.defer_fn_calls + 1
+            -- Return a plain table; production code only calls :stop() on this handle.
+            local t = {
+                stopped = false,
+                cb      = cb,
+                stop    = function(self)
+                    self.stopped = true
+                    _G.fixture.stop_calls = _G.fixture.stop_calls + 1
+                end,
+                fire    = function(self)
+                    if not self.stopped then self.cb() end
+                end,
+            }
+            table.insert(_G.fixture.timers, t)
+            return t
+        end
+    ]])
+
+    -- Act: call jump_to_hunk twice in quick succession (no time passes between calls)
+    child.lua([[
+        local bufnr = _G.fixture.bufnr
+        M.jump_to_hunk(bufnr, true)
+        M.jump_to_hunk(bufnr, true)
+    ]])
+
+    -- Assert: defer_fn was called twice (one timer per jump)
+    local defer_calls = child.lua_get([[_G.fixture.defer_fn_calls]])
+    eq(defer_calls, 2)
+
+    -- Assert: the first timer was stopped (cancelled) when the second jump fired
+    local stop_calls = child.lua_get([[_G.fixture.stop_calls]])
+    eq(stop_calls, 1)
+
+    -- Assert: manually fire all timers that were NOT stopped; only the second should fire
+    child.lua([[
+        for _, t in ipairs(_G.fixture.timers) do
+            t:fire()
+        end
+    ]])
+
+    local echo_clear_calls = child.lua_get([[_G.fixture.echo_clear_calls]])
+    eq(echo_clear_calls, 1)
+end
+
 return T

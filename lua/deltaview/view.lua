@@ -2,6 +2,8 @@ local M = {}
 local utils = require('deltaview.utils')
 local config = require('deltaview.config')
 
+local _echo_timer = nil
+
 --- deltaview file diff buffer orchestrator, using delta.lua. opens a deltaview diff on top of current window
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @return number | nil bufnr buf id of delta.lua buffer
@@ -554,10 +556,14 @@ M.jump_to_hunk = function(bufnr, forward)
                         vim.api.nvim_echo({ { 'jumped to  ' .. file_ui .. hunk_ui, 'Normal' }
                         }, false, {})
 
-                        -- TODO handle bug where if you trigger two of the above echos within 2 seconds, the second gets erased quickly
-                        -- need to figure out how to not trigger what is set to happen in 2 seconds if this code happens again.
-                        -- maybe set a flag? do not echo if this flag is up, or something like that. Seems like a job for a closure
-                        vim.defer_fn(function() vim.cmd('echo ""') end, 2000)
+                        if _echo_timer then
+                            _echo_timer:stop()
+                            _echo_timer = nil
+                        end
+                        _echo_timer = vim.defer_fn(function()
+                            _echo_timer = nil
+                            vim.cmd('echo ""')
+                        end, 2000)
                         return
                     end
                 end
