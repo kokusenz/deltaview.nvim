@@ -18,6 +18,29 @@ M.get_untracked_files = function()
     return files
 end
 
+--- @param path string
+--- @return boolean
+M.is_untracked_file = function(path)
+    local is_untracked = false
+    local untracked = M.get_untracked_files()
+    for _, f in ipairs(untracked) do
+        if M.git_rel_to_abs(f) == path then
+            is_untracked = true
+        end
+    end
+    return is_untracked
+end
+
+--- @param path string
+--- @return string | nil
+M.get_rel_path_from_abs = function(path)
+    local git_root = vim.fn.systemlist('git rev-parse --show-toplevel')[1]
+    if vim.v.shell_error ~= 0 then
+        return
+    end
+    return path:sub(#git_root + 2)
+end
+
 --- Get list of modified and untracked files
 --- @param ref string target ref
 --- @return string[] array of file paths that have been modified or are untracked

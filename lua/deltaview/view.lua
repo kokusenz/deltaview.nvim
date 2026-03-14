@@ -76,20 +76,35 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     end
     assert(ref ~= nil)
 
-    -- todo handle new file, which doesn't show on git diff and is seen as "no changes"
-    local diff_result = vim.system({ 'git', 'diff', '-U0', ref, '--', filepath }):wait()
-    if diff_result.code ~= 0 and diff_result.code ~= 1 then
-        vim.notify('Failed to run git diff - ' .. diff_result.stderr, vim.log.levels.ERROR)
-        return
-    end
-    local diffstring = diff_result.stdout
+    local is_untracked = utils.is_untracked_file(filepath)
+    local git_data
 
-    if diffstring == nil or diffstring == "" then
-        vim.notify('No changes detected in current file', vim.log.levels.WARN)
-        return
-    end
+    if is_untracked ~= true then
+        local diff_result = vim.system({ 'git', 'diff', '-U0', ref, '--', filepath }):wait()
+        if diff_result.code ~= 0 and diff_result.code ~= 1 then
+            vim.notify('Failed to run git diff - ' .. diff_result.stderr, vim.log.levels.ERROR)
+            return
+        end
+        local diffstring = diff_result.stdout
 
-    local git_data = Delta.parse.get_diff_data_git(diffstring)
+        if diffstring == nil or diffstring == "" then
+            vim.notify('No changes detected in current file', vim.log.levels.WARN)
+            return
+        end
+
+        git_data = Delta.parse.get_diff_data_git(diffstring)
+    else
+        local new_path = utils.get_rel_path_from_abs(filepath)
+        if new_path == nil then
+            vim.notify('Not in a git repository. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
+            return
+        end
+        git_data = {{
+            new_path = new_path,
+            old_path = nil,
+            language = Delta.parse.get_language_from_filename(filepath)
+        }}
+    end
 
     local file_lines = utils.read_file_lines(git_root .. '/' .. git_data[1].new_path)
     assert(file_lines ~= nil)
@@ -98,15 +113,19 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
 
     if git_data[1].old_path then
         local show_ref = utils.resolve_ref_for_show(ref)
-        local show_result = vim.system({ 'git', 'show', show_ref .. ':' .. git_data[1].old_path }):wait()
-        if show_result.code ~= 0 and show_result.code ~= 1 then
-            -- todo; handle failed to run git show on staged new file
-            vim.notify('Failed to run git show - ' .. show_result.stderr, vim.log.levels.ERROR)
-            return
+        local show_result
+        if git_data[1].old_path then
+            show_result = vim.system({ 'git', 'show', show_ref .. ':' .. git_data[1].old_path }):wait()
+            if show_result.code ~= 0 and show_result.code ~= 1 then
+                vim.notify('Failed to run git show - ' .. show_result.stderr, vim.log.levels.ERROR)
+                return
+            end
+            s1 = show_result.stdout or ''
+            -- there exists a trailing newline for some reason with git show
+            s1 = s1:gsub('\n+$', '')
+        else
+            s1 = ''
         end
-        s1 = show_result.stdout or ''
-        -- there exists a trailing newline for some reason with git show
-        s1 = s1:gsub('\n+$', '')
     end
 
     local bufnr = Delta.text_diff(s1, s2, git_data[1].language, { context = #file_lines })
@@ -171,13 +190,7 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr, buf_name)
 
     assert(path ~= nil)
     assert(ref ~= nil)
-    local is_untracked = false
-    local untracked = utils.get_untracked_files()
-    for _, f in ipairs(untracked) do
-        if utils.git_rel_to_abs(f) == path then
-            is_untracked = true
-        end
-    end
+    local is_untracked = utils.is_untracked_file(path)
 
     --- @type DeltaOpts
     local opts = { context = context, new_file = is_untracked }
