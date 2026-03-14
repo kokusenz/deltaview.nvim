@@ -174,7 +174,7 @@ end
 
 --- opens a delta.lua git diff buffer for the specified path against a git ref, using Delta.git_diff
 --- this diff has limited context, and allows for multiple files
---- Handles both tracked and untracked files
+--- when not used on a file, will exclude untracked files. When used explicitly on an untracked file, will work
 --- @param path string The path to diff
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param context number lines of context to show

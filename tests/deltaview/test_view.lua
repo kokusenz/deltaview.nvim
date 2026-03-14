@@ -121,6 +121,9 @@ T['deltaview_file()'] = new_set({
                 M.get_delta_buffer_cursor_exit_strategy = function()
                     return function() end
                 end
+                package.loaded['deltaview.utils'].is_untracked_file = function(_)
+                    return false
+                end
             ]])
         end,
     }
@@ -140,6 +143,70 @@ T['deltaview_file()']['binds escaping keys'] = function()
             _G.fixture.keymap_set_args[lhs] = { modes = modes, lhs = lhs, rhs = rhs, opts = opts }
         end
         M.deltaview_file('HEAD')
+    ]])
+
+    local expected_binds = { '<Esc>', 'q' }
+    for _, b in ipairs(expected_binds) do
+        local bufnr = child.lua_get([[_G.fixture.bufnr]], { b })
+        local modes = child.lua_get([[_G.fixture.keymap_set_args[...].modes]], { b })
+        local lhs = child.lua_get([[_G.fixture.keymap_set_args[...].lhs]], { b })
+        local buffer = child.lua_get([[_G.fixture.keymap_set_args[...].opts.buffer]], { b })
+        local silent = child.lua_get([[_G.fixture.keymap_set_args[...].opts.silent]], { b })
+
+        eq(modes, 'n')
+        eq(lhs, b)
+        eq(buffer, bufnr)
+        eq(silent, true)
+
+        child.lua([[_G.fixture.keymap_set_args[...].rhs()]], { b })
+        local called = child.lua_get([[_G.fixture.nav_back_and_place_cursor_called]], { b })
+        eq(called, true)
+    end
+end
+
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- delta_path() - example based tests
+
+-- the actual orchestration can be tested in integration tests. For unit tests, we just mock
+T['delta_path()'] = new_set({
+    hooks = {
+        pre_case = function()
+            child.lua([[
+                -- stub vim functions used by delta_path
+                vim.fn.expand = function(_) return '/fake/file.lua' end
+                vim.fn.winline = function() return 1 end
+
+                -- stub all M.* functions called by delta_path
+                M.get_cursor_placement_current_buffer = function() return {} end
+                M.open_git_diff_buffer_for_path = function(_path, _ref, _context)
+                    local bufnr = vim.api.nvim_create_buf(true, true)
+                    _G.fixture.bufnr = bufnr
+                    return bufnr
+                end
+                M.place_cursor_delta_buffer_entry = function() end
+                M.setup_hunk_navigation = function() end
+                M.get_delta_buffer_cursor_exit_strategy = function()
+                    return function() end
+                end
+            ]])
+        end,
+    }
+})
+
+T['delta_path()']['binds escaping keys'] = function()
+    child.lua([[
+        _G.fixture.keymap_set_args = {}
+
+        M.get_delta_buffer_cursor_exit_strategy = function()
+            return function()
+                _G.fixture.nav_back_and_place_cursor_called = true
+            end
+        end
+
+        vim.keymap.set = function(modes, lhs, rhs, opts)
+            _G.fixture.keymap_set_args[lhs] = { modes = modes, lhs = lhs, rhs = rhs, opts = opts }
+        end
+        M.delta_path('HEAD', 3, 'src/')
     ]])
 
     local expected_binds = { '<Esc>', 'q' }
@@ -202,6 +269,10 @@ local open_git_diff_buffer_happy_mocks = [=[
             end
         end
         return { wait = function() return { code = code, stdout = stdout, stderr = 'err' } end }
+    end
+
+    package.loaded['deltaview.utils'].is_untracked_file = function(_)
+        return false
     end
 
     Delta.parse.get_diff_data_git = function(_)
@@ -457,6 +528,31 @@ OpenGitDiffBuffer.open_git_diff_buffer__property_cases = {
             { filepath = 'a', ref = 'y', winnr = nil, expected_ok = false },
         },
     },
+    {
+        -- Untracked happy path: is_untracked_file=true skips git diff and git show entirely.
+        -- get_rel_path_from_abs provides the new_path; s1 is always '' (no prior content).
+        name = 'untracked happy path: git diff and git show skipped',
+        setup_lua = open_git_diff_buffer_happy_mocks .. [=[
+            package.loaded['deltaview.utils'].is_untracked_file = function(_) return true end
+            package.loaded['deltaview.utils'].get_rel_path_from_abs = function(_) return 'a' end
+            Delta.parse.get_language_from_filename = function(_) return nil end
+        ]=],
+        inputs = {
+            { filepath = 'a', ref = 'x', winnr = nil, expected_ok = true },
+        },
+    },
+    {
+        -- Untracked failure: get_rel_path_from_abs returns nil → early return nil.
+        name = 'untracked failure: get_rel_path_from_abs returns nil',
+        setup_lua = open_git_diff_buffer_happy_mocks .. [=[
+            package.loaded['deltaview.utils'].is_untracked_file = function(_) return true end
+            package.loaded['deltaview.utils'].get_rel_path_from_abs = function(_) return nil end
+            Delta.parse.get_language_from_filename = function(_) return nil end
+        ]=],
+        inputs = {
+            { filepath = 'a', ref = 'x', winnr = nil, expected_ok = false },
+        },
+    },
 }
 
 OpenGitDiffBuffer.properties = {}
@@ -541,6 +637,201 @@ T['open_git_diff_buffer()'] = new_set({
         end,
     },
 })
+
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- open_git_diff_buffer_for_path() - property based tests
+
+local OpenGitDiffBufferForPath = {}
+
+-- Base mock setup shared by all cases. Establishes a fully working happy path:
+--   - git rev-parse  → code 0, stdout '/repo'
+--   - is_untracked_file → false
+--   - Delta.git_diff → creates a real buffer, sets delta_diff_data_set
+--   - vim.notify     → silenced
+-- Individual cases override specific parts to trigger failure paths.
+local open_git_diff_buffer_for_path_happy_mocks = [=[
+    vim.notify = function() end
+
+    vim.system = function(cmd, _opts)
+        local stdout, code = '', 0
+        if cmd[2] == 'rev-parse' then stdout = '/repo' end
+        return { wait = function() return { code = code, stdout = stdout, stderr = '' } end }
+    end
+
+    package.loaded['deltaview.utils'].is_untracked_file = function(_)
+        return false
+    end
+
+    package.loaded['deltaview.utils'].get_separated_diff_data_set_into_hunks_wo_context = function()
+        return { { hunks = {} } }
+    end
+
+    package.loaded['deltaview.utils'].diff_data_sets_changed_lines_match = function()
+        return true
+    end
+
+    Delta.git_diff = function(_ref, _path, _opts)
+        local bufnr = vim.api.nvim_create_buf(true, true)
+        vim.b[bufnr].delta_diff_data_set = {
+            { hunks = {
+                {
+                    lines = {
+                        { content = 'line1', old_line_num = 1, new_line_num = 1, diff_line_num = 1, formatted_diff_line_num = 1, line_type = 'context' },
+                        { content = '+new',  old_line_num = nil, new_line_num = 2, diff_line_num = 2, formatted_diff_line_num = 2, line_type = 'added' },
+                    },
+                    old_start = 1, old_count = 1, new_start = 1, new_count = 2,
+                    header = '@@ -1,1 +1,2 @@', context = nil
+                }
+            }, old_path = 'src/', new_path = 'src/', language = nil }
+        }
+        return bufnr
+    end
+]=]
+
+--- @class open_git_diff_buffer_for_path__property_cases
+OpenGitDiffBufferForPath.open_git_diff_buffer_for_path__property_cases = {
+    {
+        -- Baseline: every dependency succeeds. Exercises the full happy path end-to-end.
+        name = 'happy path: valid path and ref, default winnr',
+        setup_lua = open_git_diff_buffer_for_path_happy_mocks,
+        inputs = {
+            { path = 'src/', ref = 'HEAD', context = 3, winnr = nil, buf_name = nil, expected_ok = true },
+        },
+    },
+    {
+        -- buf_name overrides the auto-generated name; bufnr is still valid.
+        name = 'happy path: explicit buf_name overrides generated name',
+        setup_lua = open_git_diff_buffer_for_path_happy_mocks,
+        inputs = {
+            { path = 'src/', ref = 'HEAD', context = 3, winnr = nil, buf_name = 'my custom name', expected_ok = true },
+        },
+    },
+    {
+        -- git rev-parse fails; function returns nil before any Delta calls.
+        name = 'failure: not in a git repository (rev-parse code 2)',
+        setup_lua = open_git_diff_buffer_for_path_happy_mocks .. [=[
+            vim.system = function(cmd, _opts)
+                local code = (cmd[2] == 'rev-parse') and 2 or 0
+                return { wait = function() return { code = code, stdout = '', stderr = '' } end }
+            end
+        ]=],
+        inputs = {
+            { path = 'src/', ref = 'HEAD', context = 3, winnr = nil, buf_name = nil, expected_ok = false },
+        },
+    },
+    {
+        -- Delta.git_diff returns nil; function propagates nil.
+        name = 'failure: Delta.git_diff returns nil',
+        setup_lua = open_git_diff_buffer_for_path_happy_mocks .. [=[
+            Delta.git_diff = function() return nil end
+        ]=],
+        inputs = {
+            { path = 'src/', ref = 'HEAD', context = 3, winnr = nil, buf_name = nil, expected_ok = false },
+        },
+    },
+    {
+        -- path=nil hits assert(path ~= nil) immediately after rev-parse.
+        name = 'asserts: nil path triggers assert',
+        setup_lua = open_git_diff_buffer_for_path_happy_mocks,
+        inputs = {
+            { path = nil, ref = 'HEAD', context = 3, winnr = nil, buf_name = nil, expected_ok = 'asserts' },
+        },
+    },
+    {
+        -- ref=nil hits assert(ref ~= nil) after path assert passes.
+        name = 'asserts: nil ref triggers assert',
+        setup_lua = open_git_diff_buffer_for_path_happy_mocks,
+        inputs = {
+            { path = 'src/', ref = nil, context = 3, winnr = nil, buf_name = nil, expected_ok = 'asserts' },
+        },
+    },
+    {
+        -- winnr=9999 is non-existent; nvim_win_set_buf raises after git_diff succeeds.
+        name = 'failure: invalid winnr causes nvim_win_set_buf to not succeed',
+        setup_lua = open_git_diff_buffer_for_path_happy_mocks,
+        inputs = {
+            { path = 'src/', ref = 'HEAD', context = 3, winnr = 9999, buf_name = nil, expected_ok = false },
+        },
+    },
+    {
+        -- is_untracked_file=true: opts.new_file is set to true and passed to Delta.git_diff.
+        -- The untracked flag is the only behavioural difference; the rest of the happy path is identical.
+        name = 'untracked happy path: is_untracked_file=true sets new_file opt',
+        setup_lua = open_git_diff_buffer_for_path_happy_mocks .. [=[
+            package.loaded['deltaview.utils'].is_untracked_file = function(_) return true end
+
+            -- capture the opts Delta.git_diff receives so the property can assert new_file=true
+            _G.fixture.captured_git_diff_opts = nil
+            local orig_git_diff = Delta.git_diff
+            Delta.git_diff = function(ref, path, opts)
+                _G.fixture.captured_git_diff_opts = opts
+                return orig_git_diff(ref, path, opts)
+            end
+        ]=],
+        inputs = {
+            { path = 'src/', ref = 'HEAD', context = 3, winnr = nil, buf_name = nil, expected_ok = true },
+        },
+    },
+}
+
+OpenGitDiffBufferForPath.properties = {}
+
+-- Single property covering all outcome categories:
+--   expected_ok = true      → happy path: bufnr valid, on window, buf vars set, name contains path/ref
+--   expected_ok = false     → graceful failure: returns nil without throwing
+--   expected_ok = 'asserts' → precondition violation (Lua assert); vacuously skipped
+OpenGitDiffBufferForPath.properties.buffer_state_matches_expected = [[(function()
+    local inputs = _G.fixture.inputs
+
+    for _, input in ipairs(inputs) do
+        local path     = input.path
+        local ref      = input.ref
+        local context  = input.context
+        local winnr    = input.winnr
+        local buf_name = input.buf_name
+        local expected = input.expected_ok
+
+        local ok, result = pcall(M.open_git_diff_buffer_for_path, path, ref, context, winnr, buf_name)
+
+        if expected == true then
+            if not ok then print(result) end
+            if not ok        then return false end
+            if result == nil then return false end
+            if vim.api.nvim_win_get_buf(winnr or 0) ~= result then return false end
+            if vim.b[result].delta_diff_data_set          == nil then return false end
+            if vim.b[result].no_context_delta_diff_data_set == nil then return false end
+            local name = vim.api.nvim_buf_get_name(result)
+            local expected_name = buf_name or (path .. '    vs ' .. ref)
+            if not name:find(expected_name, 1, true) then return false end
+
+            -- for the untracked case: assert new_file=true was forwarded to Delta.git_diff
+            if _G.fixture.captured_git_diff_opts ~= nil then
+                if _G.fixture.captured_git_diff_opts.new_file ~= true then return false end
+            end
+
+        elseif expected == false then
+            if not ok        then return false end  -- unexpected throw is a bug
+            if result ~= nil then return false end
+
+        elseif expected == 'asserts' then
+            -- precondition violated; assert() fires; no claim made about outcome
+        end
+    end
+
+    return true
+end)()]]
+
+T['open_git_diff_buffer_for_path() properties'] = new_set()
+for func_name, func in pairs(OpenGitDiffBufferForPath.properties) do
+    for _, case in ipairs(OpenGitDiffBufferForPath.open_git_diff_buffer_for_path__property_cases) do
+        T['open_git_diff_buffer_for_path() properties'][func_name .. ': ' .. case.name] = function()
+            child.lua(case.setup_lua)
+            child.lua([[_G.fixture.inputs = ...]], { case.inputs })
+            local result = child.lua_get(func)
+            eq(result, true)
+        end
+    end
+end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
 -- get_cursor_placement_current_buffer() - example based tests
