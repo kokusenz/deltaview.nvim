@@ -36,7 +36,6 @@ M.delta_path = function(ref, context, path)
     assert(ref ~= nil)
     assert(context ~= nil)
     assert(path ~= nil)
-    local cur_bufnr = vim.api.nvim_get_current_buf()
     local cursor_placement = M.get_cursor_placement_current_buffer()
     cursor_placement.filepath = vim.fn.expand('%:p')
     local og_winline = vim.fn.winline()
@@ -154,7 +153,6 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     return bufnr
 end
 
---- TODO new files won't open for this
 --- opens a delta.lua git diff buffer for the specified path against a git ref, using Delta.git_diff
 --- this diff has limited context, and allows for multiple files
 --- Handles both tracked and untracked files
@@ -173,31 +171,25 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr, buf_name)
 
     assert(path ~= nil)
     assert(ref ~= nil)
-
-    local diff_result = vim.system({ 'git', 'diff', '-U0', ref, '--', path }):wait()
-    if diff_result.code ~= 0 and diff_result.code ~= 1 then
-        vim.notify('Failed to run git diff - ' .. diff_result.stderr, vim.log.levels.ERROR)
-        return
-    end
-    local diffstring = diff_result.stdout
-
-    if diffstring == nil or diffstring == "" then
-        vim.notify('No changes detected in current file', vim.log.levels.WARN)
-        return
+    local is_untracked = false
+    local untracked = utils.get_untracked_files()
+    for _, f in ipairs(untracked) do
+        if utils.git_rel_to_abs(f) == path then
+            is_untracked = true
+        end
     end
 
     --- @type DeltaOpts
-    local opts = { context = context }
+    local opts = { context = context, new_file = is_untracked }
     local bufnr = Delta.git_diff(ref, path, opts)
     if bufnr == nil then
-        return -- error already notified
+        return
     end
 
     local success, err = pcall(function()
         vim.api.nvim_win_set_buf(winnr or 0, bufnr)
     end)
     if not success then
-        -- i've considered letting this just error instead, because this should only be triggered due to developer error/misuse of function. But I figure the message can be useful anyhow, and maybe this could happen during typical usage.
         vim.notify('Failed to open buffer at window.' .. tostring(err), vim.log.levels.ERROR)
         return
     end
