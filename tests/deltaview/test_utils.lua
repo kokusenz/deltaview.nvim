@@ -1454,4 +1454,293 @@ for func_name, func in pairs(FilterRefs.properties) do
     end
 end
 
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- is_untracked_file() - property based tests
+
+local IsUntrackedFile = {}
+
+--- Returns a list of {path, untracked_rel_paths, git_root} inputs.
+--- Each input represents one call to M.is_untracked_file(path).
+--- @param case_data { git_root: string, paths: string[], untracked_rel: string[] }
+--- @return table[]
+IsUntrackedFile.get_inputs = function(case_data)
+    local inputs = {}
+    -- For every path under test, build an input that includes the full context
+    for _, path in ipairs(case_data.paths) do
+        table.insert(inputs, {
+            path              = path,
+            untracked_rel     = case_data.untracked_rel,
+            git_root          = case_data.git_root,
+        })
+    end
+    return inputs
+end
+
+--- @class is_untracked_file__case
+--- @field name string
+--- @field git_root string
+--- @field paths string[]
+--- @field untracked_rel string[]
+
+IsUntrackedFile.cases = {
+    {
+        -- No untracked files at all — every path must return false.
+        name          = 'no untracked files: all paths return false',
+        git_root      = '/repo',
+        paths         = { '/repo/lua/a.lua', '/repo/src/b.lua', '/repo/README.md' },
+        untracked_rel = {},
+    },
+    {
+        -- Every queried path is untracked — all must return true.
+        name          = 'all paths are untracked: all return true',
+        git_root      = '/repo',
+        paths         = { '/repo/new.lua', '/repo/another.lua' },
+        untracked_rel = { 'new.lua', 'another.lua' },
+    },
+    {
+        -- Disjoint sets: queried paths are tracked; untracked list contains different files.
+        name          = 'disjoint: queried paths are not in untracked list',
+        git_root      = '/home/user/project',
+        paths         = { '/home/user/project/tracked.lua' },
+        untracked_rel = { 'other_new.lua', 'also_new.lua' },
+    },
+    {
+        -- Mixed: some paths are untracked, some are not.
+        name          = 'mixed: some paths are untracked, some are not',
+        git_root      = '/workspace',
+        paths         = {
+            '/workspace/lua/tracked.lua',
+            '/workspace/lua/untracked.lua',
+            '/workspace/README.md',
+        },
+        untracked_rel = { 'lua/untracked.lua', 'new_file.lua' },
+    },
+    {
+        -- Single untracked file, single queried path matching exactly.
+        name          = 'single match: exactly one untracked file matches the queried path',
+        git_root      = '/myrepo',
+        paths         = { '/myrepo/src/foo.lua' },
+        untracked_rel = { 'src/foo.lua' },
+    },
+}
+
+IsUntrackedFile.properties = {}
+
+-- A path whose absolute form is in the untracked list must return true.
+IsUntrackedFile.properties.untracked_paths_return_true = [[(function()
+    local inputs = _G.fixture.inputs
+
+    -- build a set of absolute untracked paths for O(1) lookup
+    local untracked_abs = {}
+    if #inputs > 0 then
+        local git_root = inputs[1].git_root
+        for _, rel in ipairs(inputs[1].untracked_rel) do
+            untracked_abs[git_root .. '/' .. rel] = true
+        end
+    end
+
+    for _, input in ipairs(inputs) do
+        if untracked_abs[input.path] then
+            local result = M.is_untracked_file(input.path)
+            if result ~= true then return false end
+        end
+    end
+    return true
+end)()]]
+
+-- A path whose absolute form is NOT in the untracked list must return false.
+IsUntrackedFile.properties.tracked_paths_return_false = [[(function()
+    local inputs = _G.fixture.inputs
+
+    local untracked_abs = {}
+    if #inputs > 0 then
+        local git_root = inputs[1].git_root
+        for _, rel in ipairs(inputs[1].untracked_rel) do
+            untracked_abs[git_root .. '/' .. rel] = true
+        end
+    end
+
+    for _, input in ipairs(inputs) do
+        if not untracked_abs[input.path] then
+            local result = M.is_untracked_file(input.path)
+            if result ~= false then return false end
+        end
+    end
+    return true
+end)()]]
+
+-- The return value is always a boolean (never nil or another type).
+IsUntrackedFile.properties.always_returns_boolean = [[(function()
+    local inputs = _G.fixture.inputs
+    for _, input in ipairs(inputs) do
+        local result = M.is_untracked_file(input.path)
+        if type(result) ~= 'boolean' then return false end
+    end
+    return true
+end)()]]
+
+T['is_untracked_file() properties'] = new_set({
+    hooks = {
+        pre_case = function()
+            child.lua([[
+                -- Stub get_untracked_files so it returns the fixture's rel paths
+                M.get_untracked_files = function()
+                    return _G.fixture.inputs[1] and _G.fixture.inputs[1].untracked_rel or {}
+                end
+
+                -- Stub git_rel_to_abs to join the fixture's git_root with the rel path
+                M.git_rel_to_abs = function(rel)
+                    local git_root = _G.fixture.inputs[1] and _G.fixture.inputs[1].git_root or ''
+                    return git_root .. '/' .. rel
+                end
+            ]])
+        end,
+    },
+})
+
+for func_name, func in pairs(IsUntrackedFile.properties) do
+    for _, case in ipairs(IsUntrackedFile.cases) do
+        local test_name = func_name .. ': ' .. case.name
+        T['is_untracked_file() properties'][test_name] = function()
+            child.lua([[_G.fixture.inputs = ...]], { IsUntrackedFile.get_inputs(case) })
+            local result = child.lua_get(func)
+            eq(result, true)
+        end
+    end
+end
+
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- get_rel_path_from_abs() - property based tests
+
+local GetRelPathFromAbs = {}
+
+--- Returns a list of {abs_path, git_root} inputs covering a range of absolute paths.
+--- @param case_data { git_root: string, rel_paths: string[] }
+--- @return table[]
+GetRelPathFromAbs.get_inputs = function(case_data)
+    local inputs = {}
+    for _, rel in ipairs(case_data.rel_paths) do
+        table.insert(inputs, {
+            abs_path = case_data.git_root .. '/' .. rel,
+            git_root = case_data.git_root,
+            rel_path = rel,
+        })
+    end
+    return inputs
+end
+
+--- @class get_rel_path_from_abs__case
+--- @field name string
+--- @field git_root string
+--- @field rel_paths string[]
+
+GetRelPathFromAbs.cases = {
+    {
+        -- Simple flat filenames under git root.
+        name      = 'flat filenames under git root',
+        git_root  = '/repo',
+        rel_paths = { 'README.md', 'Makefile', 'init.lua' },
+    },
+    {
+        -- Deep nested paths typical of a Neovim plugin.
+        name      = 'nested plugin paths',
+        git_root  = '/home/user/myproject',
+        rel_paths = { 'lua/myproject/init.lua', 'lua/myproject/utils.lua', 'tests/test_utils.lua' },
+    },
+    {
+        -- Git root path itself contains directory separators (common in real machines).
+        name      = 'git root with deep prefix',
+        git_root  = '/home/runner/work/repo',
+        rel_paths = { 'src/main.lua', 'src/helpers/util.lua' },
+    },
+    {
+        -- Single file — boundary case.
+        name      = 'single file',
+        git_root  = '/workspace',
+        rel_paths = { 'only.lua' },
+    },
+    {
+        -- Files with dots and dashes in names.
+        name      = 'filenames with dots and dashes',
+        git_root  = '/srv/app',
+        rel_paths = { 'some-module.lua', 'config.dev.lua', 'tests/my-test.lua' },
+    },
+}
+
+GetRelPathFromAbs.properties = {}
+
+-- The returned relative path re-joined with the git root must equal the original abs path.
+GetRelPathFromAbs.properties.round_trips_to_abs_path = [[(function()
+    local inputs = _G.fixture.inputs
+    for _, input in ipairs(inputs) do
+        local result = M.get_rel_path_from_abs(input.abs_path)
+        if result == nil then return false end
+        if (input.git_root .. '/' .. result) ~= input.abs_path then return false end
+    end
+    return true
+end)()]]
+
+-- The result must equal the known expected relative path.
+GetRelPathFromAbs.properties.returns_expected_rel_path = [[(function()
+    local inputs = _G.fixture.inputs
+    for _, input in ipairs(inputs) do
+        local result = M.get_rel_path_from_abs(input.abs_path)
+        if result ~= input.rel_path then return false end
+    end
+    return true
+end)()]]
+
+-- The result must not start with a slash (it is relative, not absolute).
+GetRelPathFromAbs.properties.result_is_relative = [[(function()
+    local inputs = _G.fixture.inputs
+    for _, input in ipairs(inputs) do
+        local result = M.get_rel_path_from_abs(input.abs_path)
+        if result == nil then return false end
+        if vim.startswith(result, '/') then return false end
+    end
+    return true
+end)()]]
+
+-- The result must not contain the git root as a prefix.
+GetRelPathFromAbs.properties.result_has_no_git_root_prefix = [[(function()
+    local inputs = _G.fixture.inputs
+    for _, input in ipairs(inputs) do
+        local result = M.get_rel_path_from_abs(input.abs_path)
+        if result == nil then return false end
+        if vim.startswith(result, input.git_root) then return false end
+    end
+    return true
+end)()]]
+
+T['get_rel_path_from_abs() properties'] = new_set({
+    hooks = {
+        pre_case = function()
+            child.lua([[
+                -- Stub vim.fn.systemlist so git rev-parse returns the fixture's git root
+                vim.fn.systemlist = function(_cmd)
+                    local git_root = _G.fixture.inputs[1] and _G.fixture.inputs[1].git_root or ''
+                    return { git_root }
+                end
+                -- Stub vim.v to allow shell_error to be set
+                vim.v = setmetatable({}, {
+                    __index = vim.v,
+                    __newindex = function(t, k, v) rawset(t, k, v) end,
+                })
+                vim.v.shell_error = 0
+            ]])
+        end,
+    },
+})
+
+for func_name, func in pairs(GetRelPathFromAbs.properties) do
+    for _, case in ipairs(GetRelPathFromAbs.cases) do
+        local test_name = func_name .. ': ' .. case.name
+        T['get_rel_path_from_abs() properties'][test_name] = function()
+            child.lua([[_G.fixture.inputs = ...]], { GetRelPathFromAbs.get_inputs(case) })
+            local result = child.lua_get(func)
+            eq(result, true)
+        end
+    end
+end
+
 return T
