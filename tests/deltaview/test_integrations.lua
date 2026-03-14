@@ -386,4 +386,85 @@ T['DeltaMenu integration']['telescope path: opens a TelescopePrompt buffer'] = f
     eq(has_telescope_prompt, true)
 end
 
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- `:Delta` integration
+
+-- repo with one tracked file that has no working-tree changes (for "no changes" edge case)
+local setup_tmpdir_untracked_file = [[
+    local tmpdir = vim.fn.tempname()
+    vim.fn.mkdir(tmpdir, 'p')
+    vim.fn.system('git -C ' .. tmpdir .. ' init')
+    vim.fn.system('git -C ' .. tmpdir .. ' config user.email "test@test.com"')
+    vim.fn.system('git -C ' .. tmpdir .. ' config user.name "Test"')
+    local f = io.open(tmpdir .. '/existing.lua', 'w')
+    f:write('local x = 1\n')
+    f:close()
+    vim.fn.system('git -C ' .. tmpdir .. ' add existing.lua')
+    vim.fn.system('git -C ' .. tmpdir .. ' commit -m "initial"')
+    -- new file that is NOT git-added (untracked)
+    local f2 = io.open(tmpdir .. '/new.lua', 'w')
+    f2:write('local y = 2\n')
+    f2:close()
+    vim.cmd('cd ' .. tmpdir)
+    vim.cmd('edit ' .. tmpdir .. '/new.lua')
+]]
+
+T['Delta integration'] = new_set({
+    hooks = {
+        pre_case = function()
+            child.lua(setup_tmpdir_git_repo)
+        end,
+    },
+})
+
+T['Delta integration']['happy path: Delta (no args) creates a delta buffer for current file'] = function()
+    child.cmd('Delta')
+    local has_diff_data  = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    local has_parsed     = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].no_context_delta_diff_data_set ~= nil')
+    local buf_on_window  = child.lua_get('vim.api.nvim_win_get_buf(0) == vim.api.nvim_get_current_buf()')
+    local name           = child.lua_get('vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())')
+    eq(has_diff_data, true)
+    eq(has_parsed, true)
+    eq(buf_on_window, true)
+    eq(name:find('HEAD',     1, true) ~= nil, true)
+    eq(name:find('test.lua', 1, true) ~= nil, true)
+end
+
+T['Delta integration']['happy path: explicit path arg opens that file, not current buffer'] = function()
+    child.lua(setup_tmpdir_git_repo_n_files, { 2 })
+    child.lua([[
+        local cwd = vim.fn.getcwd()
+        vim.cmd('edit ' .. cwd .. '/file1.lua')
+        vim.cmd('Delta ' .. cwd .. '/file2.lua')
+    ]])
+    local name = child.lua_get('vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())')
+    eq(name:find('file2', 1, true) ~= nil,   true)
+    eq(name:find('file1', 1, true) == nil,   true)
+end
+
+T['Delta integration']['happy path: explicit path, context, and ref args are accepted'] = function()
+    child.cmd('Delta test.lua 3 HEAD')
+    local has_diff_data = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    local name          = child.lua_get('vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())')
+    eq(has_diff_data, true)
+    eq(name:find('HEAD',     1, true) ~= nil, true)
+    eq(name:find('test.lua', 1, true) ~= nil, true)
+end
+
+T['Delta integration']['untracked file: creates a delta buffer as a new-file diff'] = function()
+    child.lua(setup_tmpdir_untracked_file)
+    child.cmd('Delta')
+    local has_diff_data = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    eq(has_diff_data, true)
+end
+
+T['Delta integration']['exit: pressing q returns to the source file buffer'] = function()
+    local original_bufnr = child.lua_get('vim.api.nvim_get_current_buf()')
+    child.cmd('Delta')
+    eq(child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil'), true)
+    child.type_keys('q')
+    local current_bufnr = child.lua_get('vim.api.nvim_get_current_buf()')
+    eq(current_bufnr, original_bufnr)
+end
+
 return T

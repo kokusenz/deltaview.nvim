@@ -93,7 +93,6 @@ end
 M.get_sorted_diffed_files = function(ref)
     assert(ref ~= nil)
     local files = M.get_diffed_and_untracked_files(ref)
-    -- todo convert
     local dirstat = vim.fn.system({'git', 'diff', ref, '-X', '--dirstat=lines,0'})
     if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
         vim.notify('Failed to get diff dirstat from git.', vim.log.levels.ERROR)

@@ -4,7 +4,6 @@ SHELL := /bin/bash
 # Treesitter parsers compiled for tests: one "name,repo-url" entry per line.
 # To add a parser, append a new entry. The script handles scanner.c and
 # scanner.cc automatically; no tree-sitter CLI required, only cc and c++.
-# TODO install markdown and typescript
 PARSERS = \
 	lua,https://github.com/tree-sitter-grammars/tree-sitter-lua \
 	python,https://github.com/tree-sitter/tree-sitter-python \
