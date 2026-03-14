@@ -3,14 +3,14 @@ local M = {}
 --- Get list of untracked files
 --- @return string[] list of untracked file paths
 M.get_untracked_files = function()
-    local raw = vim.fn.system({'git', 'ls-files', '-o', '--exclude-standard'})
-    if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
+    local result = vim.system({'git', 'ls-files', '-o', '--exclude-standard'}):wait()
+    if result.code ~= 0 and result.code ~= 1 then
         vim.notify('Failed to get untracked files from git.', vim.log.levels.ERROR)
         return {}
     end
 
     local files = {}
-    for match in raw:gmatch('[^\n]+') do
+    for match in result.stdout:gmatch('[^\n]+') do
         if match ~= '' then
             table.insert(files, match)
         end
@@ -34,10 +34,11 @@ end
 --- @param path string
 --- @return string | nil
 M.get_rel_path_from_abs = function(path)
-    local git_root = vim.fn.systemlist('git rev-parse --show-toplevel')[1]
-    if vim.v.shell_error ~= 0 then
+    local result = vim.system({'git', 'rev-parse', '--show-toplevel'}):wait()
+    if result.code ~= 0 then
         return
     end
+    local git_root = vim.trim(result.stdout)
     return path:sub(#git_root + 2)
 end
 
@@ -46,14 +47,14 @@ end
 --- @return string[] array of file paths that have been modified or are untracked
 M.get_diffed_files = function(ref)
     assert(ref ~= nil)
-    local diffed = vim.fn.system({'git', 'diff', ref, '--name-only'})
-    if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
+    local result = vim.system({'git', 'diff', ref, '--name-only'}):wait()
+    if result.code ~= 0 and result.code ~= 1 then
         vim.notify('Failed to get diff files from git.', vim.log.levels.ERROR)
         return {}
     end
 
     local files = {}
-    for match in diffed:gmatch('[^\n]+') do
+    for match in result.stdout:gmatch('[^\n]+') do
         if match ~= '' then
             table.insert(files, match)
         end
@@ -93,15 +94,15 @@ end
 M.get_sorted_diffed_files = function(ref)
     assert(ref ~= nil)
     local files = M.get_diffed_and_untracked_files(ref)
-    local dirstat = vim.fn.system({'git', 'diff', ref, '-X', '--dirstat=lines,0'})
-    if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
+    local dirstat_result = vim.system({'git', 'diff', ref, '-X', '--dirstat=lines,0'}):wait()
+    if dirstat_result.code ~= 0 and dirstat_result.code ~= 1 then
         vim.notify('Failed to get diff dirstat from git.', vim.log.levels.ERROR)
         return {}
     end
 
     -- parse dirstat to get directory percentages: "percentage% dirname/"
     local dir_stats = {}
-    for line in dirstat:gmatch('[^\n]+') do
+    for line in dirstat_result.stdout:gmatch('[^\n]+') do
         local percentage, dirname = line:match('%s*([%d%.]+)%%%s+(.+)')
         if percentage and dirname then
             dir_stats[dirname] = tonumber(percentage)
@@ -115,16 +116,16 @@ M.get_sorted_diffed_files = function(ref)
 
         if tracked == false then
             -- untracked files have no git history; count all lines as added
-            local result = vim.fn.system({'wc', '-l', M.git_rel_to_abs(file)})
-            local line_count = tonumber(result:match('^%s*(%d+)')) or 0
+            local wc_result = vim.system({'wc', '-l', M.git_rel_to_abs(file)}):wait()
+            local line_count = tonumber(wc_result.stdout:match('^%s*(%d+)')) or 0
             parsed_numstat = { added = line_count, removed = 0 }
         else
-            local numstat = vim.fn.system({'git', 'diff', '--numstat', ref, '--', M.git_rel_to_abs(file)})
-            if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
+            local numstat_result = vim.system({'git', 'diff', '--numstat', ref, '--', M.git_rel_to_abs(file)}):wait()
+            if numstat_result.code ~= 0 and numstat_result.code ~= 1 then
                 print('ERROR: Failed to get lines of code for a diffed file')
                 return {}
             end
-            local added, removed = string.match(numstat, "(%d+)%s+(%d+)%s+")
+            local added, removed = string.match(numstat_result.stdout, "(%d+)%s+(%d+)%s+")
             parsed_numstat = { added = added, removed = removed }
         end
 
@@ -399,11 +400,11 @@ end
 --- check if current working directory matches git root directory
 --- @return boolean True if cwd matches git root
 M.is_cwd_git_root = function()
-    local git_root = vim.fn.system({'git', 'rev-parse', '--show-toplevel'})
-    if vim.v.shell_error ~= 0 then
+    local result = vim.system({'git', 'rev-parse', '--show-toplevel'}):wait()
+    if result.code ~= 0 then
         return false
     end
-    git_root = vim.trim(git_root)
+    local git_root = vim.trim(result.stdout)
     local cwd = vim.fn.getcwd()
     return cwd == git_root
 end

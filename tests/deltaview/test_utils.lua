@@ -412,14 +412,15 @@ T['get_untracked_files()'] = new_set({
     hooks = {
         pre_case = function()
             child.lua([[
-                -- Stub vim.fn.system and vim.v so we control what git returns
-                vim.fn.system = function(_cmd) return _G.fixture.system_output end
-                -- vim.v is read-only by default; we shadow it with a plain table
-                vim.v = setmetatable({}, {
-                    __index = vim.v,
-                    __newindex = function(t, k, v) rawset(t, k, v) end,
-                })
-                vim.v.shell_error = 0
+                -- Stub vim.system so we control what git returns
+                vim.system = function(_cmd, _opts)
+                    return {
+                        wait = function()
+                            return _G.fixture.system_result or
+                                { code = 0, stdout = '', stderr = '' }
+                        end
+                    }
+                end
                 vim.notify = function() end
             ]])
         end,
@@ -428,8 +429,7 @@ T['get_untracked_files()'] = new_set({
 
 T['get_untracked_files()']['returns list of files from newline-separated output'] = function()
     child.lua([[
-        _G.fixture.system_output = 'src/foo.lua\nsrc/bar.lua\nREADME.md\n'
-        vim.v.shell_error = 0
+        _G.fixture.system_result = { code = 0, stdout = 'src/foo.lua\nsrc/bar.lua\nREADME.md\n', stderr = '' }
     ]])
     local result = child.lua_get([[M.get_untracked_files()]])
     eq(result, { 'src/foo.lua', 'src/bar.lua', 'README.md' })
@@ -437,18 +437,16 @@ end
 
 T['get_untracked_files()']['returns empty table when git output is empty'] = function()
     child.lua([[
-        _G.fixture.system_output = ''
-        vim.v.shell_error = 0
+        _G.fixture.system_result = { code = 0, stdout = '', stderr = '' }
     ]])
     local result = child.lua_get([[M.get_untracked_files()]])
     eq(result, {})
 end
 
-T['get_untracked_files()']['returns empty table and notifies on git error (shell_error ~= 0 and ~= 1)'] = function()
+T['get_untracked_files()']['returns empty table and notifies on git error (code ~= 0 and ~= 1)'] = function()
     child.lua([[
-        _G.fixture.system_output = ''
+        _G.fixture.system_result = { code = 128, stdout = '', stderr = '' }
         _G.fixture.notify_called = false
-        vim.v.shell_error = 128
         vim.notify = function(_msg, _level)
             _G.fixture.notify_called = true
         end
@@ -459,11 +457,10 @@ T['get_untracked_files()']['returns empty table and notifies on git error (shell
     eq(notify_called, true)
 end
 
-T['get_untracked_files()']['shell_error == 1 is not treated as a hard error (returns files)'] = function()
-    -- shell_error of 1 means no matches for ls-files patterns, not a git failure
+T['get_untracked_files()']['code == 1 is not treated as a hard error (returns files)'] = function()
+    -- code 1 means no matches for ls-files patterns, not a git failure
     child.lua([[
-        _G.fixture.system_output = 'untracked.lua\n'
-        vim.v.shell_error = 1
+        _G.fixture.system_result = { code = 1, stdout = 'untracked.lua\n', stderr = '' }
     ]])
     local result = child.lua_get([[M.get_untracked_files()]])
     eq(result, { 'untracked.lua' })
@@ -471,8 +468,7 @@ end
 
 T['get_untracked_files()']['strips blank trailing lines, does not include empty strings'] = function()
     child.lua([[
-        _G.fixture.system_output = 'a.lua\n\nb.lua\n\n'
-        vim.v.shell_error = 0
+        _G.fixture.system_result = { code = 0, stdout = 'a.lua\n\nb.lua\n\n', stderr = '' }
     ]])
     local result = child.lua_get([[M.get_untracked_files()]])
     eq(result, { 'a.lua', 'b.lua' })
@@ -485,12 +481,14 @@ T['get_diffed_files()'] = new_set({
     hooks = {
         pre_case = function()
             child.lua([[
-                vim.fn.system = function(_cmd) return _G.fixture.system_output end
-                vim.v = setmetatable({}, {
-                    __index = vim.v,
-                    __newindex = function(t, k, v) rawset(t, k, v) end,
-                })
-                vim.v.shell_error = 0
+                vim.system = function(_cmd, _opts)
+                    return {
+                        wait = function()
+                            return _G.fixture.system_result or
+                                { code = 0, stdout = '', stderr = '' }
+                        end
+                    }
+                end
                 vim.notify = function() end
             ]])
         end,
@@ -499,8 +497,7 @@ T['get_diffed_files()'] = new_set({
 
 T['get_diffed_files()']['returns list of files from newline-separated output'] = function()
     child.lua([[
-        _G.fixture.system_output = 'lua/foo.lua\nlua/bar.lua\n'
-        vim.v.shell_error = 0
+        _G.fixture.system_result = { code = 0, stdout = 'lua/foo.lua\nlua/bar.lua\n', stderr = '' }
     ]])
     local result = child.lua_get([[M.get_diffed_files('HEAD')]])
     eq(result, { 'lua/foo.lua', 'lua/bar.lua' })
@@ -508,8 +505,7 @@ end
 
 T['get_diffed_files()']['returns empty table when git output is empty'] = function()
     child.lua([[
-        _G.fixture.system_output = ''
-        vim.v.shell_error = 0
+        _G.fixture.system_result = { code = 0, stdout = '', stderr = '' }
     ]])
     local result = child.lua_get([[M.get_diffed_files('HEAD')]])
     eq(result, {})
@@ -517,9 +513,8 @@ end
 
 T['get_diffed_files()']['returns empty table and notifies on git error'] = function()
     child.lua([[
-        _G.fixture.system_output = ''
+        _G.fixture.system_result = { code = 128, stdout = '', stderr = '' }
         _G.fixture.notify_called = false
-        vim.v.shell_error = 128
         vim.notify = function(_msg, _level)
             _G.fixture.notify_called = true
         end
@@ -530,10 +525,9 @@ T['get_diffed_files()']['returns empty table and notifies on git error'] = funct
     eq(notify_called, true)
 end
 
-T['get_diffed_files()']['shell_error == 1 is not a hard error (returns files normally)'] = function()
+T['get_diffed_files()']['code == 1 is not a hard error (returns files normally)'] = function()
     child.lua([[
-        _G.fixture.system_output = 'changed.lua\n'
-        vim.v.shell_error = 1
+        _G.fixture.system_result = { code = 1, stdout = 'changed.lua\n', stderr = '' }
     ]])
     local result = child.lua_get([[M.get_diffed_files('HEAD')]])
     eq(result, { 'changed.lua' })
@@ -549,13 +543,11 @@ end
 
 T['get_diffed_files()']['captures the ref passed to the git command'] = function()
     child.lua([[
-        _G.fixture.system_output = 'src/main.lua\n'
         _G.fixture.captured_cmd = nil
-        vim.fn.system = function(cmd)
+        vim.system = function(cmd, _opts)
             _G.fixture.captured_cmd = cmd
-            return _G.fixture.system_output
+            return { wait = function() return { code = 0, stdout = 'src/main.lua\n', stderr = '' } end }
         end
-        vim.v.shell_error = 0
     ]])
     child.lua_get([[M.get_diffed_files('main~3')]])
     local cmd = child.lua_get([[_G.fixture.captured_cmd]])
@@ -741,31 +733,29 @@ T['get_sorted_diffed_files()'] = new_set({
                     return '/repo/' .. rel
                 end
 
-                vim.fn.system = function(cmd)
-                    -- Distinguish the three vim.fn.system call sites by command shape:
+                vim.system = function(cmd, _opts)
+                    -- Distinguish the three vim.system call sites by command shape:
                     -- 1. dirstat: {'git', 'diff', ref, '-X', '--dirstat=lines,0'}
                     -- 2. numstat: {'git', 'diff', '--numstat', ref, '--', abs_path}
                     -- 3. wc:      {'wc', '-l', abs_path}
+                    local stdout
                     if cmd[1] == 'git' and cmd[2] == 'diff' and cmd[4] == '-X' then
                         -- dirstat call
-                        return _G.fixture.dirstat_out or ''
+                        stdout = _G.fixture.dirstat_out or ''
                     elseif cmd[1] == 'git' and cmd[2] == 'diff' and cmd[3] == '--numstat' then
                         local abs_path = cmd[6]
                         local numstat_map = _G.fixture.numstat_map or {}
-                        return numstat_map[abs_path] or '0\t0\t' .. abs_path .. '\n'
+                        stdout = numstat_map[abs_path] or '0\t0\t' .. abs_path .. '\n'
                     elseif cmd[1] == 'wc' then
                         local abs_path = cmd[3]
                         local wc_map = _G.fixture.wc_map or {}
-                        return wc_map[abs_path] or '0 ' .. abs_path .. '\n'
+                        stdout = wc_map[abs_path] or '0 ' .. abs_path .. '\n'
+                    else
+                        stdout = ''
                     end
-                    return ''
+                    local code = _G.fixture.system_code or 0
+                    return { wait = function() return { code = code, stdout = stdout, stderr = '' } end }
                 end
-
-                vim.v = setmetatable({}, {
-                    __index = vim.v,
-                    __newindex = function(t, k, v) rawset(t, k, v) end,
-                })
-                vim.v.shell_error = 0
             ]])
         end,
     },
@@ -782,8 +772,8 @@ T['get_sorted_diffed_files()']['returns empty table and notifies on dirstat git 
     child.lua([[
         _G.fixture.files_map   = { ['a.lua'] = true }
         _G.fixture.dirstat_out = ''
+        _G.fixture.system_code = 128
         _G.fixture.notify_called = false
-        vim.v.shell_error = 128
         vim.notify = function(_msg, _level) _G.fixture.notify_called = true end
     ]])
     local result = child.lua_get([[M.get_sorted_diffed_files('HEAD')]])
@@ -1716,17 +1706,15 @@ T['get_rel_path_from_abs() properties'] = new_set({
     hooks = {
         pre_case = function()
             child.lua([[
-                -- Stub vim.fn.systemlist so git rev-parse returns the fixture's git root
-                vim.fn.systemlist = function(_cmd)
-                    local git_root = _G.fixture.inputs[1] and _G.fixture.inputs[1].git_root or ''
-                    return { git_root }
+                -- Stub vim.system so git rev-parse returns the fixture's git root
+                vim.system = function(_cmd, _opts)
+                    return {
+                        wait = function()
+                            local git_root = _G.fixture.inputs[1] and _G.fixture.inputs[1].git_root or ''
+                            return { code = 0, stdout = git_root .. '\n', stderr = '' }
+                        end
+                    }
                 end
-                -- Stub vim.v to allow shell_error to be set
-                vim.v = setmetatable({}, {
-                    __index = vim.v,
-                    __newindex = function(t, k, v) rawset(t, k, v) end,
-                })
-                vim.v.shell_error = 0
             ]])
         end,
     },
