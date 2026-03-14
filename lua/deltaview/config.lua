@@ -41,7 +41,6 @@ end
 
 --- @type DeltaViewOpts
 M.defaults = {
-    use_deltalua = true,
     use_nerdfonts = true,
     show_verbose_nav = false,
     quick_select_view = 'hsplit',
@@ -49,6 +48,7 @@ M.defaults = {
     default_context = 3,
     line_numbers = false,
     fzf_picker = nil,
+    use_legacy_delta = false,
     keyconfig = {
         dm_toggle_keybind = "<leader>dm",
         dv_toggle_keybind = "<leader>dl",
@@ -81,14 +81,14 @@ end
 --- @field d_toggle_keybind string | nil if defined, will create keybind that runs Delta, and exits Diff buffer if open
 
 --- @class DeltaViewOpts
---- @field use_deltalua boolean | nil Defaults to true; if false, will use original dandavison/delta, using legacy deltaview code.
 --- @field use_nerdfonts boolean | nil Defaults to true
 --- @field keyconfig KeyConfig | nil
 --- @field show_verbose_nav boolean | nil Show both prev and next filenames (true) or just position + next (false, default)
 --- @field quick_select_view string | nil 'bottom' | 'center' | 'hsplit' - the position of DeltaMenu. Defaults to 'hsplit'
 --- @field fzf_threshold number | nil if the number of diffed files is equal to or greater than this threshold, it will show up in a fuzzy finding picker. Defaults to 6. Set to 1 or 0 if you would always like a fuzzy picker
 --- @field default_context number | nil if running deltaview on a directory rather than a file, it will show a typical delta view with limited context. Defaults to 3. Set here, or pass it in as a second param to DeltaView, which will persist as the context for this session
---- @field line_numbers boolean | nil only applicable if use_deltalua is true. If this setting is true, will show the delta style line numbers in the statuscolumn.
+--- @field line_numbers boolean | nil If this setting is true, will show the delta style line numbers in the statuscolumn.
 --- @field fzf_picker 'fzf-lua' | 'telescope' | 'fzf' | nil specify which picker to use. If nil, will go through the order and pick the first available. fzf-lua -> telescope -> fzf -> quickselect
+--- @field use_legacy_delta boolean | nil Defaults to false; if true, will use original dandavison/delta, using legacy deltaview code.
 
 return M

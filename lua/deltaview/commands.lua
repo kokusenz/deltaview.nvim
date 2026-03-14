@@ -5,7 +5,7 @@ local state = require('deltaview.state')
 
 --- Setup all user commands and global keybinds
 M.setup = function()
-    if config.options.use_deltalua == false then
+    if config.options.use_legacy_delta then
         M.setup_legacy_delta_commands()
         return
     end

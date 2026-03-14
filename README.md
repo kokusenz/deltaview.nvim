@@ -143,9 +143,6 @@ All keybindings are configurable
 
 ```lua
 require('deltaview').setup({
-    -- Use delta.lua as the diff viewer if true, uses dandavison/delta if false
-    use_delta_lua = true
-
     -- Disable nerd font icons if uninstalled (defaults to true)
     use_nerdfonts = false,
 
@@ -164,11 +161,14 @@ require('deltaview').setup({
     -- When the number of modified files >= this value, use fzf instead of quickselect
     fzf_threshold = 0,
 
-    -- Only applicable if use_deltalua is true. If this setting is true, will show the delta style line numbers in the statuscolumn.
+    -- If this setting is true, will show the delta style line numbers in the statuscolumn.
     line_numbers = false,
 
     -- 'fzf-lua' | 'telescope' | 'fzf' | nil - specify which picker to use. If nil, will go through the order and pick the first available. The order is fzf-lua -> telescope -> fzf -> deltaview quickselect
     fzf_picker = nil
+
+    -- Use dandavison/delta as the diff viewer if true, uses delta.lua if falsy
+    use_legacy_delta = nil
 
     -- Custom keybindings
     keyconfig = {
