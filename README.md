@@ -29,13 +29,13 @@ https://github.com/user-attachments/assets/ef732ea7-e2b5-4167-8d9d-f12052f94c9d 
 - Neovim >= 0.9
 - Git
 - [delta.lua](https://github.com/kokusenz/delta.lua). Install this separately into your neovim config using the plugin manager of your choice.
-    - the legacy flow (< v0.1.3) will still work without this plugin, provided git-delta is installed
+    - the legacy flow (< v0.2.0) will still work without this plugin, provided git-delta is installed
 - (Optional) An fzf picker of your choice. Currently supports
     - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
     - [telescope](https://github.com/nvim-telescope/telescope.nvim)
     - [fzf](https://github.com/junegunn/fzf) *note that this is the legacy picker. the preview window does not show the delta.lua previews, but rather the original delta previews. I recommend using one of the above two, or setting the fzf_threshold to something high if you prefer not to fuzzy find.
 - (Optional) [delta](https://github.com/dandavison/delta) (git-delta). 
-    - This is required for delta before v0.1.3.
+    - This is required for delta before v0.2.0.
 
 ## Usage
 

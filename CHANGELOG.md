@@ -7,20 +7,14 @@ I try to attach a commit to each log, but in the initial pr, I may use the pr in
 
 ## Latest
 
-### [0.1.2] - 2025-01-31
-
+### [0.2.0] - 2026 ...
 #### Added
-pr - 70f1d2d25c64f2c70afd4b4f92fd56dc29194899
-
-- yanking code from a Delta buffer will yank the text without any delta line number artifacts.
 
 #### Fixes
 
-- yanked code that includes empty lines would append line number artifacts onto the last valid yanked linked. Now, empty lines are yanked properly - https://github.com/kokusenz/deltaview.nvim/pull/17
-
 ## History
 
-### [0.1.0] - 2025-01-11
+### [0.1.0] - 2026-01-11
 
 #### Added
 commit - 8a7bf251b420f1c75158a6c66a145ee26fbdccea
@@ -40,7 +34,7 @@ commit - 8a7bf251b420f1c75158a6c66a145ee26fbdccea
 - Nil filepath validation - 587052f2f7f9229452ceb38f52f7e5d46523df41
 - Line count parsing - fbc4303db0b65ac597c45c3a5f09c8f93393a6db
 
-### [0.1.1] - 2025-01-19
+### [0.1.1] - 2026-01-19
 
 #### Added
 commit - c389a3efadc61765bd5c68c28a6170c897e4fac8
@@ -54,3 +48,15 @@ commit - c389a3efadc61765bd5c68c28a6170c897e4fac8
 - allows passing path as arg to :Delta - dcfd515c43a272b5dcf4192e45a8375dc1449c2b
 - refactors .setup to merge user provided config instead of requiring user to override via an after/ directory. changes nerdfonts to be consistent family - e4547f8e79387d0ff6521cc5fc225eddd583ee1b
 - deltamenu quickselect now shows all items if items wrap into multiple lines. supplementing helpdocs with vimuiselect details. exposes config to change the position of the deltamenu quickselect. register_ui_select now takes in default selector config. - 0edd2656215a83ce60f00712452c4fdf83b1f4ca
+
+### [0.1.2] - 2026-01-31
+
+#### Added
+pr - 70f1d2d25c64f2c70afd4b4f92fd56dc29194899
+
+- yanking code from a Delta buffer will yank the text without any delta line number artifacts.
+
+#### Fixes
+
+- yanked code that includes empty lines would append line number artifacts onto the last valid yanked linked. Now, empty lines are yanked properly - https://github.com/kokusenz/deltaview.nvim/pull/17
+
