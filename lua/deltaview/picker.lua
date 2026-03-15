@@ -4,6 +4,7 @@ local state = require('deltaview.state')
 local view = require('deltaview.view')
 local selector = require('deltaview.selector')
 local config = require('deltaview.config')
+local help = require('deltaview.help')
 
 local _buf_name_seq = 0
 
@@ -29,10 +30,12 @@ M.decorate_deltaview_with_next_keybinds = function(bufnr)
         vim.keymap.set('n', config.options.keyconfig.next_diff, function()
             M.programmatically_select_diff_from_menu(adjacent_files.next)
         end, { buffer = bufnr, silent = true })
+        help.register_keybind(bufnr, config.options.keyconfig.next_diff, 'open next file diff')
 
         vim.keymap.set('n', config.options.keyconfig.prev_diff, function()
             M.programmatically_select_diff_from_menu(adjacent_files.prev)
         end, { buffer = bufnr, silent = true })
+        help.register_keybind(bufnr, config.options.keyconfig.prev_diff, 'open previous file diff')
     end
 end
 

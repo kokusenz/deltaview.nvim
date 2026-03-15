@@ -80,8 +80,8 @@ require('deltaview').setup({
         -- Change diff menu view to quickselect (when in fzf picker. This functionality is not available for fzf-lua and telescope)
         fzf_toggle = "alt-;",
 
-        -- Jump to line in view opened by Delta
-        jump_to_line = "<CR>"
+        -- Open help legend
+        help_legend = "d?"
     }
 })
 
