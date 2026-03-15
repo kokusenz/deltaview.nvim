@@ -1,30 +1,27 @@
 # deltaview.nvim
 
-An inline diff viewer for Neovim using [delta](https://github.com/dandavison/delta) (git-delta). The delta pager provides two tier highlighting, and deltaview.nvim brings the unified/inline view into a buffer that lays on top of your current buffer. View and navigate your diffs seamlessly while reading and writing code.
+An inline diff viewer for Neovim using [delta.lua](https://github.com/kokusenz/delta.lua). Delta.lua provides two tier diff highlighting and syntax highlighting, while deltaview.nvim controls the behavior of how the user wants to view these diffs. It is lightweight, designed to be opened and closed quickly. This allows the user to use their lsp while reviewing changes, yank deleted lines of code, and navigate around a pull request naturally, rather than being forced into using a filetree.
 
-![DeltaView Screenshot](https://github.com/user-attachments/assets/dc6c5bb4-ef7d-40fb-9c6e-de2e4ac7378a)
+![DeltaView Screenshot](https://github.com/user-attachments/assets/dc6c5bb4-ef7d-40fb-9c6e-de2e4ac7378a) TODO update screenshot
 
 ## Why?
 
-Current inline/unified diff viewers in neovim tend to use virtual lines to display negative changes. Cursors cannot land on virtual lines, and a large scope of negative changes will be skipped over when scrolling through a file, making it an unintuitive and flawed way to view a diff.
+Current inline/unified diff viewers in neovim tend to use virtual lines to display negative changes. Cursors cannot land on virtual lines, which disrupts scrolling, and lacks the ability to copy lines of code that were deleted. With a large block of negative changes that does not fit in the window's viewport, the user cannot even see the full extent of the changes.
 
-This plugin takes a less intrusive approach; display the delta pager output in a terminal buffer. These buffers are temporary and integrate seamlessly within a coding experience, using configurable keybinds to quickly swap in and out. Have you ever felt like you needed your lsp while reviewing a PR in your browser? Review the changes in neovim, using deltaview.nvim, and follow the code with your keyboard instead of your eyes.
-
-If you aren't looking for an inline diff view, or are just looking for a code review tool that is mature and feature rich, [codediff.nvim](https://github.com/esmuellert/codediff.nvim/blob/main/README.md) may be a better fit for you. This is a tool for those who prefer inline diff views.
+This plugin's approach is to treat inline diffs as readonly, separate buffers. Separate buffers allows us to display these diffs without virtual lines, with plenty of features that allows these buffers to integrate seamlessly into your coding experience.
 
 ## Demo
 
-https://github.com/user-attachments/assets/ef732ea7-e2b5-4167-8d9d-f12052f94c9d
+https://github.com/user-attachments/assets/ef732ea7-e2b5-4167-8d9d-f12052f94c9d TODO update demo
 
 ## Features
 
-- **Inline diff viewing**: View diffs on top of your code using delta's syntax highlighting
-- **Custom Context**: Choose how many lines of context to see when diffing a path
-- **Cursor maintenance**: Viewing a diff from a buffer keeps your cursor where it was, and viewing code from a diff keeps your cursor where you want it to be. Easily transition between reading and writing.
-- **Custom File Picker**: Review a large scope of changes
-- **Custom UI**: Visual Indicators for hunk and file count
-- **FZF integration**: Quick picker turns into a fuzzy finder picker for a large list of files
-- **Smart sorting**: Files are sorted by quantity of changes
+- **Inline diff viewing**: lay lightweight diffs over your buffers to quickly view and unview changes
+- **Delta.lua syntax highlighting**: Two tier highlighting, treesitter syntax highlighting
+- **Cursor maintenance**: Opening a diff keeps your cursor where it was, and exiting a diff keeps your cursor where it was. Easily transition between reading and writing.
+- **Quick Navigation**: Jump to the next hunk with "<Tab>", and jump to the next file with "]f". Integration with popular fuzzy finders to find files that have been modified.
+- **Smart sorting**: Files opened by the picker are sorted by quantity of changes, allowing you to review the most important files first.
+- **Custom Context**: Choose how many lines of context to see when diffing a path. No folds.
 - **Flexible comparisons**: Compare against any git ref (HEAD, branches, commits, tags)
 
 ## Requirements
@@ -46,23 +43,23 @@ https://github.com/user-attachments/assets/ef732ea7-e2b5-4167-8d9d-f12052f94c9d
 
 #### `:DeltaView [ref]`
 
-Open an inline diff view for the current file.
-This uses Delta's syntax highlighting to mock an inline view of the full file with two way cursor tracking. The cursor is placed at the right location upon entry, and placed at the right location upon exit.
+Open an inline diff view for the current file. The cursor is placed at the current location upon entry, and placed at the current location on exit
 
 ```vim
-:DeltaView           " Compare current file against HEAD
-:DeltaView main      " Compare against main branch
-:DeltaView HEAD~3    " Compare against 3 commits ago
-:DeltaView v1.0.0    " Compare against tag v1.0.0
+:DeltaView                  " Compare current file against HEAD
+:DeltaView main             " Compare against main branch
+:DeltaView HEAD~3           " Compare against 3 commits ago
+:DeltaView v1.0.0           " Compare against tag v1.0.0
 ```
 
 #### `:DeltaMenu [ref]`
 
-Open an interactive menu to select and view diffs from all modified files.
+Open an picker to preview, select, and view diffs from all modified files.
 
 ```vim
-:DeltaMenu           " Show all files changed from HEAD
-:DeltaMenu develop   " Show all files changed from develop branch
+:DeltaMenu                  " Show all files changed from HEAD
+:DeltaMenu develop          " Show all files changed from develop branch
+:DeltaMenu develop...HEAD   " Show all files changed from the common ancestor with the develop branch
 ```
 
 #### `:Delta [path] [context] [ref]`
@@ -73,14 +70,12 @@ If you are unable to navigate to a directory because you use something like [oil
 Context can be specified. This can be useful for searching your modified code (eg. looking for stray print statements).
 
 ```vim
-:Delta               " Show all files changed from HEAD, with +- 3 lines of context by default
-:Delta HEAD 0        " Show all files changed from HEAD, with no lines of context.
-:Delta HEAD 10 src/   " Show all files changed from HEAD, with 10 lines of context, for everything in src/
+:Delta                      " Show all files changed from HEAD, with +- 3 lines of context by default
+:Delta . 10 main...HEAD     " Show all files changed from the common ancestor with the main branch, with 10 lines of context, for everything in the cwd
 ```
 
 **Note**: 
 - All commands use the last ref used. If `:DeltaMenu main` was used, future calls to `:DeltaMenu`, `:DeltaView`, and `:Delta` will default to `main` instead of `HEAD`.
-- This plugin requires Neovim's current working directory (`:pwd`) to be the git repository root. Use `:cd` to navigate to the git root if needed.
 
 ## Installation
 
@@ -127,6 +122,7 @@ When viewing a diff (DeltaView or Delta):
 | `<Shift-Tab>` | Jump to previous hunk |
 | `]f` | Open next file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
 | `[f` | Open previous file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
+| `d?` | Open the help legend, to view all possible keybinds |
 
 When in the file menu:
 
@@ -235,8 +231,8 @@ By default, the UI uses nerd font icons:
 - Options for using the pickers in:
     - [mini.pick](https://github.com/nvim-mini/mini.pick)
     - [snacks](https://github.com/folke/snacks.nvim)
-- delta blame view
-- delta grep. Originally, didn't see the value because many fuzzy finding plugins handle grepping, but putting all greps with lines of context in one buffer allows for searching amongst the context of grepped code. Delta provides nice formatting.
+- Diff two blocks of text against each other; given a yanked section and a visual selected section, vim.text.diff what's in the register against what's highlighted, and display using delta.lua
+- AI Agent integration such that proposed changes are displayable with delta.lua
 
 ## Contributing
 

@@ -46,7 +46,6 @@ require('deltaview').setup({
 
     -- Number of files threshold for switching to fzf
     -- When the number of modified files >= this value, use fzf instead of quickselect
-    -- Set to 0 or 1 to always use fzf
     fzf_threshold = 0,
 
     -- If this setting is true, will show the delta style line numbers in the statuscolumn.
