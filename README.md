@@ -33,7 +33,7 @@ https://github.com/user-attachments/assets/b4f7cac3-3d96-4a4b-9076-98cd8a33c7d6
 
 ## Requirements
 
-- Neovim >= 0.9
+- Neovim >= 0.10
 - Git
 - [delta.lua](https://github.com/kokusenz/delta.lua). Install this separately into your neovim config using the plugin manager of your choice.
     - the legacy flow (< v0.2.0) will still work without this plugin, provided git-delta is installed

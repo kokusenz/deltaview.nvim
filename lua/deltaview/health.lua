@@ -39,12 +39,12 @@ M.check = function()
     -- ── neovim version ────────────────────────────────────────────────────────
     vim.health.start('deltaview: neovim')
 
-    if vim.fn.has('nvim-0.9') == 1 then
-        vim.health.ok('Neovim >= 0.9')
+    if vim.fn.has('nvim-0.10') == 1 then
+        vim.health.ok('Neovim >= 0.10')
     else
         vim.health.error(
-            'Neovim 0.9+ is required (vim.system API)',
-            { 'Upgrade Neovim to at least 0.9' }
+            'Neovim 0.10+ is required (vim.system API)',
+            { 'Upgrade Neovim to at least 0.10' }
         )
     end
 
