@@ -44,6 +44,10 @@ local T = new_set({
                 package.loaded['deltaview.utils'] = {
                     read_file_lines = function(_path) return {} end,
                 }
+                package.loaded['deltaview.help'] = {
+                    register_keybind = function(_path) return end,
+                    setup_help_keybind = function(_path) return end,
+                }
                 package.loaded['deltaview.config'] = {
                     options = {
                         line_numbers = false,
