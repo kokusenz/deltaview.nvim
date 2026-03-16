@@ -82,7 +82,6 @@ local setup_tmpdir_patch_scenario = [[
     vim.fn.system('git -C ' .. tmpdir .. ' config user.name "Test"')
 
     local before_lines = {
-        '--- TODO unit test',
         '--- @param sorted_files SortedFile[]',
         '--- @return table list of file names',
         'M.get_filenames_from_sortedfiles = function(sorted_files)',
@@ -93,7 +92,6 @@ local setup_tmpdir_patch_scenario = [[
         '    return files',
         'end',
         '',
-        '--- TODO unit test',
         '--- Read file contents without opening a vim buffer',
         '--- @param filepath string Full path to the file',
         '--- @return table|nil lines Array of lines from the file, or nil if error',
@@ -108,7 +106,6 @@ local setup_tmpdir_patch_scenario = [[
     vim.fn.system('git -C ' .. tmpdir .. ' commit -m "initial"')
 
     local after_lines = {
-        '--- TODO unit test',
         '--- @param sorted_files SortedFile[]',
         '--- @return string[] list of file names',
         'M.get_filenames_from_sortedfiles = function(sorted_files)',
@@ -119,7 +116,6 @@ local setup_tmpdir_patch_scenario = [[
         '    return files',
         'end',
         '',
-        '--- TODO unit test',
         '--- tries to reorder the file list to put the current file at the top, if current buffer is in the list.',
         "--- if not, it just returns the same list",
         '--- @param sorted_file_names string[]',
@@ -139,7 +135,6 @@ local setup_tmpdir_patch_scenario = [[
         '    return files, found',
         'end',
         '',
-        '--- TODO unit test',
         '--- Read file contents without opening a vim buffer',
         '--- @param filepath string Full path to the file',
         '--- @return table|nil lines Array of lines from the file, or nil if error',

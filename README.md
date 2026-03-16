@@ -2,7 +2,7 @@
 
 An inline diff viewer for Neovim using [delta.lua](https://github.com/kokusenz/delta.lua). Delta.lua provides two tier diff highlighting and syntax highlighting, while deltaview.nvim controls the behavior of how the user wants to view these diffs. It is lightweight, designed to be opened and closed quickly. This allows the user to use their lsp while reviewing changes, yank deleted lines of code, and navigate around a pull request naturally, rather than being forced into using a filetree.
 
-![DeltaView Screenshot](https://github.com/user-attachments/assets/dc6c5bb4-ef7d-40fb-9c6e-de2e4ac7378a) TODO update screenshot
+![DeltaView Screenshot](https://github.com/user-attachments/assets/d4d1e8aa-7fd1-4759-b658-45ca468c18fa)
 
 ## Why?
 
@@ -10,9 +10,16 @@ Current inline/unified diff viewers in neovim tend to use virtual lines to displ
 
 This plugin's approach is to treat inline diffs as readonly, separate buffers. Separate buffers allows us to display these diffs without virtual lines, with plenty of features that allows these buffers to integrate seamlessly into your coding experience.
 
-## Demo
+## Demos
 
-https://github.com/user-attachments/assets/ef732ea7-e2b5-4167-8d9d-f12052f94c9d TODO update demo
+### :DeltaView demo
+https://github.com/user-attachments/assets/6a28f113-9462-4568-93ca-6db6e7f8be97
+
+### :Delta demo
+https://github.com/user-attachments/assets/9695e4ac-b858-41fd-9eb2-c082636dde2c
+
+### :DeltaMenu demo
+https://github.com/user-attachments/assets/b4f7cac3-3d96-4a4b-9076-98cd8a33c7d6
 
 ## Features
 
