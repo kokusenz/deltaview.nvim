@@ -23,12 +23,12 @@ https://github.com/user-attachments/assets/b4f7cac3-3d96-4a4b-9076-98cd8a33c7d6
 
 ## Features
 
-- **Inline diff viewing**: lay lightweight diffs over your buffers to quickly view and unview changes
-- **Delta.lua syntax highlighting**: Two tier highlighting, treesitter syntax highlighting
+- **Inline diff viewing**: Lay lightweight diffs over your buffers to quickly view and unview changes
+- **Delta.lua highlighting**: Two tier diff highlighting, treesitter syntax highlighting
 - **Cursor maintenance**: Opening a diff keeps your cursor where it was, and exiting a diff keeps your cursor where it was. Easily transition between reading and writing.
 - **Quick Navigation**: Jump to the next hunk with "<Tab>", and jump to the next file with "]f". Integration with popular fuzzy finders to find files that have been modified.
 - **Smart sorting**: Files opened by the picker are sorted by quantity of changes, allowing you to review the most important files first.
-- **Custom Context**: Choose how many lines of context to see when diffing a path. No folds.
+- **Custom Context**: Choose how many lines of context to see when diffing a path. No folds to interfere with smooth scrolling.
 - **Flexible comparisons**: Compare against any git ref (HEAD, branches, commits, tags)
 
 ## Requirements
