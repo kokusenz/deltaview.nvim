@@ -8,8 +8,9 @@ I try to attach a commit to each log, but in the initial pr, I may use the pr in
 ## Latest
 
 ### [0.2.0] - 2026-03-16
+
 #### Added
-commit - 130f4b66c759d5c2db8b5fd930d72536cc33d841
+commit - https://github.com/kokusenz/deltaview.nvim/pull/19
 
 - **delta.lua integration**: deltaview now uses [delta.lua](https://github.com/kokusenz/delta.lua) as its diff rendering backend by default. Delta.lua provides treesitter-based syntax highlighting, treesitter-based two-tier diff highlighting, and diff buffers that respond to window size changes. Many previous issues are resolved with this new backend, such as lack of support for light colorschemes, and bad cursor tracking on wrapped lines. The legacy dandavison/delta flow remains available via `use_legacy_delta = true`.
 - **`:Delta` cursor placement**: `:Delta` now attempts to place the cursor at the corresponding line on entry, and syncs cursor position on exit — the same behavior as `:DeltaView`.
