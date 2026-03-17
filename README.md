@@ -1,38 +1,48 @@
 # deltaview.nvim
 
-An inline diff viewer for Neovim using [delta](https://github.com/dandavison/delta) (git-delta). The delta pager provides two tier highlighting, and deltaview.nvim brings the unified/inline view into a buffer that lays on top of your current buffer. View and navigate your diffs seamlessly while reading and writing code.
+An inline diff viewer for Neovim using [delta.lua](https://github.com/kokusenz/delta.lua). Delta.lua provides two tier diff highlighting and syntax highlighting, while deltaview.nvim controls the behavior of how the user wants to view these diffs. It is lightweight, designed to be opened and closed quickly. This allows the user to use their lsp while reviewing changes, yank deleted lines of code, and navigate around a pull request naturally, rather than being forced into using a filetree.
 
-![DeltaView Screenshot](https://github.com/user-attachments/assets/dc6c5bb4-ef7d-40fb-9c6e-de2e4ac7378a)
+![DeltaView Screenshot](https://github.com/user-attachments/assets/d4d1e8aa-7fd1-4759-b658-45ca468c18fa)
 
 ## Why?
 
-Current inline/unified diff viewers in neovim tend to use virtual lines to display negative changes. Cursors cannot land on virtual lines, and a large scope of negative changes will be skipped over when scrolling through a file, making it an unintuitive and flawed way to view a diff.
+Current inline/unified diff viewers in neovim tend to use virtual lines to display negative changes. Cursors cannot land on virtual lines, which disrupts scrolling, and lacks the ability to copy lines of code that were deleted. With a large block of negative changes that does not fit in the window's viewport, the user cannot even see the full extent of the changes.
 
-This plugin takes a less intrusive approach; display the delta pager output in a terminal buffer. These buffers are temporary and integrate seamlessly within a coding experience, using configurable keybinds to quickly swap in and out. Have you ever felt like you needed your lsp while reviewing a PR in your browser? Review the changes in neovim, using deltaview.nvim, and follow the code with your keyboard instead of your eyes.
+This plugin's approach is to treat inline diffs as readonly, separate buffers. Separate buffers allows us to display these diffs without virtual lines, with plenty of features that allows these buffers to integrate seamlessly into your coding experience.
 
-If you aren't looking for an inline diff view, or are just looking for a code review tool that is mature and feature rich, [codediff.nvim](https://github.com/esmuellert/codediff.nvim/blob/main/README.md) may be a better fit for you. This is a tool for those who prefer inline diff views.
+## Demos
 
-## Demo
+### :DeltaView demo
+https://github.com/user-attachments/assets/6a28f113-9462-4568-93ca-6db6e7f8be97
 
-https://github.com/user-attachments/assets/ef732ea7-e2b5-4167-8d9d-f12052f94c9d
+### :Delta demo
+https://github.com/user-attachments/assets/9695e4ac-b858-41fd-9eb2-c082636dde2c
+
+### :DeltaMenu demo
+https://github.com/user-attachments/assets/b4f7cac3-3d96-4a4b-9076-98cd8a33c7d6
 
 ## Features
 
-- **Inline diff viewing**: View diffs on top of your code using delta's syntax highlighting
-- **Custom Context**: Choose how many lines of context to see when diffing a path
-- **Cursor maintenance**: Viewing a diff from a buffer keeps your cursor where it was, and viewing code from a diff keeps your cursor where you want it to be. Easily transition between reading and writing.
-- **Custom File Picker**: Review a large scope of changes
-- **Custom UI**: Visual Indicators for hunk and file count
-- **FZF integration**: Quick picker turns into a fuzzy finder picker for a large list of files
-- **Smart sorting**: Files are sorted by quantity of changes
+- **Inline diff viewing**: Lay lightweight diffs over your buffers to quickly view and unview changes
+- **Delta.lua highlighting**: Two tier diff highlighting, treesitter syntax highlighting
+- **Cursor maintenance**: Opening a diff keeps your cursor where it was, and exiting a diff keeps your cursor where it was. Easily transition between reading and writing.
+- **Quick Navigation**: Jump to the next hunk with "<Tab>", and jump to the next file with "]f". Integration with popular fuzzy finders to find files that have been modified.
+- **Smart sorting**: Files opened by the picker are sorted by quantity of changes, allowing you to review the most important files first.
+- **Custom Context**: Choose how many lines of context to see when diffing a path. No folds to interfere with smooth scrolling.
 - **Flexible comparisons**: Compare against any git ref (HEAD, branches, commits, tags)
 
 ## Requirements
 
-- Neovim >= 0.9
-- [delta](https://github.com/dandavison/delta) (git-delta)
+- Neovim >= 0.10
 - Git
-- (Optional) [fzf](https://github.com/junegunn/fzf) for a fuzzy finder
+- [delta.lua](https://github.com/kokusenz/delta.lua). Install this separately into your neovim config using the plugin manager of your choice.
+    - the legacy flow (< v0.2.0) will still work without this plugin, provided git-delta is installed
+- (Optional) An fzf picker of your choice. Currently supports
+    - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
+    - [telescope](https://github.com/nvim-telescope/telescope.nvim)
+    - [fzf](https://github.com/junegunn/fzf) *note that this is the legacy picker. the preview window does not show the delta.lua previews, but rather the original delta previews. I recommend using one of the above two, or setting the fzf_threshold to something high if you prefer not to fuzzy find.
+- (Optional) [delta](https://github.com/dandavison/delta) (git-delta). 
+    - This is required for delta before v0.2.0.
 
 ## Usage
 
@@ -40,41 +50,39 @@ https://github.com/user-attachments/assets/ef732ea7-e2b5-4167-8d9d-f12052f94c9d
 
 #### `:DeltaView [ref]`
 
-Open an inline diff view for the current file.
-This uses Delta's syntax highlighting to mock an inline view of the full file with two way cursor tracking. The cursor is placed at the right location upon entry, and placed at the right location upon exit.
+Open an inline diff view for the current file. The cursor is placed at the current location upon entry, and placed at the current location on exit
 
 ```vim
-:DeltaView           " Compare current file against HEAD
-:DeltaView main      " Compare against main branch
-:DeltaView HEAD~3    " Compare against 3 commits ago
-:DeltaView v1.0.0    " Compare against tag v1.0.0
+:DeltaView                  " Compare current file against HEAD
+:DeltaView main             " Compare against main branch
+:DeltaView HEAD~3           " Compare against 3 commits ago
+:DeltaView v1.0.0           " Compare against tag v1.0.0
 ```
 
 #### `:DeltaMenu [ref]`
 
-Open an interactive menu to select and view diffs from all modified files.
+Open an picker to preview, select, and view diffs from all modified files.
 
 ```vim
-:DeltaMenu           " Show all files changed from HEAD
-:DeltaMenu develop   " Show all files changed from develop branch
+:DeltaMenu                  " Show all files changed from HEAD
+:DeltaMenu develop          " Show all files changed from develop branch
+:DeltaMenu develop...HEAD   " Show all files changed from the common ancestor with the develop branch
 ```
 
-#### `:Delta [ref] [context] [path]`
+#### `:Delta [path] [context] [ref]`
 
-Open the inline delta diff view for the current path. Does not have two way cursor tracking like DeltaView. <CR> to jump to the cursor is on.
+Open the inline delta diff view for the current path. This view has a configurable amount of context to show alongside your diff hunks. Attempts to place the cursor on entry if there is a corresponding line in the diff. Will sync the cursor on exit, same as DeltaView.
 This works on both files and directories, by being in a directory path using netrw or some other filetree plugin. This can be useful for if you want to diff specific directories rather than the whole git directory. 
 If you are unable to navigate to a directory because you use something like [oil.nvim](https://github.com/stevearc/oil.nvim), you can pass the path as an argument
 Context can be specified. This can be useful for searching your modified code (eg. looking for stray print statements).
 
 ```vim
-:Delta               " Show all files changed from HEAD, with +- 3 lines of context by default
-:Delta HEAD 0        " Show all files changed from HEAD, with no lines of context.
-:Delta HEAD 10 src/   " Show all files changed from HEAD, with 10 lines of context, for everything in src/
+:Delta                      " Show all files changed from HEAD, with +- 3 lines of context by default
+:Delta . 10 main...HEAD     " Show all files changed from the common ancestor with the main branch, with 10 lines of context, for everything in the cwd
 ```
 
 **Note**: 
 - All commands use the last ref used. If `:DeltaMenu main` was used, future calls to `:DeltaMenu`, `:DeltaView`, and `:Delta` will default to `main` instead of `HEAD`.
-- This plugin requires Neovim's current working directory (`:pwd`) to be the git repository root. Use `:cd` to navigate to the git root if needed.
 
 ## Installation
 
@@ -104,8 +112,6 @@ require('deltaview').setup({
 })
 ```
 
-The fzf file picker might be available out of the box, depending on how it was installed. If it does not work, you may need [additional setup](https://github.com/junegunn/fzf/blob/master/README-VIM.md) in your neovim config. Try adding the fzf binary to your `&runtimepath`, or installing fzf's vim integration using a package manager.
-
 ### Default Keybindings
 
 | Key | Action |
@@ -123,19 +129,14 @@ When viewing a diff (DeltaView or Delta):
 | `<Shift-Tab>` | Jump to previous hunk |
 | `]f` | Open next file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
 | `[f` | Open previous file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
-
-When viewing a diff (Delta):
-
-| Key | Action |
-|-----|--------|
-| `<CR>` | Jump to line |
+| `d?` | Open the help legend, to view all possible keybinds |
 
 When in the file menu:
 
 | Key | Action |
 |-----|--------|
 | Select a file | Open diff for that file |
-| `alt-;` | Change fzf to quickselect (in fzf mode) |
+| `alt-;` | Change diff menu view to quickselect (when in the legacy fzf picker. This functionality is not available for fzf-lua and telescope) |
 
 All keybindings are configurable
 
@@ -145,50 +146,58 @@ All keybindings are configurable
 
 ```lua
 require('deltaview').setup({
-  -- Disable nerd font icons if uninstalled (defaults to true)
-  use_nerdfonts = false,
+    -- Disable nerd font icons if uninstalled (defaults to true)
+    use_nerdfonts = false,
 
-  -- Show both previous and next filenames when navigating
-  -- false: shows "[2/5] -> next.lua"
-  -- true: shows "<- prev.lua [2/5] -> next.lua"
-  show_verbose_nav = false,
+    -- Show both previous and next filenames when navigating
+    -- false: shows "[2/5] -> next.lua"
+    -- true: shows "<- prev.lua [2/5] -> next.lua"
+    show_verbose_nav = false,
 
-  -- Configures the position of the quick select opened by DeltaMenu when under the fzf_threshold
-  -- 'hsplit': horizontal split window
-  -- 'center': centered floating window
-  -- 'bottom': centered at the bottom, floating window
-  quick_select_view = 'hsplit',
+    -- Configures the position of the quick select opened by DeltaMenu when under the fzf_threshold
+    -- 'hsplit': horizontal split window
+    -- 'center': centered floating window
+    -- 'bottom': centered at the bottom, floating window
+    quick_select_view = 'hsplit',
 
-  -- Number of files threshold for switching to fzf
-  -- When the number of modified files >= this value, use fzf instead of quickselect
-  -- Set to 0 or 1 to always use fzf
-  fzf_threshold = 6,
+    -- Number of files threshold for switching to fzf
+    -- When the number of modified files >= this value, use fzf instead of quickselect
+    fzf_threshold = 0,
 
-  -- Custom keybindings
-  keyconfig = {
-    -- Global keybind to toggle DeltaMenu
-    dm_toggle_keybind = "<leader>dm",
+    -- If this setting is true, will show the delta style line numbers in the statuscolumn.
+    line_numbers = false,
 
-    -- Global keybind to toggle DeltaView (and exit diff if open)
-    dv_toggle_keybind = "<leader>dl",
+    -- 'fzf-lua' | 'telescope' | 'fzf' | nil - specify which picker to use. If nil, will go through the order and pick the first available. The order is fzf-lua -> telescope -> fzf -> deltaview quickselect
+    fzf_picker = nil
 
-    -- Global keybind to toggle Delta (and exit diff if open)
-    d_toggle_keybind = "<leader>da",
+    -- Use dandavison/delta as the diff viewer if true, uses delta.lua if falsy
+    use_legacy_delta = nil
 
-    -- Navigate between hunks in a diff
-    next_hunk = "<Tab>",
-    prev_hunk = "<S-Tab>",
+    -- Custom keybindings
+    keyconfig = {
+        -- Global keybind to toggle DeltaMenu
+        dm_toggle_keybind = "<leader>dm",
 
-    -- Navigate between files (when opened from DeltaMenu)
-    next_diff = "]f",
-    prev_diff = "[f",
+        -- Global keybind to toggle DeltaView (and exit diff if open)
+        dv_toggle_keybind = "<leader>dl",
 
-    -- Change diff menu view to quickselect (when in fzf mode)
-    fzf_toggle = "alt-;",
+        -- Global keybind to toggle Delta (and exit diff if open)
+        d_toggle_keybind = "<leader>da",
 
-    -- Jump to line in view opened by Delta
-    jump_to_line = "<CR>"
-  }
+        -- Navigate between hunks in a diff
+        next_hunk = "<Tab>",
+        prev_hunk = "<S-Tab>",
+
+        -- Navigate between files (when opened from DeltaMenu)
+        next_diff = "]f",
+        prev_diff = "[f",
+
+        -- Change diff menu view to quickselect (when in fzf picker. This functionality is not available for fzf-lua and telescope)
+        fzf_toggle = "alt-;",
+
+        -- Open help legend
+        help_legend = "d?"
+    }
 })
 ```
 
@@ -199,20 +208,24 @@ By default, the UI uses nerd font icons:
 ```lua
 -- With nerd fonts (default)
 {
-  dot = "󰧟", -- nf-md-circle_small, hunk indicator
-  circle = "󰧞", -- nf-md-circle_medium, current hunk indicator
-  vs = "", -- nf-seti-git, "versus" symbol in menu header
-  next = "󰁕", -- nf-md-arrow_right_thick, next file indicator
-  prev = "󰁎" -- nf-md-arrow_left_thick, previous file indicator
+    dot = "󰧟", -- nf-md-circle_small, hunk indicator
+    circle = "󰧞", -- nf-md-circle_medium, current hunk indicator
+    vs = "", -- nf-seti-git, "versus" symbol in menu header
+    next = "󰁕", -- nf-md-arrow_right_thick, next file indicator
+    prev = "󰁎", -- nf-md-arrow_left_thick, previous file indicator
+    segment = "󰻋", -- nf-md-segment , hunk count indicator
+    file = "󰈔" -- nf-md-file
 }
 
 -- Without nerd fonts
 {
-  dot = "·",
-  circle = "•",
-  vs = "comparing to",
-  next = "->",
-  prev = "<-"
+    dot = "·",
+    circle = "•",
+    vs = "comparing to",
+    next = "->",
+    prev = "<-",
+    segment = "≡",
+    file = "🗎"
 }
 ```
 
@@ -223,15 +236,10 @@ By default, the UI uses nerd font icons:
 ## Feature Roadmap
 
 - Options for using the pickers in:
-    - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
-    - [telescope](https://github.com/nvim-telescope/telescope.nvim)
+    - [mini.pick](https://github.com/nvim-mini/mini.pick)
     - [snacks](https://github.com/folke/snacks.nvim)
-- ? keybind to show a keybind menu, in deltaview and delta buffers
-- handling for neovim light colorschemes
-- delta blame view
-- delta grep. Originally, didn't see the value because many fuzzy finding plugins handle grepping, but putting all greps with lines of context in one buffer allows for searching amongst the context of grepped code. Delta provides nice formatting.
-- Split diffs, if there is demand. There are other plugins (and native neovim :DiffTool) that already do this, and do this well, so this is not a priority.
-- Tests
+- Diff two blocks of text against each other; given a yanked section and a visual selected section, vim.text.diff what's in the register against what's highlighted, and display using delta.lua
+- AI Agent integration such that proposed changes are displayable with delta.lua
 
 ## Contributing
 

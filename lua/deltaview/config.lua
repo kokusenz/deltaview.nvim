@@ -6,23 +6,29 @@ local M = {}
 --- @field vs string
 --- @field next string
 --- @field prev string
+--- @field segment string
+--- @field file string
 
---- @class ViewConfig
+--- @type ViewConfig
 M.basic_viewconfig = {
     dot = "·",
     circle = "•",
     vs = "comparing to",
     next = "->",
-    prev = "<-"
+    prev = "<-",
+    segment = "≡",
+    file = "🗎"
 }
 
---- @class ViewConfig
+--- @type ViewConfig
 M.nerdfont_viewconfig = {
     dot = "󰧟", -- nf-md-circle_small
     circle = "󰧞", -- nf-md-circle_medium
     vs = "", -- nf-seti-git
     next = "󰁕", -- nf-md-arrow_right_thick
-    prev = "󰁎" -- nf-md-arrow_left_thick
+    prev = "󰁎", -- nf-md-arrow_left_thick
+    segment = "󰻋", -- nf-md-segment 
+    file = "󰈔" -- nf-md-file
 }
 
 --- @returns ViewConfig
@@ -33,31 +39,16 @@ M.viewconfig = function()
     return M.basic_viewconfig
 end
 
---- @class KeyConfig
---- @field dv_toggle_keybind string | nil if defined, will create keybind that runs DeltaView, and exits Diff buffer if open
---- @field dm_toggle_keybind string | nil if defined, will create keybind that runs DeltaView Menu
---- @field next_hunk string skip to next hunk in diff.
---- @field prev_hunk string skip to prev hunk in diff.
---- @field next_diff string when diff was opened from DeltaMenu, open next file in the menu
---- @field prev_diff string when diff was opened from DeltaMenu, open prev file in the menu
---- @field fzf_toggle string when DeltaMenu is opened in fzf mode (eg. when count exceeds the threshold), can switch back to default quick select.
---- @field jump_to_line string jump to line in Delta buffer
---- @field d_toggle_keybind string | nil if defined, will create keybind that runs Delta, and exits Diff buffer if open
-
---- @class DeltaViewOpts
---- @field use_nerdfonts boolean | nil Defaults to true
---- @field keyconfig KeyConfig | nil
---- @field show_verbose_nav boolean | nil Show both prev and next filenames (true) or just position + next (false, default)
---- @field quick_select_view string | nil 'bottom' | 'center' | 'hsplit' - the position of DeltaMenu. Defaults to 'hsplit'
---- @field fzf_threshold number | nil if the number of diffed files is equal to or greater than this threshold, it will show up in a fuzzy finding picker. Defaults to 6. Set to 1 or 0 if you would always like a fuzzy picker
---- @field default_context number | nil if running deltaview on a directory rather than a file, it will show a typical delta view with limited context. Defaults to 3. Set here, or pass it in as a second param to DeltaView, which will persist as the context for this session
-
+--- @type DeltaViewOpts
 M.defaults = {
     use_nerdfonts = true,
     show_verbose_nav = false,
     quick_select_view = 'hsplit',
-    fzf_threshold = 6,
+    fzf_threshold = 0,
     default_context = 3,
+    line_numbers = false,
+    fzf_picker = nil,
+    use_legacy_delta = false,
     keyconfig = {
         dm_toggle_keybind = "<leader>dm",
         dv_toggle_keybind = "<leader>dl",
@@ -66,8 +57,8 @@ M.defaults = {
         prev_hunk = "<S-Tab>",
         next_diff = "]f",
         prev_diff = "[f",
+        help_legend = "d?",
         fzf_toggle = "alt-;",
-        jump_to_line = "<CR>"
     }
 }
 
@@ -79,5 +70,27 @@ M.options = vim.deepcopy(M.defaults)
 M.setup = function(opts)
     M.options = vim.tbl_deep_extend("force", M.options, opts or {})
 end
+
+--- @class KeyConfig
+--- @field dv_toggle_keybind string | nil if defined, will create keybind that runs DeltaView, and exits Diff buffer if open. By default, <leader>dv.
+--- @field dm_toggle_keybind string | nil if defined, will create keybind that runs DeltaView Menu. By default, <leader>dm.
+--- @field d_toggle_keybind string | nil if defined, will create keybind that runs Delta, and exits Diff buffer if open
+--- @field next_hunk string skip to next hunk in diff.
+--- @field prev_hunk string skip to prev hunk in diff.
+--- @field next_diff string when diff was opened from DeltaMenu, open next file in the menu
+--- @field prev_diff string when diff was opened from DeltaMenu, open prev file in the menu
+--- @field help_legend string opens the help legend when inside a deltaview buffer
+--- @field fzf_toggle string when DeltaMenu is opened in fzf mode (eg. when count exceeds the threshold), can switch back to default quick select.
+
+--- @class DeltaViewOpts
+--- @field use_nerdfonts boolean | nil Defaults to true
+--- @field keyconfig KeyConfig | nil
+--- @field show_verbose_nav boolean | nil Show both prev and next filenames (true) or just position + next (false, default)
+--- @field quick_select_view string | nil 'bottom' | 'center' | 'hsplit' - the position of DeltaMenu. Defaults to 'hsplit'
+--- @field fzf_threshold number | nil if the number of diffed files is equal to or greater than this threshold, it will show up in a fuzzy finding picker. Defaults to 6. Set to 1 or 0 if you would always like a fuzzy picker
+--- @field default_context number | nil if running deltaview on a directory rather than a file, it will show a typical delta view with limited context. Defaults to 3. Set here, or pass it in as a second param to DeltaView, which will persist as the context for this session
+--- @field line_numbers boolean | nil If this setting is true, will show the delta style line numbers in the statuscolumn.
+--- @field fzf_picker 'fzf-lua' | 'telescope' | 'fzf' | nil specify which picker to use. If nil, will go through the order and pick the first available. fzf-lua -> telescope -> fzf -> quickselect
+--- @field use_legacy_delta boolean | nil Defaults to false; if true, will use original dandavison/delta, using legacy deltaview code.
 
 return M

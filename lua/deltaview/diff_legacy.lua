@@ -17,15 +17,15 @@ M.create_diff_menu_pane = function(diffing_function, ref)
         return
     end
 
-    local diffed_files = utils.get_diffed_files(ref)
-    local mods = utils.get_filenames_from_sortedfiles(diffed_files)
+    local sorted_files = utils.get_sorted_diffed_files(ref or 'HEAD')
+    local mods = utils.get_filenames_from_sortedfiles(sorted_files)
 
     if #mods == 0 then
         print('DeltaView: No diffs to display')
         return
     end
     local changes_data = {}
-    for _, value in ipairs(diffed_files) do
+    for _, value in ipairs(sorted_files) do
         changes_data[value.name] = {'+' .. value.added .. ',-' .. value.removed}
     end
 
@@ -64,7 +64,6 @@ M.create_diff_menu_pane = function(diffing_function, ref)
     end
 
     if #mods >= config.options.fzf_threshold then
-        -- TODO: allow integration with fzf-lua and telescope pickers; use those pickers if available
         local on_select_with_key = function(result)
             if result == nil or #result == 0 then
                 return
@@ -121,8 +120,8 @@ M.programmatically_select_diff_from_menu = function(diffing_function, filepath, 
         return
     end
 
-    local diffed_files = utils.get_diffed_files(ref)
-    local mods = utils.get_filenames_from_sortedfiles(diffed_files)
+    local sorted_files = utils.get_sorted_diffed_files(ref or 'HEAD')
+    local mods = utils.get_filenames_from_sortedfiles(sorted_files)
     if #mods == 0 then
         print('DeltaView: No diffs to display')
         return
@@ -222,13 +221,6 @@ M.run_diff_against_file = function(filepath, ref)
     local diff_target_message = config.viewconfig().vs .. ' ' .. (M.diff_target_ref or 'HEAD')
     utils.append_cmd_ui(cmd_ui, diff_target_message, true)
 
---- @alias MoveToLineFunction fun(line: number, before: boolean|nil, file: string|nil): nil
-
---- @class DiffBufferFuncs table to expose functions to interact with the diff buffer
---- @field buf_id number
---- @field move_to_line MoveToLineFunction Move cursor to specified line in diff buffer
---- @field get_current_file function | nil
-
     --- @param diff_buffer_funcs DiffBufferFuncs
     local on_ready_callback = function(diff_buffer_funcs)
         M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs, cmd_ui)
@@ -310,7 +302,6 @@ M.display_delta_file = function(cmd, cmd_ui, on_ready_callback)
         on_exit = function()
             vim.schedule(function()
                 -- place cursor upon entry
-                -- TODO does not handle wrapped lines well. When entering while cursor is on a wrapped line, it enters at the right line but the wrong position
                 local diff_buf_lines = vim.api.nvim_buf_get_lines(term_buf, 0, -1, false)
                 for key, value in ipairs(diff_buf_lines) do
                     if string.match(value, '⋮%s*' .. cur_cursor_pos[1]) ~= nil then
@@ -334,7 +325,6 @@ M.display_delta_file = function(cmd, cmd_ui, on_ready_callback)
                 end
 
                 -- update where cursor should be upon exit
-                -- TODO does not handle wrapped lines well. When exiting while cursor is on a wrapped line, it exits at the right line but the wrong position
                 vim.api.nvim_create_autocmd('CursorMoved', {
                     buffer = term_buf,
                     callback = function()
@@ -406,7 +396,7 @@ M.display_delta_file = function(cmd, cmd_ui, on_ready_callback)
         end, { buffer = term_buf, noremap = true, silent = true })
     end
 
-    local adjacent_files = utils.get_adjacent_files(M.diffed_files)
+    local adjacent_files = utils.get_adjacent_files_legacy(M.diffed_files)
     if adjacent_files ~= nil then
         local next_diff_message = (config.options.show_verbose_nav and (vim.fn.fnamemodify(adjacent_files.prev.name, ':t') .. ' ' .. config.viewconfig().prev) or '') ..
             ' [' .. M.diffed_files.cur_idx .. '/' .. #M.diffed_files.files .. '] ' .. config.viewconfig().next .. ' ' ..
@@ -489,7 +479,6 @@ M.display_delta_directory = function(cmd, cmd_ui, on_ready_callback)
                 vim.api.nvim_create_autocmd('CursorMoved', {
                     buffer = term_buf,
                     callback = function()
-                        -- TODO getting current line means this does not detect the wrapped part of a wrapped line as a real valid line.
                         -- Figure out how to handle jumping (<CR>) on a wrapped line, highlighting a wrapped line, confirm that hunk jumping when cursor is on wrapped lines works as intended
                         local term_buf_cur_line = vim.api.nvim_get_current_line()
                         local term_buf_cur_cursor_pos = vim.api.nvim_win_get_cursor(0)
@@ -602,7 +591,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         return
     end
 
-    --- @class Hunk
+    --- @class Hunk_LegacyNavigation
     --- @field after number the line number after
     --- @field before number the line number before
     --- @field is_pure_deletion boolean
@@ -624,7 +613,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         if line_after and current_file then
             assert(tonumber(line_after) ~= nil and tonumber(line_before) ~= nil, "parsing line numbers from hunks failed")
             local is_pure_deletion = additions == '0'
-            --- @type Hunk
+            --- @type Hunk_LegacyNavigation
             local hunk = {
                 after = tonumber(line_after) or 1,
                 before = tonumber(line_before) or 1,
@@ -635,7 +624,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
     end
 
     -- flattened list for when there is only one file
-    --- @type Hunk[]
+    --- @type Hunk_LegacyNavigation[]
     local matches_flat = {}
     for _, file in ipairs(file_order) do
         for _, hunk in ipairs(matches[file]) do
@@ -771,7 +760,7 @@ M.setup_hunk_navigation = function(hunk_cmd, diff_buffer_funcs, cmd_ui)
         end
     })
 
-    --- @param hunk Hunk
+    --- @param hunk Hunk_LegacyNavigation
     --- @param file string | nil
     local move_to_hunk = function(hunk, file)
         if hunk.is_pure_deletion then
@@ -925,10 +914,7 @@ M.setup_yank_override = function(diff_buffer_funcs)
     })
 end
 
---- enables the user to go to "next diff in menu" if the current diff was opened via the menu.
---- @class DiffedFiles
---- @field files table | nil
---- @field cur_idx number | nil
+--- @type DiffedFiles
 M.diffed_files = { files = nil, cur_idx = nil }
 
 --- stores the last used ref for future calls
@@ -936,5 +922,12 @@ M.diff_target_ref = nil
 
 --- stores the last used context for future delta calls
 M.default_context = nil
+
+--- @alias MoveToLineFunction fun(line: number, before: boolean|nil, file: string|nil): nil
+
+--- @class DiffBufferFuncs table to expose functions to interact with the diff buffer
+--- @field buf_id number
+--- @field move_to_line MoveToLineFunction Move cursor to specified line in diff buffer
+--- @field get_current_file function | nil
 
 return M

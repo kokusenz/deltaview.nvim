@@ -7,20 +7,43 @@ I try to attach a commit to each log, but in the initial pr, I may use the pr in
 
 ## Latest
 
-### [0.1.2] - 2025-01-31
+### [0.2.0] - 2026-03-16
 
 #### Added
-pr - 70f1d2d25c64f2c70afd4b4f92fd56dc29194899
+commit - https://github.com/kokusenz/deltaview.nvim/pull/19
 
-- yanking code from a Delta buffer will yank the text without any delta line number artifacts.
+- **delta.lua integration**: deltaview now uses [delta.lua](https://github.com/kokusenz/delta.lua) as its diff rendering backend by default. Delta.lua provides treesitter-based syntax highlighting, treesitter-based two-tier diff highlighting, and diff buffers that respond to window size changes. Many previous issues are resolved with this new backend, such as lack of support for light colorschemes, and bad cursor tracking on wrapped lines. The legacy dandavison/delta flow remains available via `use_legacy_delta = true`.
+- **`:Delta` cursor placement**: `:Delta` now attempts to place the cursor at the corresponding line on entry, and syncs cursor position on exit — the same behavior as `:DeltaView`.
+- **Fuzzy picker integrations**: Added support for [fzf-lua](https://github.com/ibhagwan/fzf-lua) and [telescope](https://github.com/nvim-telescope/telescope.nvim) as picker backends for `:DeltaMenu`, with diff preview. Picker selection is configurable via `fzf_picker`. Priority order: fzf-lua → telescope → fzf → quickselect.
+- **Fuzzy picker by default**: `fzf_threshold` now defaults to `0`, meaning the fuzzy picker is used by default. The preview panel makes the fuzzy picker more valuable than the quick-select shortcuts for most workflows.
+- **Three-dot ref support**: `:DeltaView`, `:DeltaMenu`, and `:Delta` now accept three-dot refs (e.g. `main...HEAD`) to diff against the common ancestor.
+- **New file diffs**: `:Delta` and `:DeltaView` now handle new (untracked) files correctly, and `:DeltaMenu` now properly sorts untracked files.
+- **`:DeltaMenu` from any subdirectory**: `:DeltaMenu` no longer requires the cwd to be the git root; it works from any subdirectory, matching the behavior of `git status`.
+- **`line_numbers` config option**: Opt-in statuscolumn line numbers in delta.lua diff buffers, off by default.
+- **Help legend**: A `d?` keybind opens an in-buffer help legend showing all available keybinds. Configurable via `keyconfig.help_legend`.
+- **`segment` and `file` icons**: Two new nerd font icons added to the view config for hunk count and file indicators.
+- **cmd ui is now deprecated**: The ui (dots to represent hunks, shows the ref, etc) that was displayed in the same space as colon commands is now only a part of the legacy workflow.
+- **Tests**: The codebase now has tests
+
+#### Changed
+
+- **`:Delta` argument order**: The argument order has changed from `[ref] [context] [path]` to `[path] [context] [ref]` to match the more common use case of specifying a path without a ref.
+- **Hunk navigation jumps to top of hunk**: Previously, hunk nav jumped to the first added line of a hunk. It now jumps to the top of the hunk, which may be a deleted line.
+- **Hunk navigation viewport behavior**: Hunk navigation no longer forces `zz` (centering the cursor) if the target hunk is already visible in the viewport.
+- **Cursor sync uses relative window position**: Entering and exiting a diff buffer no longer forces centering with `zz`, but rather maintains the cursor position exactly.
+- **Esc/q disabled on deleted lines**: Previously, pressing `<Esc>` or `q` while the cursor was on a deleted line would exit the buffer and place the cursor at the last valid position. This offered little benefit and has been removed. The user must move the cursor to an added or context line before exiting.
+- **usage of enter on delta buffers**: the `:Delta` buffer now behaves exactly like the `:DeltaView` buffer, no longer requiring the usage of enter to jump to a line.
 
 #### Fixes
 
-- yanked code that includes empty lines would append line number artifacts onto the last valid yanked linked. Now, empty lines are yanked properly - https://github.com/kokusenz/deltaview.nvim/pull/17
+- Fixed a `<f3><b0><a7>` artifact appearing in the cmd ui; there is no longer a cmd ui.
+- Fixed hunk navigation bugs caused by out-of-order line numbers.
+- Fixed a crash when running `:Delta` with a context value larger than the file's line count.
+- Fixed an issue where delta buffer highlights could persist after navigating away using methods other than `<Esc>` or `q`. There is no longer emphasis highlights in the delta buffer
 
 ## History
 
-### [0.1.0] - 2025-01-11
+### [0.1.0] - 2026-01-11
 
 #### Added
 commit - 8a7bf251b420f1c75158a6c66a145ee26fbdccea
@@ -40,7 +63,7 @@ commit - 8a7bf251b420f1c75158a6c66a145ee26fbdccea
 - Nil filepath validation - 587052f2f7f9229452ceb38f52f7e5d46523df41
 - Line count parsing - fbc4303db0b65ac597c45c3a5f09c8f93393a6db
 
-### [0.1.1] - 2025-01-19
+### [0.1.1] - 2026-01-19
 
 #### Added
 commit - c389a3efadc61765bd5c68c28a6170c897e4fac8
@@ -54,3 +77,14 @@ commit - c389a3efadc61765bd5c68c28a6170c897e4fac8
 - allows passing path as arg to :Delta - dcfd515c43a272b5dcf4192e45a8375dc1449c2b
 - refactors .setup to merge user provided config instead of requiring user to override via an after/ directory. changes nerdfonts to be consistent family - e4547f8e79387d0ff6521cc5fc225eddd583ee1b
 - deltamenu quickselect now shows all items if items wrap into multiple lines. supplementing helpdocs with vimuiselect details. exposes config to change the position of the deltamenu quickselect. register_ui_select now takes in default selector config. - 0edd2656215a83ce60f00712452c4fdf83b1f4ca
+
+### [0.1.2] - 2026-01-31
+
+#### Added
+pr - 70f1d2d25c64f2c70afd4b4f92fd56dc29194899
+
+- yanking code from a Delta buffer will yank the text without any delta line number artifacts.
+
+#### Fixes
+
+- yanked code that includes empty lines would append line number artifacts onto the last valid yanked linked. Now, empty lines are yanked properly - https://github.com/kokusenz/deltaview.nvim/pull/17

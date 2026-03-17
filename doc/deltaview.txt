@@ -17,76 +17,82 @@ CONTENTS                                                  *deltaview-contents*
 ==============================================================================
 INTRODUCTION                                          *deltaview-introduction*
 
-Current inline/unified diff viewers in neovim tend to use virtual lines to display negative changes. Cursors cannot land on virtual lines, and a large scope of negative changes will be skipped over when scrolling through a file, making it an unintuitive and flawed way to view a diff.
+Current inline/unified diff viewers in neovim tend to use virtual lines to display negative changes. Cursors cannot land on virtual lines, which disrupts scrolling, and lacks the ability to copy lines of code that were deleted. With a large block of negative changes that does not fit in the window's viewport, the user cannot even see the full extent of the changes.
 
-This plugin takes a less intrusive approach; display the delta pager output in a terminal buffer. These buffers are temporary and integrate seamlessly within a coding experience, using configurable keybinds to quickly swap in and out. Have you ever felt like you needed your lsp while reviewing a PR in your browser? Review the changes in neovim, using deltaview.nvim, and follow the code with your keyboard instead of your eyes.
-
-If you aren't looking for an inline diff view, or are just looking for a code review tool that is mature and feature rich, [codediff.nvim](https://github.com/esmuellert/codediff.nvim/blob/main/README.md) may be a better fit for you. This is a tool for those who prefer inline diff views.
+This plugin's approach is to treat inline diffs as readonly, separate buffers. Separate buffers allows us to display these diffs without virtual lines, with plenty of features that allows these buffers to integrate seamlessly into your coding experience.
 
 ==============================================================================
 SETUP/CONFIGURATION                                               *deltaview-setup*, *deltaview-configuration*
 
-No configuration is needed by default. If you want to change the configured defaults, you must put the setup in the `after/plugin/` directory. These are the options
+No configuration is needed by default, but these are the options.
 
 setup>lua
 require('deltaview').setup({
-  -- Enable nerd font icons for a prettier UI
-  use_nerdfonts = true,
+    -- Disable nerd font icons if uninstalled (defaults to true)
+    use_nerdfonts = false,
 
-  -- Show both previous and next filenames when navigating
-  -- false: shows "[2/5] -> next.lua"
-  -- true: shows "<- prev.lua [2/5] -> next.lua"
-  show_verbose_nav = false,
+    -- Show both previous and next filenames when navigating
+    -- false: shows "[2/5] -> next.lua"
+    -- true: shows "<- prev.lua [2/5] -> next.lua"
+    show_verbose_nav = false,
 
-  -- Configures the position of the quick select opened by DeltaMenu when under the fzf_threshold
-  -- 'hsplit': horizontal split window
-  -- 'center': centered floating window
-  -- 'bottom': centered at the bottom, floating window
-  quick_select_view = 'hsplit',
+    -- Configures the position of the quick select opened by DeltaMenu when under the fzf_threshold
+    -- 'hsplit': horizontal split window
+    -- 'center': centered floating window
+    -- 'bottom': centered at the bottom, floating window
+    quick_select_view = 'hsplit',
 
-  -- Number of files threshold for switching to fzf
-  -- When the number of modified files >= this value, use fzf instead of quickselect
-  -- Set to 0 or 1 to always use fzf
-  fzf_threshold = 6,
+    -- Number of files threshold for switching to fzf
+    -- When the number of modified files >= this value, use fzf instead of quickselect
+    fzf_threshold = 0,
 
-  -- Custom keybindings
-  keyconfig = {
-    -- Global keybind to toggle DeltaMenu
-    dm_toggle_keybind = "<leader>dm",
+    -- If this setting is true, will show the delta style line numbers in the statuscolumn.
+    line_numbers = false,
 
-    -- Global keybind to toggle DeltaView (and exit diff if open)
-    dv_toggle_keybind = "<leader>dl",
+    -- 'fzf-lua' | 'telescope' | 'fzf' | nil - specify which picker to use. If nil, will go through the order and pick the first available. The order is fzf-lua -> telescope -> fzf -> deltaview quickselect
+    fzf_picker = nil
 
-    -- Global keybind to toggle Delta (and exit diff if open)
-    d_toggle_keybind = "<leader>da",
+    -- Use dandavison/delta as the diff viewer if true, uses delta.lua if falsy
+    use_legacy_delta = nil
 
-    -- Navigate between hunks in a diff
-    next_hunk = "<Tab>",
-    prev_hunk = "<S-Tab>",
+    -- Custom keybindings
+    keyconfig = {
+        -- Global keybind to toggle DeltaMenu
+        dm_toggle_keybind = "<leader>dm",
 
-    -- Navigate between files (when opened from DeltaMenu)
-    next_diff = "]f",
-    prev_diff = "[f",
+        -- Global keybind to toggle DeltaView (and exit diff if open)
+        dv_toggle_keybind = "<leader>dl",
 
-    -- Change diff menu view to quickselect (when in fzf mode)
-    fzf_toggle = "alt-;",
+        -- Global keybind to toggle Delta (and exit diff if open)
+        d_toggle_keybind = "<leader>da",
 
-    -- Jump to line in view opened by Delta
-    jump_to_line = "<CR>"
-  }
+        -- Navigate between hunks in a diff
+        next_hunk = "<Tab>",
+        prev_hunk = "<S-Tab>",
+
+        -- Navigate between files (when opened from DeltaMenu)
+        next_diff = "]f",
+        prev_diff = "[f",
+
+        -- Change diff menu view to quickselect (when in fzf picker. This functionality is not available for fzf-lua and telescope)
+        fzf_toggle = "alt-;",
+
+        -- Open help legend
+        help_legend = "d?"
+    }
 })
 
 ==============================================================================
 COMMANDS                                                  *deltaview-commands*
 
                                                                 *:DeltaView*
-:DeltaView [ref]        Opens the delta diff view on the buffer you are on. Uses the last ref that was used, or HEAD by default if ref is omitted. This uses Delta's syntax highlighting to mock an inline view of the full file with two way cursor tracking. The cursor is placed at the right location upon entry, and placed at the right location upon exit.
+:DeltaView [ref]        Opens the delta diff view on the buffer you are on. Uses the last ref that was used, or HEAD by default if ref is omitted. The cursor is placed at the current location upon entry, and placed at the current location on exit.
 
                                                                 *:DeltaMenu*
-:DeltaMenu [ref]        Opens the delta diff menu of the git directory. Uses the last ref that was used, or HEAD by default if ref is omitted.
+:DeltaMenu [ref]        Opens a picker to preview, select, and view diffs from all modified files. Uses the last ref that was used, or HEAD by default if ref is omitted. Supports three-dot refs (e.g. develop...HEAD).
 
                                                                 *:Delta*
-:Delta [ref] [context] [path]    Opens the delta diff view with configurable context for a path, without two way cursor tracking. Uses the last ref that was used, or HEAD by default. Uses the last specified context size, or 3 by default. Uses the current path (use netrw or some other filetree plugin to nav to it), or a specified path.
+:Delta [path] [context] [ref]    Opens the delta diff view with configurable context for a path. Attempts to place the cursor on entry if there is a corresponding line in the diff. Will sync the cursor on exit, same as DeltaView. Uses the last ref that was used, or HEAD by default. Uses the last specified context size, or 3 by default. Uses the current path (use netrw or some other filetree plugin to nav to it), or a specified path.
 
 ==============================================================================
 MODULE FUNCTIONS                                            *deltaview-functions*
@@ -121,7 +127,7 @@ Global keybindings:
 | `<leader>dm` | :DeltaMenu |
 | `<leader>da` | :Delta |
 
-When viewing a diff (DeltaView):
+When viewing a diff (DeltaView or Delta):
 
 | Key | Action |
 |-----|--------|
@@ -129,19 +135,14 @@ When viewing a diff (DeltaView):
 | `<S-Tab>` | Previous hunk |
 | `]f` | Open next file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
 | `[f` | Open previous file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
-
-When viewing a diff (Delta):
-
-| Key | Action |
-|-----|--------|
-| `<CR>` | Jump to line |
+| `d?` | Open the help legend, to view all possible keybinds |
 
 When in the file menu:
 
 | Key | Action |
 |-----|--------|
 | Select a file | Open diff for that file |
-| `alt-;` | Change fzf to quickselect (in fzf mode) |
+| `alt-;` | Change diff menu view to quickselect (when in fzf picker. This functionality is not available for fzf-lua and telescope) |
 
 ==============================================================================
 VIM.UI.SELECT INTERFACE                                   *deltaview-ui-select*

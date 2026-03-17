@@ -1,61 +1,108 @@
 local M = {}
 
---- check if current working directory matches git root directory
---- @return boolean True if cwd matches git root
-M.is_cwd_git_root = function()
-    local git_root = vim.fn.system({'git', 'rev-parse', '--show-toplevel'})
-    if vim.v.shell_error ~= 0 then
-        return false
-    end
-    git_root = vim.trim(git_root)
-    local cwd = vim.fn.getcwd()
-    return cwd == git_root
-end
-
---- Get list of modified and untracked files
---- @param ref string|nil Git ref to compare against (defaults to HEAD if nil). If nil, includes untracked files
---- @return SortedFile[] list of file paths that have been modified or are untracked
-M.get_diffed_files = function(ref)
-    -- diffed files
-    local diffed = vim.fn.system({'git', 'diff', ref ~= nil and ref or 'HEAD', '--name-only'})
-    if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
-        print('ERROR: Failed to get diff files from git')
-        diffed = ''
-    end
-
-    -- new untracked files
-    local untracked = vim.fn.system({'git', 'ls-files', '-o', '--exclude-standard'})
-    if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
-        print('ERROR: Failed to get untracked files from git')
-        untracked = ''
+--- Get list of untracked files
+--- @return string[] list of untracked file paths
+M.get_untracked_files = function()
+    local result = vim.system({'git', 'ls-files', '-o', '--exclude-standard'}):wait()
+    if result.code ~= 0 and result.code ~= 1 then
+        vim.notify('Failed to get untracked files from git.', vim.log.levels.ERROR)
+        return {}
     end
 
     local files = {}
-    local seen = {}
+    for match in result.stdout:gmatch('[^\n]+') do
+        if match ~= '' then
+            table.insert(files, match)
+        end
+    end
+    return files
+end
 
-    for match in (diffed .. untracked):gmatch('[^\n]+') do
-        if not seen[match] and match ~= '' then
+--- @param path string
+--- @return boolean
+M.is_untracked_file = function(path)
+    local is_untracked = false
+    local untracked = M.get_untracked_files()
+    for _, f in ipairs(untracked) do
+        if M.git_rel_to_abs(f) == path then
+            is_untracked = true
+        end
+    end
+    return is_untracked
+end
+
+--- @param path string
+--- @return string | nil
+M.get_rel_path_from_abs = function(path)
+    local result = vim.system({'git', 'rev-parse', '--show-toplevel'}):wait()
+    if result.code ~= 0 then
+        return
+    end
+    local git_root = vim.trim(result.stdout)
+    return path:sub(#git_root + 2)
+end
+
+--- Get list of modified and untracked files
+--- @param ref string target ref
+--- @return string[] array of file paths that have been modified or are untracked
+M.get_diffed_files = function(ref)
+    assert(ref ~= nil)
+    local result = vim.system({'git', 'diff', ref, '--name-only'}):wait()
+    if result.code ~= 0 and result.code ~= 1 then
+        vim.notify('Failed to get diff files from git.', vim.log.levels.ERROR)
+        return {}
+    end
+
+    local files = {}
+    for match in result.stdout:gmatch('[^\n]+') do
+        if match ~= '' then
             table.insert(files, match)
         end
     end
 
-    local sortedfiles = M.sort_diffed_files(files, ref)
-    return sortedfiles
+    return files
 end
 
---- @param files table list of diffed files
---- @param ref string | nil target ref
+--- Get list of modified and untracked files
+--- @param ref string target ref
+--- @return table<string, boolean> map of file paths that are diffed or untracked; key is path, value is true if tracked
+M.get_diffed_and_untracked_files = function(ref)
+    assert(ref ~= nil)
+    local diffed = M.get_diffed_files(ref)
+    local untracked = M.get_untracked_files()
+    local files = {}
+    local seen = {}
+
+    for _, f in ipairs(diffed) do
+        files[f] = true
+        seen[f] = true
+    end
+
+    for _, f in ipairs(untracked) do
+        if not seen[f] then
+            files[f] = false
+            seen[f] = true
+        end
+    end
+
+    return files
+end
+
+--- gets the number of added lines and deleted lines in the diff, and sorts it
+--- @param ref string target ref
 --- @return SortedFile[] sorted files
-M.sort_diffed_files = function(files, ref)
-    local dirstat = vim.fn.system({'git', 'diff', ref ~= nil and ref or 'HEAD', '-X', '--dirstat=lines,0'})
-    if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
-        print('ERROR: Failed to get diff files from git')
+M.get_sorted_diffed_files = function(ref)
+    assert(ref ~= nil)
+    local files = M.get_diffed_and_untracked_files(ref)
+    local dirstat_result = vim.system({'git', 'diff', ref, '-X', '--dirstat=lines,0'}):wait()
+    if dirstat_result.code ~= 0 and dirstat_result.code ~= 1 then
+        vim.notify('Failed to get diff dirstat from git.', vim.log.levels.ERROR)
         return {}
     end
 
     -- parse dirstat to get directory percentages: "percentage% dirname/"
     local dir_stats = {}
-    for line in dirstat:gmatch('[^\n]+') do
+    for line in dirstat_result.stdout:gmatch('[^\n]+') do
         local percentage, dirname = line:match('%s*([%d%.]+)%%%s+(.+)')
         if percentage and dirname then
             dir_stats[dirname] = tonumber(percentage)
@@ -63,18 +110,25 @@ M.sort_diffed_files = function(files, ref)
     end
 
     local files_w_stats = {}
-    for _, file in ipairs(files) do
-        local numstat = vim.fn.system({'git', 'diff', '--numstat', ref ~= nil and ref or 'HEAD', '--', file})
-        if vim.v.shell_error ~= 0 and vim.v.shell_error ~= 1 then
-            print('ERROR: Failed to lines of code for a diffed file')
-            return {}
-        end
-        local added, removed = string.match(numstat, "(%d+)%s+(%d+)%s+")
+    for file, tracked in pairs(files) do
+        --- @type DiffNumstat
+        local parsed_numstat
 
-        --- @class DiffNumstat
-        --- @field added number
-        --- @field removed number
-        local parsed_numstat = {added = added, removed = removed }
+        if tracked == false then
+            -- untracked files have no git history; count all lines as added
+            local wc_result = vim.system({'wc', '-l', M.git_rel_to_abs(file)}):wait()
+            local line_count = tonumber(wc_result.stdout:match('^%s*(%d+)')) or 0
+            parsed_numstat = { added = line_count, removed = 0 }
+        else
+            local numstat_result = vim.system({'git', 'diff', '--numstat', ref, '--', M.git_rel_to_abs(file)}):wait()
+            if numstat_result.code ~= 0 and numstat_result.code ~= 1 then
+                print('ERROR: Failed to get lines of code for a diffed file')
+                return {}
+            end
+            local added, removed = string.match(numstat_result.stdout, "(%d+)%s+(%d+)%s+")
+            parsed_numstat = { added = added, removed = removed }
+        end
+
         files_w_stats[file] = parsed_numstat
     end
 
@@ -99,15 +153,9 @@ M.sort_diffed_files = function(files, ref)
         return dir_stats[dir_path] or 0
     end
 
-    -- Build sorted_files with metadata: { name, added, removed }
-    --- @class SortedFile
-    --- @field name string
-    --- @field added number
-    --- @field removed number
-
     --- @type SortedFile[]
     local sorted_files = {}
-    for _, file in ipairs(files) do
+    for file, _ in pairs(files) do
         local stats = files_w_stats[file]
         table.insert(sorted_files, {
             name = file,
@@ -163,6 +211,21 @@ M.sort_diffed_files = function(files, ref)
     return sorted_files
 end
 
+--- Resolves a path relative to the git root into an absolute path.
+--- git commands like `git diff --name-only` and `git ls-files` output paths
+--- relative to the repository root, not cwd, so this must be used over vim.fn.fnamemodify.
+--- @param rel_path string path relative to the git root
+--- @return string | nil absolute path, or nil if git root could not be determined
+M.git_rel_to_abs = function(rel_path)
+    local result = vim.system({ 'git', 'rev-parse', '--show-toplevel' }):wait()
+    if result.code ~= 0 then
+        vim.notify('Failed to get git root.', vim.log.levels.ERROR)
+        return nil
+    end
+    return vim.trim(result.stdout) .. '/' .. rel_path
+end
+
+
 --- factory function that creates a label extractor for file paths
 --- extracts unique single-character labels from filenames (not full paths)
 --- @return function A function that takes a filepath and returns a single-character label
@@ -185,6 +248,168 @@ M.label_filepath_item = function()
     end
 end
 
+--- get the adjacent files (next and previous) for navigation with wrap-around
+--- @param diffed_files DiffedFiles table with files array and cur_idx
+--- @return AdjacentFiles Table with next and prev file info: { next = { name = string, index = number }, prev = { name = string, index = number } }
+M.get_adjacent_files = function(diffed_files)
+    assert(diffed_files)
+    assert(diffed_files.files)
+    assert(diffed_files.cur_idx)
+    -- calculate next index with wrap-around
+    local next_index = diffed_files.cur_idx + 1
+    if next_index > #diffed_files.files then
+        next_index = 1
+    end
+
+    -- calculate previous index with wrap-around
+    local prev_index = diffed_files.cur_idx - 1
+    if prev_index < 1 then
+        prev_index = #diffed_files.files
+    end
+
+    --- @type AdjacentFiles
+    local adjacents = {
+        next = diffed_files.files[next_index],
+        prev = diffed_files.files[prev_index],
+    }
+
+    return adjacents
+end
+
+--- @param sorted_files SortedFile[]
+--- @return table list of file names
+M.get_filenames_from_sortedfiles = function(sorted_files)
+    local files = {}
+    for _, value in ipairs(sorted_files) do
+        table.insert(files, value.name)
+    end
+    return files
+end
+
+--- Read file contents without opening a vim buffer
+--- @param filepath string Full path to the file
+--- @return table|nil lines Array of lines from the file, or nil if error
+M.read_file_lines = function(filepath)
+    local file = io.open(filepath, 'r')
+    if not file then
+        return nil
+    end
+
+    local lines = {}
+    for line in file:lines() do
+        table.insert(lines, line)
+    end
+    file:close()
+
+    return lines
+end
+
+--- Filter git refs based on user input (case insensitive)
+--- @param refs table List of git refs
+--- @param arg_lead string User's partial input
+--- @return table Filtered list of refs
+M.filter_refs = function(refs, arg_lead)
+    local filtered = {}
+    local arg_lead_lower = string.lower(arg_lead)
+    for _, ref in ipairs(refs) do
+        if vim.startswith(string.lower(ref), arg_lead_lower) then
+            table.insert(filtered, ref)
+        end
+    end
+    return filtered
+end
+
+--- Validates that the added/removed lines in two DiffData[] tables are consistent.
+--- The tables may differ structurally (hunk count, formatted_diff_line_num, etc.), but
+--- the sequence of changed lines must agree on content, old_line_num, new_line_num, and line_type.
+--- @param a DiffData[]
+--- @param b DiffData[]
+--- @return boolean
+M.diff_data_sets_changed_lines_match = function(a, b)
+    local function collect_changed_lines(diff_data_set)
+        local lines = {}
+        for _, diff_data in ipairs(diff_data_set) do
+            for _, hunk in ipairs(diff_data.hunks) do
+                for _, line in ipairs(hunk.lines) do
+                    if line.line_type == 'added' or line.line_type == 'removed' then
+                        table.insert(lines, {
+                            content      = line.content,
+                            old_line_num = line.old_line_num,
+                            new_line_num = line.new_line_num,
+                            line_type    = line.line_type,
+                        })
+                    end
+                end
+            end
+        end
+        return lines
+    end
+
+    local a_lines = collect_changed_lines(a)
+    local b_lines = collect_changed_lines(b)
+
+    if #a_lines ~= #b_lines then
+        return false
+    end
+
+    for i, a_line in ipairs(a_lines) do
+        local b_line = b_lines[i]
+        if a_line.content      ~= b_line.content
+        or a_line.old_line_num ~= b_line.old_line_num
+        or a_line.new_line_num ~= b_line.new_line_num
+        or a_line.line_type    ~= b_line.line_type
+        then
+            return false
+        end
+    end
+
+    return true
+end
+
+--- @param diff_data_set DiffData[]
+--- @return DiffData[]
+M.get_separated_diff_data_set_into_hunks_wo_context = function(diff_data_set)
+    local new_diff_data_set = {}
+    for idx, diff_data in ipairs(diff_data_set) do
+        --- @type DiffData
+        local new_diff_data = { hunks = {} }
+        for _, hunk in ipairs(diff_data.hunks) do
+            local new_hunk = {
+                lines = {}
+            }
+            for _, line in ipairs(hunk.lines) do
+                if line.line_type == 'added' or line.line_type == 'removed' then
+                    table.insert(new_hunk.lines, line)
+                else
+                    if #new_hunk.lines > 0 then
+                        table.insert(new_diff_data.hunks, new_hunk)
+                        new_hunk = { lines = {} }
+                    end
+                end
+            end
+            if #new_hunk.lines > 0 then
+                table.insert(new_diff_data.hunks, new_hunk)
+            end
+        end
+        new_diff_data_set[idx] = new_diff_data
+    end
+    return new_diff_data_set
+end
+
+--- legacy, unused in delta.lua flow
+--- check if current working directory matches git root directory
+--- @return boolean True if cwd matches git root
+M.is_cwd_git_root = function()
+    local result = vim.system({'git', 'rev-parse', '--show-toplevel'}):wait()
+    if result.code ~= 0 then
+        return false
+    end
+    local git_root = vim.trim(result.stdout)
+    local cwd = vim.fn.getcwd()
+    return cwd == git_root
+end
+
+--- legacy, unused in delta.lua flow
 --- WARNING: do not construct your own local_persisted_ui unless you've read append_cmd_ui
 --- uses vim.cmd to display a ui. Uses a table in the scope to be able to construct a ui.
 --- the cmd ui allows for displaying exactly one dynamic message, but it allows you to display other things alongside your chosen message
@@ -218,6 +443,7 @@ M.display_cmd_ui = function(local_persisted_ui, ui)
     end
 end
 
+--- legacy, unused in delta.lua flow
 --- meant to be used alongside display_cmd_ui
 --- messages are first come first serve; earlier messages are on the left, whether it's on the start or end.
 --- @param local_persisted_ui table the table declared in the scope where we want this ui to be shared
@@ -227,10 +453,11 @@ M.append_cmd_ui = function(local_persisted_ui, ui, append_start)
     local_persisted_ui[ui] = append_start
 end
 
+--- legacy, unused in delta.lua flow
 --- get the adjacent files (next and previous) for navigation with wrap-around
 --- @param diffed_files DiffedFiles table with files array and cur_idx
 --- @return table|nil Table with next and prev file info: { next = { name = string, index = number }, prev = { name = string, index = number } }
-M.get_adjacent_files = function(diffed_files)
+M.get_adjacent_files_legacy = function(diffed_files)
     if diffed_files.files == nil or diffed_files.cur_idx == nil then
         return nil
     end
@@ -266,15 +493,34 @@ M.get_adjacent_files = function(diffed_files)
     }
 end
 
---- @param sorted_files SortedFile[]
---- @return table list of file names
-M.get_filenames_from_sortedfiles = function(sorted_files)
-    local files = {}
-    for _, value in ipairs(sorted_files) do
-        table.insert(files, value.name)
+--- Resolve a git ref for use in `git show <ref>:<path>`.
+--- `git show` does not support three-dot symmetric-difference notation
+--- (e.g. `main...HEAD`), while `git diff` does. When a three-dot ref is
+--- @param ref string  The ref string to resolve (e.g. `'main...HEAD'`).
+--- @return string ref (a plain SHA for three-dot inputs, or the original string for all other inputs).
+M.resolve_ref_for_show = function(ref)
+    local a, b = ref:match('^(.-)%.%.%.(.+)$')
+    if not a then
+        return ref  -- not a three-dot ref; return as-is
     end
-    return files
+    local result = vim.system({ 'git', 'merge-base', a, b }):wait()
+    if result.code ~= 0 then
+        return ref  -- can't resolve; return original so the caller gets a clear git error
+    end
+    return vim.trim(result.stdout)
 end
 
-
 return M
+
+--- @class DiffNumstat
+--- @field added number
+--- @field removed number
+
+--- @class SortedFile
+--- @field name string
+--- @field added number
+--- @field removed number
+
+--- @class AdjacentFiles
+--- @field next string
+--- @field prev string
