@@ -284,8 +284,6 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
                     state.diffed_files.files = mods
                     state.diffed_files.cur_idx = selected_idx
                     M.decorate_deltaview_with_next_keybinds(bufnr)
-                    vim.api.nvim_buf_set_name(bufnr, tostring(_buf_name_seq))
-                    _buf_name_seq = _buf_name_seq + 1
                 end)
                 if not success then
                     vim.notify('An error occured while trying to open DeltaView - ' .. tostring(err),
