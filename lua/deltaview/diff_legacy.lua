@@ -569,7 +569,7 @@ M.display_delta_directory = function(cmd, cmd_ui, on_ready_callback)
         vim.api.nvim_set_current_buf(cur_buf)
     end, { buffer = term_buf, noremap = true, silent = true })
 
-    vim.keymap.set('n', config.options.keyconfig.jump_to_line, function()
+    vim.keymap.set('n', '<CR>', function()
         jump_to_chosen_diff()
     end, { buffer = term_buf, noremap = true, silent = true })
 
