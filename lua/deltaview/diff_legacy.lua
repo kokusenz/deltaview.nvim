@@ -197,7 +197,7 @@ M.run_diff_against_file = function(filepath, ref)
     end
 
     -- check if buf with name already exists
-    local existing_buf = vim.fn.bufnr(cmd)
+    local existing_buf = vim.fn.bufnr('deltaview://diff/'..filepath)
     if existing_buf ~= -1 and vim.api.nvim_buf_is_valid(existing_buf) then
         vim.api.nvim_buf_delete(existing_buf, { force = true })
     end
@@ -226,7 +226,7 @@ M.run_diff_against_file = function(filepath, ref)
         M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs, cmd_ui)
         M.setup_yank_override(diff_buffer_funcs)
     end
-    M.display_delta_file(cmd, cmd_ui, on_ready_callback)
+    M.display_delta_file(cmd, cmd_ui, on_ready_callback, filepath)
 end
 
 --- Run a git diff for the specified path against a git ref
@@ -238,7 +238,7 @@ M.run_diff_against_path = function(path, ref)
     local hunk_cmd = 'git diff -U0 ' .. (ref ~= nil and ref or 'HEAD') .. ' -- ' .. vim.fn.shellescape(path)
 
     -- check if buf with name already exists
-    local existing_buf = vim.fn.bufnr(cmd)
+    local existing_buf = vim.fn.bufnr('deltaview://diff/' .. path)
     if existing_buf ~= -1 and vim.api.nvim_buf_is_valid(existing_buf) then
         vim.api.nvim_buf_delete(existing_buf, { force = true })
     end
@@ -272,14 +272,15 @@ M.run_diff_against_path = function(path, ref)
         M.setup_hunk_navigation(hunk_cmd, diff_buffer_funcs, cmd_ui)
         M.setup_yank_override(diff_buffer_funcs)
     end
-    M.display_delta_directory(cmd, cmd_ui, on_ready_callback)
+    M.display_delta_directory(cmd, cmd_ui, on_ready_callback, path)
 end
 
 --- display git diff delta output in a terminal buffer with cursor position syncing and all context for one file
 --- @param cmd string The git diff command to execute
 --- @param cmd_ui table The cmd_ui
 --- @param on_ready_callback function after the cmd_ui has initialized, run this function
-M.display_delta_file = function(cmd, cmd_ui, on_ready_callback)
+--- @param filepath string
+M.display_delta_file = function(cmd, cmd_ui, on_ready_callback, filepath)
     local delta_cmd = cmd .. ' | delta --line-numbers --paging=never | sed "1,7d"'
 
     -- get previous cursor state
@@ -366,7 +367,7 @@ M.display_delta_file = function(cmd, cmd_ui, on_ready_callback)
         end
     })
 
-    vim.api.nvim_buf_set_name(term_buf, cmd)
+    vim.api.nvim_buf_set_name(term_buf, 'deltaview://diff/' .. filepath)
 
     local return_to_cur_buffer = function()
         local success, err = pcall(function()
@@ -419,7 +420,8 @@ end
 --- @param cmd string The git diff command to execute
 --- @param cmd_ui table The cmd ui
 --- @param on_ready_callback function after the cmd_ui has initialized, run this function
-M.display_delta_directory = function(cmd, cmd_ui, on_ready_callback)
+--- @param path string
+M.display_delta_directory = function(cmd, cmd_ui, on_ready_callback, path)
     local delta_cmd = cmd .. ' | delta --line-numbers --paging=never'
     local name_only_cmd = cmd:gsub("diff", "diff --name-only", 1)
     local cur_buf = vim.api.nvim_get_current_buf()
@@ -543,7 +545,7 @@ M.display_delta_directory = function(cmd, cmd_ui, on_ready_callback)
         end
     })
 
-    vim.api.nvim_buf_set_name(term_buf, cmd)
+    vim.api.nvim_buf_set_name(term_buf, 'deltaview://diff/' .. path)
 
     local jump_to_chosen_diff = function()
         if last_valid_cursor_pos ~= nil then

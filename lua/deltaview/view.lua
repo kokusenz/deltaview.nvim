@@ -153,7 +153,7 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     --- @cast delta_diff_data_set DiffData[]
 
     -- displays ref, filename
-    local diff_buffer_name = filepath .. '    '
+    local diff_buffer_name = 'deltaview://diff/' .. filepath .. '    '
         .. config.viewconfig().vs .. ' ' .. ref .. '    '
     vim.api.nvim_buf_set_name(bufnr, diff_buffer_name)
 
@@ -218,7 +218,7 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr, buf_name)
         .. config.viewconfig().vs .. ' ' .. ref .. '    '
         .. config.viewconfig().file .. ' ' .. #delta_diff_data_set .. '    '
 
-    vim.api.nvim_buf_set_name(bufnr, buf_name or diff_buffer_name)
+    vim.api.nvim_buf_set_name(bufnr, 'deltaview://diff/' .. (buf_name or diff_buffer_name))
 
     local no_context_delta_diff_data_set = utils.get_separated_diff_data_set_into_hunks_wo_context(delta_diff_data_set)
     -- this buffer variable allows hunk navigation later. having accurate hunk count also allows us to display it in the name
@@ -234,7 +234,7 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr, buf_name)
         diff_buffer_name = diff_buffer_name ..
             config.viewconfig().segment ..
             ' ' .. total_hunk_count .. '   '
-        vim.api.nvim_buf_set_name(bufnr, buf_name or diff_buffer_name)
+        vim.api.nvim_buf_set_name(bufnr, 'deltaview://diff/' .. (buf_name or diff_buffer_name))
     end
 
     return bufnr
