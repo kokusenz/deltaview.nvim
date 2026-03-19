@@ -10,7 +10,7 @@ I try to attach a commit to each log, but in the initial pr, I may use the pr in
 ### [0.2.0] - 2026-03-16
 
 #### Added
-commit - https://github.com/kokusenz/deltaview.nvim/pull/19
+commit - e3f5e0f42d645166e0f78efc7f84dc7bac86f01d
 
 - **delta.lua integration**: deltaview now uses [delta.lua](https://github.com/kokusenz/delta.lua) as its diff rendering backend by default. Delta.lua provides treesitter-based syntax highlighting, treesitter-based two-tier diff highlighting, and diff buffers that respond to window size changes. Many previous issues are resolved with this new backend, such as lack of support for light colorschemes, and bad cursor tracking on wrapped lines. The legacy dandavison/delta flow remains available via `use_legacy_delta = true`.
 - **`:Delta` cursor placement**: `:Delta` now attempts to place the cursor at the corresponding line on entry, and syncs cursor position on exit — the same behavior as `:DeltaView`.
@@ -40,6 +40,7 @@ commit - https://github.com/kokusenz/deltaview.nvim/pull/19
 - Fixed hunk navigation bugs caused by out-of-order line numbers.
 - Fixed a crash when running `:Delta` with a context value larger than the file's line count.
 - Fixed an issue where delta buffer highlights could persist after navigating away using methods other than `<Esc>` or `q`. There is no longer emphasis highlights in the delta buffer
+- Fixed issue introduced in e3f5e0f42d645166e0f78efc7f84dc7bac86f01d (original 0.2.0 commit) where deltaview buffer names when opened from telescope are not correct - https://github.com/kokusenz/deltaview.nvim/pull/22
 
 ## History
 
