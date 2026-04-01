@@ -111,23 +111,18 @@ M.get_sorted_diffed_files = function(ref)
 
     local files_w_stats = {}
     for file, tracked in pairs(files) do
-        --- @type DiffNumstat
-        local parsed_numstat
+        local numstat_result
 
         if tracked == false then
             -- untracked files have no git history; count all lines as added
-            local wc_result = vim.system({'wc', '-l', M.git_rel_to_abs(file)}):wait()
-            local line_count = tonumber(wc_result.stdout:match('^%s*(%d+)')) or 0
-            parsed_numstat = { added = line_count, removed = 0 }
+            numstat_result = vim.system({'git', 'diff', '--numstat', '--no-index', '--', '/dev/null', M.git_rel_to_abs(file)}):wait()
         else
-            local numstat_result = vim.system({'git', 'diff', '--numstat', ref, '--', M.git_rel_to_abs(file)}):wait()
-            if numstat_result.code ~= 0 and numstat_result.code ~= 1 then
-                print('ERROR: Failed to get lines of code for a diffed file')
-                return {}
-            end
-            local added, removed = string.match(numstat_result.stdout, "(%d+)%s+(%d+)%s+")
-            parsed_numstat = { added = added, removed = removed }
+            numstat_result = vim.system({'git', 'diff', '--numstat', ref, '--', M.git_rel_to_abs(file)}):wait()
         end
+        assert(numstat_result.code == 0 or numstat_result.code == 1)
+        local added, removed = string.match(numstat_result.stdout, "(%d+)%s+(%d+)%s+")
+        --- @type DiffNumstat
+        local parsed_numstat = { added = added, removed = removed }
 
         files_w_stats[file] = parsed_numstat
     end
