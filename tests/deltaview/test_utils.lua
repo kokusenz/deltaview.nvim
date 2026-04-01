@@ -716,7 +716,6 @@ end
 -- `files_map`    table<string, boolean>   returned by M.get_diffed_and_untracked_files
 -- `dirstat_out`  string                   fake git dirstat output
 -- `numstat_map`  table<string, string>    path -> numstat line e.g. "3\t1\tpath"
--- `wc_map`       table<string, string>    path -> wc -l output e.g. "5 path"
 
 T['get_sorted_diffed_files()'] = new_set({
     hooks = {
@@ -737,7 +736,6 @@ T['get_sorted_diffed_files()'] = new_set({
                     -- Distinguish the three vim.system call sites by command shape:
                     -- 1. dirstat: {'git', 'diff', ref, '-X', '--dirstat=lines,0'}
                     -- 2. numstat: {'git', 'diff', '--numstat', ref, '--', abs_path}
-                    -- 3. wc:      {'wc', '-l', abs_path}
                     local stdout
                     if cmd[1] == 'git' and cmd[2] == 'diff' and cmd[4] == '-X' then
                         -- dirstat call
@@ -746,10 +744,6 @@ T['get_sorted_diffed_files()'] = new_set({
                         local abs_path = cmd[6]
                         local numstat_map = _G.fixture.numstat_map or {}
                         stdout = numstat_map[abs_path] or '0\t0\t' .. abs_path .. '\n'
-                    elseif cmd[1] == 'wc' then
-                        local abs_path = cmd[3]
-                        local wc_map = _G.fixture.wc_map or {}
-                        stdout = wc_map[abs_path] or '0 ' .. abs_path .. '\n'
                     else
                         stdout = ''
                     end
@@ -793,19 +787,6 @@ T['get_sorted_diffed_files()']['single tracked file returns correct name, added,
     eq(result[1].name,    'lua/foo.lua')
     eq(result[1].added,   10)
     eq(result[1].removed, 3)
-end
-
-T['get_sorted_diffed_files()']['single untracked file uses wc -l for added count'] = function()
-    child.lua([[
-        _G.fixture.files_map = { ['new.lua'] = false }
-        _G.fixture.dirstat_out = ''
-        _G.fixture.wc_map = { ['/repo/new.lua'] = '   7 /repo/new.lua\n' }
-    ]])
-    local result = child.lua_get([[M.get_sorted_diffed_files('HEAD')]])
-    eq(#result, 1)
-    eq(result[1].name,    'new.lua')
-    eq(result[1].added,   7)
-    eq(result[1].removed, 0)
 end
 
 T['get_sorted_diffed_files()']['files sorted by directory dirstat weight descending'] = function()
