@@ -41,6 +41,7 @@ commit - e3f5e0f42d645166e0f78efc7f84dc7bac86f01d
 - Fixed a crash when running `:Delta` with a context value larger than the file's line count.
 - Fixed an issue where delta buffer highlights could persist after navigating away using methods other than `<Esc>` or `q`. There is no longer emphasis highlights in the delta buffer
 - Fixed issue introduced in e3f5e0f42d645166e0f78efc7f84dc7bac86f01d (original 0.2.0 commit) where deltaview buffer names when opened from telescope are not correct - https://github.com/kokusenz/deltaview.nvim/pull/22
+- Fixed issue where binary files were displayed with nonzero line numbers in deltamenu - https://github.com/kokusenz/deltaview.nvim/pull/29
 
 ## History
 

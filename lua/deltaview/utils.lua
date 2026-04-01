@@ -120,7 +120,14 @@ M.get_sorted_diffed_files = function(ref)
             numstat_result = vim.system({'git', 'diff', '--numstat', ref, '--', M.git_rel_to_abs(file)}):wait()
         end
         assert(numstat_result.code == 0 or numstat_result.code == 1)
-        local added, removed = string.match(numstat_result.stdout, "(%d+)%s+(%d+)%s+")
+        -- git diff --numstat outputs "-\t-\t<path>" for binary files; explicitly
+        -- treat that as 0 added / 0 removed rather than relying on tonumber(nil).
+        local added, removed
+        if numstat_result.stdout:match("^%-\t%-\t") then
+            added, removed = "0", "0"
+        else
+            added, removed = string.match(numstat_result.stdout, "(%d+)%s+(%d+)%s+")
+        end
         --- @type DiffNumstat
         local parsed_numstat = { added = added, removed = removed }
 
