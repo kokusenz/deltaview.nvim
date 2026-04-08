@@ -1,13 +1,16 @@
 local M = {}
 
 --- Get list of untracked files
+--- @param git_root string | nil
 --- @return string[] list of untracked file paths
-M.get_untracked_files = function()
-    local result = vim.system({'git', 'ls-files', '-o', '--exclude-standard'}):wait()
-    if result.code ~= 0 and result.code ~= 1 then
-        vim.notify('Failed to get untracked files from git.', vim.log.levels.ERROR)
-        return {}
+M.get_untracked_files = function(git_root)
+    local result
+    if git_root ~= nil then
+        result = vim.system({'git', '-C', git_root, 'ls-files', '-o', '--exclude-standard'}):wait()
+    else
+        result = vim.system({'git', 'ls-files', '-o', '--exclude-standard'}):wait()
     end
+    assert(result.code == 0 or result.code == 1, 'Failed to get untracked files from git. ' .. result.stderr)
 
     local files = {}
     for match in result.stdout:gmatch('[^\n]+') do
@@ -19,10 +22,11 @@ M.get_untracked_files = function()
 end
 
 --- @param path string
+--- @param git_root string | nil optional git root to check untracked for. Absolute path.
 --- @return boolean
-M.is_untracked_file = function(path)
+M.is_untracked_file = function(path, git_root)
     local is_untracked = false
-    local untracked = M.get_untracked_files()
+    local untracked = M.get_untracked_files(git_root)
     for _, f in ipairs(untracked) do
         if M.git_rel_to_abs(f) == path then
             is_untracked = true
@@ -32,14 +36,16 @@ M.is_untracked_file = function(path)
 end
 
 --- @param path string
+--- @param git_root string | nil optional git root, in which case this function just stitches path to git_root
 --- @return string | nil
-M.get_rel_path_from_abs = function(path)
-    local result = vim.system({'git', 'rev-parse', '--show-toplevel'}):wait()
-    if result.code ~= 0 then
-        return
+M.get_rel_path_from_abs = function(path, git_root)
+    if git_root ~= nil then
+        return path:sub(#git_root + 2)
     end
-    local git_root = vim.trim(result.stdout)
-    return path:sub(#git_root + 2)
+    local result = vim.system({'git', 'rev-parse', '--show-toplevel'}):wait()
+    assert(result.code == 0, 'Failed to calculate git root. ' .. result.stderr)
+    local calculated_git_root = utils.get_git_root(path)
+    return path:sub(#calculated_git_root + 2)
 end
 
 --- Get list of modified and untracked files
@@ -495,21 +501,15 @@ M.get_adjacent_files_legacy = function(diffed_files)
     }
 end
 
---- Resolve a git ref for use in `git show <ref>:<path>`.
---- `git show` does not support three-dot symmetric-difference notation
---- (e.g. `main...HEAD`), while `git diff` does. When a three-dot ref is
---- @param ref string  The ref string to resolve (e.g. `'main...HEAD'`).
---- @return string ref (a plain SHA for three-dot inputs, or the original string for all other inputs).
-M.resolve_ref_for_show = function(ref)
-    local a, b = ref:match('^(.-)%.%.%.(.+)$')
-    if not a then
-        return ref  -- not a three-dot ref; return as-is
-    end
-    local result = vim.system({ 'git', 'merge-base', a, b }):wait()
-    if result.code ~= 0 then
-        return ref  -- can't resolve; return original so the caller gets a clear git error
-    end
-    return vim.trim(result.stdout)
+--- gets the git root of the path; if there is no git root, then throws an error
+--- @param path string works on filepath or directory path
+--- @return string git_root
+M.get_git_root = function(path)
+    -- returns the directory containing the path
+    local file_dir = vim.fn.isdirectory(path) == 1 and path or vim.fn.fnamemodify(path, ':h')
+    local rev_parse_result = vim.system({ 'git', '-C', file_dir, 'rev-parse', '--show-toplevel' }):wait()
+    assert(rev_parse_result.code == 0, 'Not in a git repository. - ' .. rev_parse_result.stderr)
+    return vim.trim(rev_parse_result.stdout)
 end
 
 return M

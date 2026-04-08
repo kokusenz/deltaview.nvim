@@ -18,7 +18,8 @@ M.deltaview_file = function(ref)
     if diff_bufnr == nil then
         return
     end
-    M.place_cursor_delta_buffer_entry(diff_bufnr, 0, cursor_placement, og_winline)
+    vim.b[diff_bufnr].git_root = vim.b[diff_bufnr].git_root or utils.get_git_root(filepath)
+    M.place_cursor_delta_buffer_entry(diff_bufnr, 0, cursor_placement, og_winline, vim.b[diff_bufnr].git_root)
     M.setup_hunk_navigation(diff_bufnr)
     local nav_back_and_place_cursor = M.get_delta_buffer_cursor_exit_strategy(diff_bufnr, 0, cur_bufnr)
     if nav_back_and_place_cursor == nil then
@@ -49,7 +50,8 @@ M.delta_path = function(ref, context, path)
     if diff_bufnr == nil then
         return
     end
-    M.place_cursor_delta_buffer_entry(diff_bufnr, 0, cursor_placement, og_winline)
+    vim.b[diff_bufnr].git_root = vim.b[diff_bufnr].git_root or utils.get_git_root(path)
+    M.place_cursor_delta_buffer_entry(diff_bufnr, 0, cursor_placement, og_winline, vim.b[diff_bufnr].git_root)
     M.setup_hunk_navigation(diff_bufnr)
     local nav_back_and_place_cursor = M.get_delta_buffer_cursor_exit_strategy(diff_bufnr, 0)
     if nav_back_and_place_cursor == nil then
@@ -71,13 +73,7 @@ end
 --- @param winnr number | nil Optional window number to open on.
 --- @return number | nil bufnr buf id of delta.lua buffer
 M.open_git_diff_buffer = function(filepath, ref, winnr)
-    local rev_parse_result = vim.system({ 'git', 'rev-parse', '--show-toplevel' }):wait()
-    if rev_parse_result.code ~= 0 and rev_parse_result.code ~= 1 then
-        vim.notify('Not in a git repository. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
-        return
-    end
-    local git_root = vim.trim(rev_parse_result.stdout)
-
+    local git_root = utils.get_git_root(filepath)
     assert(filepath ~= nil)
     if vim.fn.filereadable(filepath) == 0 then
         vim.notify('Not on a real file. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
@@ -85,11 +81,11 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     end
     assert(ref ~= nil)
 
-    local is_untracked = utils.is_untracked_file(filepath)
+    local is_untracked = utils.is_untracked_file(filepath, git_root)
     local git_data
 
     if is_untracked ~= true then
-        local diff_result = vim.system({ 'git', 'diff', '-U0', ref, '--', filepath }):wait()
+        local diff_result = vim.system({ 'git', '-C', git_root, 'diff', '-U0', ref, '--', filepath }):wait()
         if diff_result.code ~= 0 and diff_result.code ~= 1 then
             vim.notify('Failed to run git diff - ' .. diff_result.stderr, vim.log.levels.ERROR)
             return
@@ -103,11 +99,7 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
 
         git_data = Delta.parse.get_diff_data_git(diffstring)
     else
-        local new_path = utils.get_rel_path_from_abs(filepath)
-        if new_path == nil then
-            vim.notify('Not in a git repository. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
-            return
-        end
+        local new_path = filepath:sub(#git_root + 2)
         git_data = {{
             new_path = new_path,
             old_path = nil,
@@ -121,12 +113,11 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     local s1 = ''
 
     if git_data[1].old_path then
-        local show_ref = utils.resolve_ref_for_show(ref)
         local show_result
-        if git_data[1].old_path then
-            show_result = vim.system({ 'git', 'show', show_ref .. ':' .. git_data[1].old_path }):wait()
+        if git_data[1].new_file ~= true and git_data[1].old_blob_hash then
+            show_result = vim.system({ 'git', '-C', git_root, 'cat-file', 'blob', git_data[1].old_blob_hash }):wait()
             if show_result.code ~= 0 and show_result.code ~= 1 then
-                vim.notify('Failed to run git show - ' .. show_result.stderr, vim.log.levels.ERROR)
+                vim.notify('Failed to run git cat-file - ' .. show_result.stderr, vim.log.levels.ERROR)
                 return
             end
             s1 = show_result.stdout or ''
@@ -191,15 +182,11 @@ end
 --- @param buf_name string | nil Optional name to assign to the buffer
 --- @return number | nil bufnr buf id of delta.lua buffer
 M.open_git_diff_buffer_for_path = function(path, ref, context, winnr, buf_name)
-    local rev_parse_result = vim.system({ 'git', 'rev-parse', '--show-toplevel' }):wait()
-    if rev_parse_result.code ~= 0 and rev_parse_result.code ~= 1 then
-        vim.notify('Not in a git repository. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
-        return
-    end
-
     assert(path ~= nil)
     assert(ref ~= nil)
-    local is_untracked = utils.is_untracked_file(path)
+    assert(context ~= nil)
+    local git_root = utils.get_git_root(path)
+    local is_untracked = utils.is_untracked_file(path, git_root)
 
     --- @type DeltaOpts
     local opts = { context = context, new_file = is_untracked }
@@ -267,17 +254,16 @@ end
 --- @param winnr number win id of delta.lua window id
 --- @param cursor_placement CursorPlacement if filepath is not specified, they will try to place the cursor on the first file of the diff. If the delta.lua buffer does not have filepath, but you know the file your cursor was on matches with the delta.lua file, use filepath = nil.
 --- @param og_winline number winline of the cursor in the source buffer, used to preserve relative screen position in the diff buffer
-M.place_cursor_delta_buffer_entry = function(bufnr, winnr, cursor_placement, og_winline)
+--- @param git_root string
+M.place_cursor_delta_buffer_entry = function(bufnr, winnr, cursor_placement, og_winline, git_root)
+    assert(bufnr ~= nil)
+    assert(winnr ~= nil)
+    assert(cursor_placement ~= nil)
+    assert(og_winline ~= nil)
+    assert(git_root ~= nil)
     local delta_diff_data_set = vim.b[bufnr].delta_diff_data_set
     assert(delta_diff_data_set ~= nil)
     --- @cast delta_diff_data_set DiffData[]
-
-    local rev_parse_result = vim.system({ 'git', 'rev-parse', '--show-toplevel' }):wait()
-    if rev_parse_result.code ~= 0 and rev_parse_result.code ~= 1 then
-        vim.notify('Not in a git repository. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
-        return
-    end
-    local git_root = vim.trim(rev_parse_result.stdout)
 
     for _, diff_data in ipairs(delta_diff_data_set) do
         -- when using Delta.text_diff, there is no filepath in diff_data to compare to.
@@ -405,17 +391,20 @@ M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr, alternative_buf
             goto place_cursor
         end
 
+        -- filepath ~= nil when on path flow. Relative to git_root, as it is parsed from the git diff
         if M.cursor_placement.filepath ~= nil then
+            local git_root = vim.b[bufnr].git_root
             local success, err = pcall(function()
-                vim.cmd('e ' .. vim.fn.fnameescape(M.cursor_placement.filepath))
+                vim.cmd('e ' .. vim.fn.fnameescape(git_root .. '/' .. M.cursor_placement.filepath))
             end)
             if not success then
-                vim.notify('Failed to open file: ' .. M.cursor_placement.filepath .. ' - ' .. tostring(err),
-                    vim.log.levels.ERROR)
+                vim.notify('Failed to open file: ' .. git_root .. '/' .. M.cursor_placement.filepath ..
+                    ' - ' .. tostring(err), vim.log.levels.ERROR)
                 return false
             end
         end
 
+        vim.print(M.cursor_placement.filepath)
         ::place_cursor::
         M.set_restview(winnr, og_winline, M.cursor_placement.cursor[1], M.cursor_placement.cursor[2])
         M.cursor_placement = nil

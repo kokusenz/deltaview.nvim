@@ -126,7 +126,7 @@ M.Delta = function(command_argument)
         require('deltaview.view').delta_path(state.diff_target_ref, state.default_context, path)
     end)
     if not success then
-        print('ERROR: Failed to create diff view: ' .. tostring(err))
+        vim.notify('Failed to open Delta - ' .. tostring(err), vim.log.levels.ERROR)
     end
 end
 
