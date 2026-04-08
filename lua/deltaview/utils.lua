@@ -35,18 +35,6 @@ M.is_untracked_file = function(path, git_root)
     return is_untracked
 end
 
---- @param path string
---- @param git_root string | nil optional git root, in which case this function just stitches path to git_root
---- @return string | nil
-M.get_rel_path_from_abs = function(path, git_root)
-    if git_root ~= nil then
-        return path:sub(#git_root + 2)
-    end
-    local result = vim.system({'git', 'rev-parse', '--show-toplevel'}):wait()
-    assert(result.code == 0, 'Failed to calculate git root. ' .. result.stderr)
-    local calculated_git_root = utils.get_git_root(path)
-    return path:sub(#calculated_git_root + 2)
-end
 
 --- Get list of modified and untracked files
 --- @param ref string target ref

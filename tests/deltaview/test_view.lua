@@ -534,27 +534,14 @@ OpenGitDiffBuffer.open_git_diff_buffer__property_cases = {
     },
     {
         -- Untracked happy path: is_untracked_file=true skips git diff and git show entirely.
-        -- get_rel_path_from_abs provides the new_path; s1 is always '' (no prior content).
+        -- new_path is derived inline from filepath; s1 is always '' (no prior content).
         name = 'untracked happy path: git diff and git show skipped',
         setup_lua = open_git_diff_buffer_happy_mocks .. [=[
             package.loaded['deltaview.utils'].is_untracked_file = function(_) return true end
-            package.loaded['deltaview.utils'].get_rel_path_from_abs = function(_) return 'a' end
             Delta.parse.get_language_from_filename = function(_) return nil end
         ]=],
         inputs = {
             { filepath = 'a', ref = 'x', winnr = nil, expected_ok = true },
-        },
-    },
-    {
-        -- Untracked failure: get_rel_path_from_abs returns nil → early return nil.
-        name = 'untracked failure: get_rel_path_from_abs returns nil',
-        setup_lua = open_git_diff_buffer_happy_mocks .. [=[
-            package.loaded['deltaview.utils'].is_untracked_file = function(_) return true end
-            package.loaded['deltaview.utils'].get_rel_path_from_abs = function(_) return nil end
-            Delta.parse.get_language_from_filename = function(_) return nil end
-        ]=],
-        inputs = {
-            { filepath = 'a', ref = 'x', winnr = nil, expected_ok = false },
         },
     },
 }
