@@ -404,7 +404,6 @@ M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr, alternative_buf
             end
         end
 
-        vim.print(M.cursor_placement.filepath)
         ::place_cursor::
         M.set_restview(winnr, og_winline, M.cursor_placement.cursor[1], M.cursor_placement.cursor[2])
         M.cursor_placement = nil
