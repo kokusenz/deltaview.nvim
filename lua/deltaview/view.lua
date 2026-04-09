@@ -73,8 +73,8 @@ end
 --- @param winnr number | nil Optional window number to open on.
 --- @return number | nil bufnr buf id of delta.lua buffer
 M.open_git_diff_buffer = function(filepath, ref, winnr)
-    local git_root = utils.get_git_root(filepath)
     assert(filepath ~= nil)
+    local git_root = utils.get_git_root(filepath)
     if vim.fn.filereadable(filepath) == 0 then
         vim.notify('Not on a real file. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
         return

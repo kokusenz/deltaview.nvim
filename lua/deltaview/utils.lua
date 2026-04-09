@@ -22,13 +22,13 @@ M.get_untracked_files = function(git_root)
 end
 
 --- @param path string
---- @param git_root string | nil optional git root to check untracked for. Absolute path.
+--- @param git_root string git root to check untracked for. Absolute path.
 --- @return boolean
 M.is_untracked_file = function(path, git_root)
     local is_untracked = false
     local untracked = M.get_untracked_files(git_root)
     for _, f in ipairs(untracked) do
-        if M.git_rel_to_abs(f) == path then
+        if (vim.trim(git_root) .. '/' .. f) == path then
             is_untracked = true
         end
     end
@@ -496,7 +496,7 @@ M.get_git_root = function(path)
     -- returns the directory containing the path
     local file_dir = vim.fn.isdirectory(path) == 1 and path or vim.fn.fnamemodify(path, ':h')
     local rev_parse_result = vim.system({ 'git', '-C', file_dir, 'rev-parse', '--show-toplevel' }):wait()
-    assert(rev_parse_result.code == 0, 'Not in a git repository. - ' .. rev_parse_result.stderr)
+    assert(rev_parse_result.code == 0, 'An error occurred while running git rev-parse - ' .. rev_parse_result.stderr)
     return vim.trim(rev_parse_result.stdout)
 end
 
