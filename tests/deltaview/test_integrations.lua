@@ -244,6 +244,256 @@ T['DeltaView integration']['three-dot ref: HEAD^...HEAD opens delta buffer witho
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- `:DeltaView` integration — cwd deeper than git root
+
+-- Repo structure:
+--   <tmpdir>/          ← git root
+--   <tmpdir>/test.lua  ← tracked file with working-tree change
+--   <tmpdir>/subdir/   ← cwd is set HERE (deeper than git root)
+--
+-- This fixture exercises the path where vim.fn.getcwd() != git root but the file being
+-- diffed is still inside the repo.  git rev-parse --show-toplevel succeeds because git
+-- walks up from cwd to find the .git directory.
+local setup_tmpdir_git_repo_cwd_deeper = [[
+    local tmpdir = vim.fn.tempname()
+    vim.fn.mkdir(tmpdir, 'p')
+    vim.fn.system('git -C ' .. tmpdir .. ' init')
+    vim.fn.system('git -C ' .. tmpdir .. ' config user.email "test@test.com"')
+    vim.fn.system('git -C ' .. tmpdir .. ' config user.name "Test"')
+    local f = io.open(tmpdir .. '/test.lua', 'w')
+    f:write('local x = 1\nlocal y = 2\n')
+    f:close()
+    vim.fn.system('git -C ' .. tmpdir .. ' add test.lua')
+    vim.fn.system('git -C ' .. tmpdir .. ' commit -m "initial"')
+    local f2 = io.open(tmpdir .. '/test.lua', 'w')
+    f2:write('local x = 1\nlocal y = 99\n')
+    f2:close()
+    -- subdir is cwd — deeper than the git root
+    local subdir = tmpdir .. '/subdir'
+    vim.fn.mkdir(subdir, 'p')
+    vim.cmd('cd ' .. subdir)
+    vim.cmd('edit ' .. tmpdir .. '/test.lua')
+]]
+
+T['DeltaView integration — cwd deeper than git root'] = new_set({
+    hooks = {
+        pre_case = function()
+            child.lua(setup_tmpdir_git_repo_cwd_deeper)
+        end,
+    },
+})
+
+T['DeltaView integration — cwd deeper than git root']['happy path: creates a delta buffer for a tracked file with changes'] = function()
+    child.cmd('DeltaView HEAD')
+    local has_diff_data  = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    local has_parsed     = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].no_context_delta_diff_data_set ~= nil')
+    local buf_on_window  = child.lua_get('vim.api.nvim_win_get_buf(0) == vim.api.nvim_get_current_buf()')
+    local name           = child.lua_get('vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())')
+    eq(has_diff_data, true)
+    eq(has_parsed, true)
+    eq(buf_on_window, true)
+    eq(name:find('HEAD',     1, true) ~= nil, true)
+    eq(name:find('test.lua', 1, true) ~= nil, true)
+    eq(name:match('%d+')    ~= nil, true)
+end
+
+T['DeltaView integration — cwd deeper than git root']['cwd is actually deeper: cwd differs from git root'] = function()
+    -- Confirm the fixture itself has cwd != git root (guards against a bad fixture)
+    local cwd      = child.lua_get('vim.fn.getcwd()')
+    local git_root = child.lua_get([[vim.trim(vim.system({'git','rev-parse','--show-toplevel'}):wait().stdout)]])
+    eq(cwd == git_root, false)
+    -- cwd must be a subdirectory of git root
+    eq(cwd:sub(1, #git_root) == git_root, true)
+end
+
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- `:DeltaView` integration — cwd higher than git root
+
+-- Repo structure:
+--   <tmpdir>/          ← cwd is set HERE (higher than git root)
+--   <tmpdir>/repo/     ← git root (.git lives here)
+--   <tmpdir>/repo/test.lua  ← tracked file with working-tree change
+--
+-- This fixture exercises the path where git rev-parse --show-toplevel must be run against
+-- the file's directory (not cwd), because cwd has no .git directory of its own.
+local setup_tmpdir_git_repo_cwd_higher = [[
+    local tmpdir = vim.fn.tempname()
+    vim.fn.mkdir(tmpdir, 'p')
+    local repodir = tmpdir .. '/repo'
+    vim.fn.mkdir(repodir, 'p')
+    vim.fn.system('git -C ' .. repodir .. ' init')
+    vim.fn.system('git -C ' .. repodir .. ' config user.email "test@test.com"')
+    vim.fn.system('git -C ' .. repodir .. ' config user.name "Test"')
+    local f = io.open(repodir .. '/test.lua', 'w')
+    f:write('local x = 1\nlocal y = 2\n')
+    f:close()
+    vim.fn.system('git -C ' .. repodir .. ' add test.lua')
+    vim.fn.system('git -C ' .. repodir .. ' commit -m "initial"')
+    local f2 = io.open(repodir .. '/test.lua', 'w')
+    f2:write('local x = 1\nlocal y = 99\n')
+    f2:close()
+    -- tmpdir is cwd — higher than the git root (repodir)
+    vim.cmd('cd ' .. tmpdir)
+    vim.cmd('edit ' .. repodir .. '/test.lua')
+]]
+
+T['DeltaView integration — cwd higher than git root'] = new_set({
+    hooks = {
+        pre_case = function()
+            child.lua(setup_tmpdir_git_repo_cwd_higher)
+        end,
+    },
+})
+
+T['DeltaView integration — cwd higher than git root']['happy path: creates a delta buffer for a tracked file with changes'] = function()
+    child.cmd('DeltaView HEAD')
+    local has_diff_data  = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    local has_parsed     = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].no_context_delta_diff_data_set ~= nil')
+    local buf_on_window  = child.lua_get('vim.api.nvim_win_get_buf(0) == vim.api.nvim_get_current_buf()')
+    local name           = child.lua_get('vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())')
+    eq(has_diff_data, true)
+    eq(has_parsed, true)
+    eq(buf_on_window, true)
+    eq(name:find('HEAD',     1, true) ~= nil, true)
+    eq(name:find('test.lua', 1, true) ~= nil, true)
+    eq(name:match('%d+')    ~= nil, true)
+end
+
+T['DeltaView integration — cwd higher than git root']['cwd is actually higher: git root is a subdirectory of cwd'] = function()
+    -- Confirm the fixture itself has cwd != git root (guards against a bad fixture).
+    -- git rev-parse is run against the file's directory so it finds the repo, not cwd.
+    local cwd      = child.lua_get('vim.fn.getcwd()')
+    local git_root = child.lua_get([[vim.trim(vim.system({'git','-C',vim.fn.expand('%:p:h'),'rev-parse','--show-toplevel'}):wait().stdout)]])
+    eq(cwd == git_root, false)
+    -- git root must be a subdirectory of cwd (cwd is the parent)
+    eq(git_root:sub(1, #cwd) == cwd, true)
+end
+
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- `:DeltaView` integration — untracked file
+
+-- repo with one tracked file; an untracked file is created at the git root level.
+-- cwd == git root.
+local setup_tmpdir_untracked_file = [[
+    local tmpdir = vim.fn.tempname()
+    vim.fn.mkdir(tmpdir, 'p')
+    vim.fn.system('git -C ' .. tmpdir .. ' init')
+    vim.fn.system('git -C ' .. tmpdir .. ' config user.email "test@test.com"')
+    vim.fn.system('git -C ' .. tmpdir .. ' config user.name "Test"')
+    local f = io.open(tmpdir .. '/existing.lua', 'w')
+    f:write('local x = 1\n')
+    f:close()
+    vim.fn.system('git -C ' .. tmpdir .. ' add existing.lua')
+    vim.fn.system('git -C ' .. tmpdir .. ' commit -m "initial"')
+    -- new file that is NOT git-added (untracked)
+    local f2 = io.open(tmpdir .. '/new.lua', 'w')
+    f2:write('local y = 2\n')
+    f2:close()
+    vim.cmd('cd ' .. tmpdir)
+    vim.cmd('edit ' .. tmpdir .. '/new.lua')
+]]
+
+-- Same untracked scenario with cwd set to a subdirectory (deeper than git root).
+local setup_tmpdir_untracked_file_cwd_deeper = [[
+    local tmpdir = vim.fn.tempname()
+    vim.fn.mkdir(tmpdir, 'p')
+    vim.fn.system('git -C ' .. tmpdir .. ' init')
+    vim.fn.system('git -C ' .. tmpdir .. ' config user.email "test@test.com"')
+    vim.fn.system('git -C ' .. tmpdir .. ' config user.name "Test"')
+    local f = io.open(tmpdir .. '/existing.lua', 'w')
+    f:write('local x = 1\n')
+    f:close()
+    vim.fn.system('git -C ' .. tmpdir .. ' add existing.lua')
+    vim.fn.system('git -C ' .. tmpdir .. ' commit -m "initial"')
+    local f2 = io.open(tmpdir .. '/new.lua', 'w')
+    f2:write('local y = 2\n')
+    f2:close()
+    -- subdir is cwd — deeper than the git root
+    local subdir = tmpdir .. '/subdir'
+    vim.fn.mkdir(subdir, 'p')
+    vim.cmd('cd ' .. subdir)
+    vim.cmd('edit ' .. tmpdir .. '/new.lua')
+]]
+
+-- Same untracked scenario with cwd set to the parent of the git root (higher than git root).
+local setup_tmpdir_untracked_file_cwd_higher = [[
+    local tmpdir = vim.fn.tempname()
+    vim.fn.mkdir(tmpdir, 'p')
+    local repodir = tmpdir .. '/repo'
+    vim.fn.mkdir(repodir, 'p')
+    vim.fn.system('git -C ' .. repodir .. ' init')
+    vim.fn.system('git -C ' .. repodir .. ' config user.email "test@test.com"')
+    vim.fn.system('git -C ' .. repodir .. ' config user.name "Test"')
+    local f = io.open(repodir .. '/existing.lua', 'w')
+    f:write('local x = 1\n')
+    f:close()
+    vim.fn.system('git -C ' .. repodir .. ' add existing.lua')
+    vim.fn.system('git -C ' .. repodir .. ' commit -m "initial"')
+    local f2 = io.open(repodir .. '/new.lua', 'w')
+    f2:write('local y = 2\n')
+    f2:close()
+    -- tmpdir is cwd — higher than the git root (repodir)
+    vim.cmd('cd ' .. tmpdir)
+    vim.cmd('edit ' .. repodir .. '/new.lua')
+]]
+
+-- Exercises the is_untracked_file branch of open_git_diff_buffer across all three cwd
+-- configurations: cwd == git root, cwd inside git root (deeper), cwd outside git root (higher).
+-- In every case the command must succeed and produce a delta buffer — no ERROR notifications.
+T['DeltaView integration — untracked file'] = new_set()
+
+T['DeltaView integration — untracked file']['cwd matches git root: creates a delta buffer as a new-file diff without error'] = function()
+    child.lua(setup_tmpdir_untracked_file)
+    child.lua([[
+        _G.error_notifications = {}
+        local orig_notify = vim.notify
+        vim.notify = function(msg, level, opts)
+            if level == vim.log.levels.ERROR then table.insert(_G.error_notifications, msg) end
+            orig_notify(msg, level, opts)
+        end
+    ]])
+    child.cmd('DeltaView HEAD')
+    local errors       = child.lua_get('_G.error_notifications')
+    local has_diff_data = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    eq(#errors, 0)
+    eq(has_diff_data, true)
+end
+
+T['DeltaView integration — untracked file']['cwd deeper than git root: creates a delta buffer as a new-file diff without error'] = function()
+    child.lua(setup_tmpdir_untracked_file_cwd_deeper)
+    child.lua([[
+        _G.error_notifications = {}
+        local orig_notify = vim.notify
+        vim.notify = function(msg, level, opts)
+            if level == vim.log.levels.ERROR then table.insert(_G.error_notifications, msg) end
+            orig_notify(msg, level, opts)
+        end
+    ]])
+    child.cmd('DeltaView HEAD')
+    local errors        = child.lua_get('_G.error_notifications')
+    local has_diff_data = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    eq(#errors, 0)
+    eq(has_diff_data, true)
+end
+
+T['DeltaView integration — untracked file']['cwd higher than git root: creates a delta buffer as a new-file diff without error'] = function()
+    child.lua(setup_tmpdir_untracked_file_cwd_higher)
+    child.lua([[
+        _G.error_notifications = {}
+        local orig_notify = vim.notify
+        vim.notify = function(msg, level, opts)
+            if level == vim.log.levels.ERROR then table.insert(_G.error_notifications, msg) end
+            orig_notify(msg, level, opts)
+        end
+    ]])
+    child.cmd('DeltaView HEAD')
+    local errors        = child.lua_get('_G.error_notifications')
+    local has_diff_data = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    eq(#errors, 0)
+    eq(has_diff_data, true)
+end
+
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
 -- `:DeltaMenu` integration
 
 -- creates N tracked files with working-tree changes; each file{i}.lua starts as 'local x = i'
@@ -384,26 +634,6 @@ end
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
 -- `:Delta` integration
 
--- repo with one tracked file that has no working-tree changes (for "no changes" edge case)
-local setup_tmpdir_untracked_file = [[
-    local tmpdir = vim.fn.tempname()
-    vim.fn.mkdir(tmpdir, 'p')
-    vim.fn.system('git -C ' .. tmpdir .. ' init')
-    vim.fn.system('git -C ' .. tmpdir .. ' config user.email "test@test.com"')
-    vim.fn.system('git -C ' .. tmpdir .. ' config user.name "Test"')
-    local f = io.open(tmpdir .. '/existing.lua', 'w')
-    f:write('local x = 1\n')
-    f:close()
-    vim.fn.system('git -C ' .. tmpdir .. ' add existing.lua')
-    vim.fn.system('git -C ' .. tmpdir .. ' commit -m "initial"')
-    -- new file that is NOT git-added (untracked)
-    local f2 = io.open(tmpdir .. '/new.lua', 'w')
-    f2:write('local y = 2\n')
-    f2:close()
-    vim.cmd('cd ' .. tmpdir)
-    vim.cmd('edit ' .. tmpdir .. '/new.lua')
-]]
-
 T['Delta integration'] = new_set({
     hooks = {
         pre_case = function()
@@ -460,6 +690,132 @@ T['Delta integration']['exit: pressing q returns to the source file buffer'] = f
     child.type_keys('q')
     local current_bufnr = child.lua_get('vim.api.nvim_get_current_buf()')
     eq(current_bufnr, original_bufnr)
+end
+
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- `:Delta` integration — cwd deeper than git root
+
+-- Repo structure mirrors setup_tmpdir_git_repo_cwd_deeper: git root at tmpdir,
+-- cwd set to tmpdir/subdir.  Both the no-args form (uses current buffer path) and the
+-- explicit-path form must work correctly when cwd != git root.
+T['Delta integration — cwd deeper than git root'] = new_set({
+    hooks = {
+        pre_case = function()
+            child.lua(setup_tmpdir_git_repo_cwd_deeper)
+        end,
+    },
+})
+
+T['Delta integration — cwd deeper than git root']['happy path: Delta (no args) creates a delta buffer for current file'] = function()
+    child.cmd('Delta')
+    local has_diff_data  = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    local has_parsed     = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].no_context_delta_diff_data_set ~= nil')
+    local buf_on_window  = child.lua_get('vim.api.nvim_win_get_buf(0) == vim.api.nvim_get_current_buf()')
+    local name           = child.lua_get('vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())')
+    eq(has_diff_data, true)
+    eq(has_parsed, true)
+    eq(buf_on_window, true)
+    eq(name:find('HEAD',     1, true) ~= nil, true)
+    eq(name:find('test.lua', 1, true) ~= nil, true)
+end
+
+T['Delta integration — cwd deeper than git root']['happy path: explicit absolute path arg resolves against git root, not cwd'] = function()
+    -- The file lives at <git_root>/test.lua; cwd is <git_root>/subdir.
+    -- Passing the absolute path must succeed even though the file is not under cwd.
+    child.lua([[
+        local git_root = vim.trim(vim.system({'git', 'rev-parse', '--show-toplevel'}):wait().stdout)
+        vim.cmd('Delta ' .. git_root .. '/test.lua')
+    ]])
+    local has_diff_data = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    local name          = child.lua_get('vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())')
+    eq(has_diff_data, true)
+    eq(name:find('test.lua', 1, true) ~= nil, true)
+end
+
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- `:Delta` integration — cwd higher than git root
+
+-- Repo structure mirrors setup_tmpdir_git_repo_cwd_higher: git root at tmpdir/repo,
+-- cwd set to tmpdir (the parent).  get_git_root() must derive the root from the file's
+-- directory, not from cwd, so that git commands succeed.
+T['Delta integration — cwd higher than git root'] = new_set({
+    hooks = {
+        pre_case = function()
+            child.lua(setup_tmpdir_git_repo_cwd_higher)
+        end,
+    },
+})
+
+T['Delta integration — cwd higher than git root']['happy path: Delta (no args) creates a delta buffer for current file'] = function()
+    child.cmd('Delta')
+    local has_diff_data  = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    local has_parsed     = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].no_context_delta_diff_data_set ~= nil')
+    local buf_on_window  = child.lua_get('vim.api.nvim_win_get_buf(0) == vim.api.nvim_get_current_buf()')
+    local name           = child.lua_get('vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())')
+    eq(has_diff_data, true)
+    eq(has_parsed, true)
+    eq(buf_on_window, true)
+    eq(name:find('HEAD',     1, true) ~= nil, true)
+    eq(name:find('test.lua', 1, true) ~= nil, true)
+end
+
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- `:Delta` integration — untracked file
+
+-- Exercises the is_untracked_file branch of deltaview_file across all three cwd
+-- configurations: cwd == git root, cwd inside git root (deeper), cwd outside git root (higher).
+-- In every case the command must succeed and produce a delta buffer — no ERROR notifications.
+T['Delta integration — untracked file'] = new_set()
+
+T['Delta integration — untracked file']['cwd matches git root: creates a delta buffer as a new-file diff without error'] = function()
+    child.lua(setup_tmpdir_untracked_file)
+    child.lua([[
+        _G.error_notifications = {}
+        local orig_notify = vim.notify
+        vim.notify = function(msg, level, opts)
+            if level == vim.log.levels.ERROR then table.insert(_G.error_notifications, msg) end
+            orig_notify(msg, level, opts)
+        end
+    ]])
+    child.cmd('Delta')
+    local errors        = child.lua_get('_G.error_notifications')
+    local has_diff_data = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    eq(#errors, 0)
+    eq(has_diff_data, true)
+end
+
+T['Delta integration — untracked file']['cwd deeper than git root: creates a delta buffer as a new-file diff without error'] = function()
+    child.lua(setup_tmpdir_untracked_file_cwd_deeper)
+    child.lua([[
+        _G.error_notifications = {}
+        local orig_notify = vim.notify
+        vim.notify = function(msg, level, opts)
+            if level == vim.log.levels.ERROR then table.insert(_G.error_notifications, msg) end
+            orig_notify(msg, level, opts)
+        end
+    ]])
+    child.cmd('Delta')
+    local errors        = child.lua_get('_G.error_notifications')
+    local has_diff_data = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    eq(#errors, 0)
+    eq(has_diff_data, true)
+end
+
+T['Delta integration — untracked file']['cwd higher than git root: creates a delta buffer as a new-file diff without error'] = function()
+    child.lua(setup_tmpdir_untracked_file_cwd_higher)
+    child.lua([[
+        _G.error_notifications = {}
+        local orig_notify = vim.notify
+        vim.notify = function(msg, level, opts)
+            if level == vim.log.levels.ERROR then table.insert(_G.error_notifications, msg) end
+            orig_notify(msg, level, opts)
+        end
+    ]])
+    child.cmd('Delta')
+    local errors        = child.lua_get('_G.error_notifications')
+    local has_diff_data = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    eq(#errors, 0)
+    eq(has_diff_data, true)
 end
 
 return T

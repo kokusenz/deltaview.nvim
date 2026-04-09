@@ -443,19 +443,6 @@ T['get_untracked_files()']['returns empty table when git output is empty'] = fun
     eq(result, {})
 end
 
-T['get_untracked_files()']['returns empty table and notifies on git error (code ~= 0 and ~= 1)'] = function()
-    child.lua([[
-        _G.fixture.system_result = { code = 128, stdout = '', stderr = '' }
-        _G.fixture.notify_called = false
-        vim.notify = function(_msg, _level)
-            _G.fixture.notify_called = true
-        end
-    ]])
-    local result = child.lua_get([[M.get_untracked_files()]])
-    local notify_called = child.lua_get([[_G.fixture.notify_called]])
-    eq(result, {})
-    eq(notify_called, true)
-end
 
 T['get_untracked_files()']['code == 1 is not treated as a hard error (returns files)'] = function()
     -- code 1 means no matches for ls-files patterns, not a git failure
@@ -472,6 +459,35 @@ T['get_untracked_files()']['strips blank trailing lines, does not include empty 
     ]])
     local result = child.lua_get([[M.get_untracked_files()]])
     eq(result, { 'a.lua', 'b.lua' })
+end
+
+T['get_untracked_files()']['calls git with -C flag when git_root is provided'] = function()
+    child.lua([[
+        _G.fixture.captured_cmd = nil
+        vim.system = function(cmd, _opts)
+            _G.fixture.captured_cmd = cmd
+            return { wait = function() return { code = 0, stdout = '', stderr = '' } end }
+        end
+    ]])
+    child.lua([[M.get_untracked_files('/some/repo')]])
+    local cmd = child.lua_get([[_G.fixture.captured_cmd]])
+    eq(cmd[1], 'git')
+    eq(cmd[2], '-C')
+    eq(cmd[3], '/some/repo')
+end
+
+T['get_untracked_files()']['calls git without -C flag when git_root is not provided'] = function()
+    child.lua([[
+        _G.fixture.captured_cmd = nil
+        vim.system = function(cmd, _opts)
+            _G.fixture.captured_cmd = cmd
+            return { wait = function() return { code = 0, stdout = '', stderr = '' } end }
+        end
+    ]])
+    child.lua([[M.get_untracked_files()]])
+    local cmd = child.lua_get([[_G.fixture.captured_cmd]])
+    eq(cmd[1], 'git')
+    eq(cmd[2], 'ls-files')
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -533,13 +549,6 @@ T['get_diffed_files()']['code == 1 is not a hard error (returns files normally)'
     eq(result, { 'changed.lua' })
 end
 
-T['get_diffed_files()']['asserts when ref is nil'] = function()
-    local result = child.lua_get([[(function()
-        local ok = pcall(M.get_diffed_files, nil)
-        return ok
-    end)()]])
-    eq(result, false)
-end
 
 T['get_diffed_files()']['captures the ref passed to the git command'] = function()
     child.lua([[
@@ -1540,7 +1549,7 @@ IsUntrackedFile.properties.untracked_paths_return_true = [[(function()
 
     for _, input in ipairs(inputs) do
         if untracked_abs[input.path] then
-            local result = M.is_untracked_file(input.path)
+            local result = M.is_untracked_file(input.path, input.git_root)
             if result ~= true then return false end
         end
     end
@@ -1561,7 +1570,7 @@ IsUntrackedFile.properties.tracked_paths_return_false = [[(function()
 
     for _, input in ipairs(inputs) do
         if not untracked_abs[input.path] then
-            local result = M.is_untracked_file(input.path)
+            local result = M.is_untracked_file(input.path, input.git_root)
             if result ~= false then return false end
         end
     end
@@ -1572,7 +1581,7 @@ end)()]]
 IsUntrackedFile.properties.always_returns_boolean = [[(function()
     local inputs = _G.fixture.inputs
     for _, input in ipairs(inputs) do
-        local result = M.is_untracked_file(input.path)
+        local result = M.is_untracked_file(input.path, input.git_root)
         if type(result) ~= 'boolean' then return false end
     end
     return true
@@ -1583,7 +1592,7 @@ T['is_untracked_file() properties'] = new_set({
         pre_case = function()
             child.lua([[
                 -- Stub get_untracked_files so it returns the fixture's rel paths
-                M.get_untracked_files = function()
+                M.get_untracked_files = function(_git_root)
                     return _G.fixture.inputs[1] and _G.fixture.inputs[1].untracked_rel or {}
                 end
 
@@ -1597,6 +1606,47 @@ T['is_untracked_file() properties'] = new_set({
     },
 })
 
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- is_untracked_file() - example based tests
+
+T['is_untracked_file()'] = new_set({
+    hooks = {
+        pre_case = function()
+            child.lua([[
+                M.git_rel_to_abs = function(rel)
+                    return '/repo/' .. rel
+                end
+            ]])
+        end,
+    },
+})
+
+T['is_untracked_file()']['forwards git_root to get_untracked_files'] = function()
+    child.lua([[
+        _G.fixture.captured_git_root = nil
+        M.get_untracked_files = function(git_root)
+            _G.fixture.captured_git_root = git_root
+            return {}
+        end
+    ]])
+    child.lua([[M.is_untracked_file('/repo/file.lua', '/repo')]])
+    local captured = child.lua_get([[_G.fixture.captured_git_root]])
+    eq(captured, '/repo')
+end
+
+T['is_untracked_file()']['passes nil git_root to get_untracked_files when not provided'] = function()
+    child.lua([[
+        _G.fixture.captured_git_root = 'sentinel'
+        M.get_untracked_files = function(git_root)
+            _G.fixture.captured_git_root = git_root
+            return {}
+        end
+    ]])
+    child.lua([[M.is_untracked_file('/repo/file.lua')]])
+    local captured = child.lua_get([[_G.fixture.captured_git_root]])
+    eq(captured, vim.NIL)
+end
+
 for func_name, func in pairs(IsUntrackedFile.properties) do
     for _, case in ipairs(IsUntrackedFile.cases) do
         local test_name = func_name .. ': ' .. case.name
@@ -1609,135 +1659,36 @@ for func_name, func in pairs(IsUntrackedFile.properties) do
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
--- get_rel_path_from_abs() - property based tests
+-- get_git_root() - example based tests
 
-local GetRelPathFromAbs = {}
-
---- Returns a list of {abs_path, git_root} inputs covering a range of absolute paths.
---- @param case_data { git_root: string, rel_paths: string[] }
---- @return table[]
-GetRelPathFromAbs.get_inputs = function(case_data)
-    local inputs = {}
-    for _, rel in ipairs(case_data.rel_paths) do
-        table.insert(inputs, {
-            abs_path = case_data.git_root .. '/' .. rel,
-            git_root = case_data.git_root,
-            rel_path = rel,
-        })
-    end
-    return inputs
-end
-
---- @class get_rel_path_from_abs__case
---- @field name string
---- @field git_root string
---- @field rel_paths string[]
-
-GetRelPathFromAbs.cases = {
-    {
-        -- Simple flat filenames under git root.
-        name      = 'flat filenames under git root',
-        git_root  = '/repo',
-        rel_paths = { 'README.md', 'Makefile', 'init.lua' },
-    },
-    {
-        -- Deep nested paths typical of a Neovim plugin.
-        name      = 'nested plugin paths',
-        git_root  = '/home/user/myproject',
-        rel_paths = { 'lua/myproject/init.lua', 'lua/myproject/utils.lua', 'tests/test_utils.lua' },
-    },
-    {
-        -- Git root path itself contains directory separators (common in real machines).
-        name      = 'git root with deep prefix',
-        git_root  = '/home/runner/work/repo',
-        rel_paths = { 'src/main.lua', 'src/helpers/util.lua' },
-    },
-    {
-        -- Single file — boundary case.
-        name      = 'single file',
-        git_root  = '/workspace',
-        rel_paths = { 'only.lua' },
-    },
-    {
-        -- Files with dots and dashes in names.
-        name      = 'filenames with dots and dashes',
-        git_root  = '/srv/app',
-        rel_paths = { 'some-module.lua', 'config.dev.lua', 'tests/my-test.lua' },
-    },
-}
-
-GetRelPathFromAbs.properties = {}
-
--- The returned relative path re-joined with the git root must equal the original abs path.
-GetRelPathFromAbs.properties.round_trips_to_abs_path = [[(function()
-    local inputs = _G.fixture.inputs
-    for _, input in ipairs(inputs) do
-        local result = M.get_rel_path_from_abs(input.abs_path)
-        if result == nil then return false end
-        if (input.git_root .. '/' .. result) ~= input.abs_path then return false end
-    end
-    return true
-end)()]]
-
--- The result must equal the known expected relative path.
-GetRelPathFromAbs.properties.returns_expected_rel_path = [[(function()
-    local inputs = _G.fixture.inputs
-    for _, input in ipairs(inputs) do
-        local result = M.get_rel_path_from_abs(input.abs_path)
-        if result ~= input.rel_path then return false end
-    end
-    return true
-end)()]]
-
--- The result must not start with a slash (it is relative, not absolute).
-GetRelPathFromAbs.properties.result_is_relative = [[(function()
-    local inputs = _G.fixture.inputs
-    for _, input in ipairs(inputs) do
-        local result = M.get_rel_path_from_abs(input.abs_path)
-        if result == nil then return false end
-        if vim.startswith(result, '/') then return false end
-    end
-    return true
-end)()]]
-
--- The result must not contain the git root as a prefix.
-GetRelPathFromAbs.properties.result_has_no_git_root_prefix = [[(function()
-    local inputs = _G.fixture.inputs
-    for _, input in ipairs(inputs) do
-        local result = M.get_rel_path_from_abs(input.abs_path)
-        if result == nil then return false end
-        if vim.startswith(result, input.git_root) then return false end
-    end
-    return true
-end)()]]
-
-T['get_rel_path_from_abs() properties'] = new_set({
+T['get_git_root()'] = new_set({
     hooks = {
         pre_case = function()
             child.lua([[
-                -- Stub vim.system so git rev-parse returns the fixture's git root
-                vim.system = function(_cmd, _opts)
-                    return {
-                        wait = function()
-                            local git_root = _G.fixture.inputs[1] and _G.fixture.inputs[1].git_root or ''
-                            return { code = 0, stdout = git_root .. '\n', stderr = '' }
-                        end
-                    }
+                vim.fn.isdirectory = function(_) return 0 end
+                vim.fn.fnamemodify = function(path, _) return path end
+                vim.system = function(cmd, _opts)
+                    _G.fixture.captured_cmd = cmd
+                    return { wait = function() return { code = 0, stdout = '/repo\n', stderr = '' } end }
                 end
             ]])
         end,
     },
 })
 
-for func_name, func in pairs(GetRelPathFromAbs.properties) do
-    for _, case in ipairs(GetRelPathFromAbs.cases) do
-        local test_name = func_name .. ': ' .. case.name
-        T['get_rel_path_from_abs() properties'][test_name] = function()
-            child.lua([[_G.fixture.inputs = ...]], { GetRelPathFromAbs.get_inputs(case) })
-            local result = child.lua_get(func)
-            eq(result, true)
-        end
-    end
+T['get_git_root()']['calls git rev-parse --show-toplevel with -C and the file directory'] = function()
+    child.lua([[
+        _G.fixture.captured_cmd = nil
+        vim.fn.fnamemodify = function(_path, _mod) return '/repo/lua' end
+    ]])
+    local result = child.lua_get([[M.get_git_root('/repo/lua/file.lua')]])
+    local cmd = child.lua_get([[_G.fixture.captured_cmd]])
+    eq(cmd[1], 'git')
+    eq(cmd[2], '-C')
+    eq(cmd[3], '/repo/lua')
+    eq(cmd[4], 'rev-parse')
+    eq(cmd[5], '--show-toplevel')
+    eq(result, '/repo')
 end
 
 return T

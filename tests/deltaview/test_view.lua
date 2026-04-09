@@ -115,6 +115,7 @@ T['deltaview_file()'] = new_set({
 
                 -- stub all M.* functions called by deltaview_file
                 M.get_cursor_placement_current_buffer = function() return {} end
+                package.loaded['deltaview.utils'].get_git_root = function(_) return '/fake/repo' end
                 M.open_git_diff_buffer = function(_filepath, _ref)
                     local bufnr =  vim.api.nvim_create_buf(true, true)
                     _G.fixture.bufnr = bufnr
@@ -182,6 +183,7 @@ T['delta_path()'] = new_set({
 
                 -- stub all M.* functions called by delta_path
                 M.get_cursor_placement_current_buffer = function() return {} end
+                package.loaded['deltaview.utils'].get_git_root = function(_) return '/fake/repo' end
                 M.open_git_diff_buffer_for_path = function(_path, _ref, _context)
                     local bufnr = vim.api.nvim_create_buf(true, true)
                     _G.fixture.bufnr = bufnr
@@ -255,22 +257,18 @@ local open_git_diff_buffer_happy_mocks = [=[
         return 0
     end
 
+    package.loaded['deltaview.utils'].get_git_root = function(_) return '/repo' end
+
     vim.system = function(cmd, _opts)
         local stdout, code = '', 0
-        if cmd[2] == 'rev-parse' then
-            stdout = '/repo'
-        elseif cmd[2] == 'diff' then
-            if cmd[#cmd] == 'a' then
+        if cmd[4] == 'diff' then
+            if cmd[#cmd] == 'a' and cmd[6] ~= 'y' then
                 stdout = 'a valid non-empty diff string'
             else
                 code = 128
             end
-        elseif cmd[2] == 'show' then
-            if cmd[3] and cmd[3]:find('^x:') then
-                stdout = 'old file content'
-            else
-                code = 128
-            end
+        elseif cmd[4] == 'cat-file' then
+            code = 128
         end
         return { wait = function() return { code = code, stdout = stdout, stderr = 'err' } end }
     end
@@ -534,27 +532,14 @@ OpenGitDiffBuffer.open_git_diff_buffer__property_cases = {
     },
     {
         -- Untracked happy path: is_untracked_file=true skips git diff and git show entirely.
-        -- get_rel_path_from_abs provides the new_path; s1 is always '' (no prior content).
+        -- new_path is derived inline from filepath; s1 is always '' (no prior content).
         name = 'untracked happy path: git diff and git show skipped',
         setup_lua = open_git_diff_buffer_happy_mocks .. [=[
             package.loaded['deltaview.utils'].is_untracked_file = function(_) return true end
-            package.loaded['deltaview.utils'].get_rel_path_from_abs = function(_) return 'a' end
             Delta.parse.get_language_from_filename = function(_) return nil end
         ]=],
         inputs = {
             { filepath = 'a', ref = 'x', winnr = nil, expected_ok = true },
-        },
-    },
-    {
-        -- Untracked failure: get_rel_path_from_abs returns nil → early return nil.
-        name = 'untracked failure: get_rel_path_from_abs returns nil',
-        setup_lua = open_git_diff_buffer_happy_mocks .. [=[
-            package.loaded['deltaview.utils'].is_untracked_file = function(_) return true end
-            package.loaded['deltaview.utils'].get_rel_path_from_abs = function(_) return nil end
-            Delta.parse.get_language_from_filename = function(_) return nil end
-        ]=],
-        inputs = {
-            { filepath = 'a', ref = 'x', winnr = nil, expected_ok = false },
         },
     },
 }
@@ -656,11 +641,7 @@ local OpenGitDiffBufferForPath = {}
 local open_git_diff_buffer_for_path_happy_mocks = [=[
     vim.notify = function() end
 
-    vim.system = function(cmd, _opts)
-        local stdout, code = '', 0
-        if cmd[2] == 'rev-parse' then stdout = '/repo' end
-        return { wait = function() return { code = code, stdout = stdout, stderr = '' } end }
-    end
+    package.loaded['deltaview.utils'].get_git_root = function(_) return '/repo' end
 
     package.loaded['deltaview.utils'].is_untracked_file = function(_)
         return false
@@ -708,19 +689,6 @@ OpenGitDiffBufferForPath.open_git_diff_buffer_for_path__property_cases = {
         setup_lua = open_git_diff_buffer_for_path_happy_mocks,
         inputs = {
             { path = 'src/', ref = 'HEAD', context = 3, winnr = nil, buf_name = 'my custom name', expected_ok = true },
-        },
-    },
-    {
-        -- git rev-parse fails; function returns nil before any Delta calls.
-        name = 'failure: not in a git repository (rev-parse code 2)',
-        setup_lua = open_git_diff_buffer_for_path_happy_mocks .. [=[
-            vim.system = function(cmd, _opts)
-                local code = (cmd[2] == 'rev-parse') and 2 or 0
-                return { wait = function() return { code = code, stdout = '', stderr = '' } end }
-            end
-        ]=],
-        inputs = {
-            { path = 'src/', ref = 'HEAD', context = 3, winnr = nil, buf_name = nil, expected_ok = false },
         },
     },
     {
@@ -1044,7 +1012,7 @@ PlaceCursorDeltaBufferEntry.place_cursor_delta_buffer_entry__property_cases = {
     -- when cursor_placement.filepath is set, only the matching diff entry should be used.
     {
         name = 'filepath specified and matches diff entry',
-        cursor_placement = { winnr = 0, cursor = { 3, 0 }, filepath = 'foo.lua' },
+        cursor_placement = { winnr = 0, cursor = { 3, 0 }, filepath = '/foo.lua' },
         buf_contents = { 'line1', 'line2', 'line3' },
         --- @type DiffData[]
         delta_diff_data_set = {
@@ -1079,7 +1047,7 @@ PlaceCursorDeltaBufferEntry.place_cursor_delta_buffer_entry__property_cases = {
     -- a line from the first file even when new_line_num happens to match.
     {
         name = 'multiple files, filepath routes to second file',
-        cursor_placement = { winnr = 0, cursor = { 2, 0 }, filepath = 'bar.lua' },
+        cursor_placement = { winnr = 0, cursor = { 2, 0 }, filepath = '/bar.lua' },
         buf_contents = { 'line1', 'line2' },
         --- @type DiffData[]
         delta_diff_data_set = {
@@ -1180,7 +1148,7 @@ PlaceCursorDeltaBufferEntry.place_cursor_delta_buffer_entry__property_cases = {
     -- filepath is set but matches no entry in the diff set; notify should fire and set_restview should not.
     {
         name = 'filepath does not match any diff entry',
-        cursor_placement = { winnr = 0, cursor = { 1, 0 }, filepath = 'baz.lua' },
+        cursor_placement = { winnr = 0, cursor = { 1, 0 }, filepath = '/baz.lua' },
         buf_contents = { 'line1' },
         --- @type DiffData[]
         delta_diff_data_set = {
@@ -1230,7 +1198,7 @@ PlaceCursorDeltaBufferEntry.properties.cursor_placed_on_matching_line = [[(funct
     if cursor_placement.filepath ~= nil then
         local filepath_in_diff = false
         for _, diff_data in ipairs(vim.b[bufnr].delta_diff_data_set) do
-            if diff_data.new_path == cursor_placement.filepath then
+            if ('/' .. (diff_data.new_path or '')) == cursor_placement.filepath then
                 filepath_in_diff = true
                 break
             end
@@ -1241,7 +1209,7 @@ PlaceCursorDeltaBufferEntry.properties.cursor_placed_on_matching_line = [[(funct
     -- assume: cursor row must match a new_line_num in the applicable diff entry
     local cursor_row_in_diff = false
     for _, diff_data in ipairs(vim.b[bufnr].delta_diff_data_set) do
-        if cursor_placement.filepath == nil or ('/' .. diff_data.new_path) == cursor_placement.filepath then
+        if cursor_placement.filepath == nil or ('/' .. (diff_data.new_path or '')) == cursor_placement.filepath then
             for _, hunk in ipairs(diff_data.hunks) do
                 for _, line in ipairs(hunk.lines) do
                     if line.new_line_num == cursor_placement.cursor[1] then
@@ -1256,7 +1224,7 @@ PlaceCursorDeltaBufferEntry.properties.cursor_placed_on_matching_line = [[(funct
     end
     if not cursor_row_in_diff then return true end
 
-    M.place_cursor_delta_buffer_entry(bufnr, cursor_placement.winnr, cursor_placement, 1)
+    M.place_cursor_delta_buffer_entry(bufnr, cursor_placement.winnr, cursor_placement, 1, '')
 
     if called_with == nil then
         return 'set_restview was not called'
@@ -1266,7 +1234,7 @@ PlaceCursorDeltaBufferEntry.properties.cursor_placed_on_matching_line = [[(funct
     local expected_row = nil
     local diff_data_set = vim.b[bufnr].delta_diff_data_set
     for _, diff_data in ipairs(diff_data_set) do
-        if cursor_placement.filepath == nil or diff_data.new_path == cursor_placement.filepath then
+        if cursor_placement.filepath == nil or ('/' .. (diff_data.new_path or '')) == cursor_placement.filepath then
             for _, hunk in ipairs(diff_data.hunks) do
                 for _, line in ipairs(hunk.lines) do
                     if line.new_line_num == cursor_placement.cursor[1] then
@@ -1304,7 +1272,7 @@ PlaceCursorDeltaBufferEntry.properties.fails_open = [[(function()
     M.set_restview = function() end
     vim.api.nvim_win_set_cursor = function() end
 
-    M.place_cursor_delta_buffer_entry(bufnr, cursor_placement.winnr, cursor_placement, 1)
+    M.place_cursor_delta_buffer_entry(bufnr, cursor_placement.winnr, cursor_placement, 1, '')
 
     if notify_called == true then
         if _G.fixture.cursor_placement.filepath == nil then
@@ -1312,7 +1280,7 @@ PlaceCursorDeltaBufferEntry.properties.fails_open = [[(function()
         end
         local found = false
         for _, diff_data in ipairs(_G.fixture.delta_diff_data_set) do
-            if diff_data.new_path == _G.fixture.cursor_placement.filepath then
+            if ('/' .. diff_data.new_path) == _G.fixture.cursor_placement.filepath then
                 found = true
             end
         end
@@ -1334,10 +1302,6 @@ for func_name, func in pairs(PlaceCursorDeltaBufferEntry.properties) do
             local bufnr = vim.api.nvim_create_buf(true, true)
             vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, ...)
             vim.api.nvim_set_current_buf(bufnr)
-            vim.system = function(cmd, _opts)
-                local code = (cmd[2] == 'rev-parse') and 0 or 2
-                return { wait = function() return { code = code, stdout = '', stderr = '' } end }
-            end
             _G.fixture.bufnr = bufnr
         ]], { case.buf_contents })
             child.lua([[_G.fixture.delta_diff_data_set = ...]], { case.delta_diff_data_set })
@@ -1366,10 +1330,6 @@ T['place_cursor_delta_buffer_entry() example']['calls win_set_cursor manually wi
         local bufnr = vim.api.nvim_create_buf(true, true)
         vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, ...)
         vim.api.nvim_set_current_buf(bufnr)
-        vim.system = function(cmd, _opts)
-            local code = (cmd[2] == 'rev-parse') and 0 or 2
-            return { wait = function() return { code = code, stdout = '', stderr = '' } end }
-        end
         _G.fixture.bufnr = bufnr
     ]], { case.buf_contents })
     child.lua([[_G.fixture.delta_diff_data_set = ...]], { case.delta_diff_data_set })
@@ -1385,7 +1345,7 @@ T['place_cursor_delta_buffer_entry() example']['calls win_set_cursor manually wi
         end
         M.set_restview = function() end
 
-        M.place_cursor_delta_buffer_entry(bufnr, cursor_placement.winnr, cursor_placement, 1)
+        M.place_cursor_delta_buffer_entry(bufnr, cursor_placement.winnr, cursor_placement, 1, '')
 
         if win_set_cursor_called_with == nil then
             return 'nvim_win_set_cursor was not called'
@@ -2052,6 +2012,7 @@ for func_name, func in pairs(GetDeltaBufferCursorExitStrategy.properties) do
             ]], { case.buf_contents })
             child.lua([[_G.fixture.delta_diff_data_set = ...]], { case.delta_diff_data_set })
             child.lua([[vim.b[_G.fixture.bufnr].delta_diff_data_set = _G.fixture.delta_diff_data_set]])
+            child.lua([[vim.b[_G.fixture.bufnr].git_root = '/repo']])
             if case.use_alternative_bufnr then
                 child.lua([[_G.fixture.alternative_bufnr = vim.api.nvim_create_buf(true, true)]])
             else
