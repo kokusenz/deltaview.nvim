@@ -572,6 +572,7 @@ OpenGitDiffBuffer.properties.buffer_state_matches_expected = [[(function()
             if not name:find(filepath,      1, true) then return false end
             if not name:find(tostring(ref), 1, true) then return false end
             if not name:match('%d+')                 then return false end
+            if not name:find('deltaview://diff/', 1, true) then return false end
 
         elseif expected == false then
             if not ok        then return false end  -- unexpected throw is a bug
@@ -775,6 +776,7 @@ OpenGitDiffBufferForPath.properties.buffer_state_matches_expected = [[(function(
             local name = vim.api.nvim_buf_get_name(result)
             local expected_name = buf_name or (path .. '    vs ' .. ref)
             if not name:find(expected_name, 1, true) then return false end
+            if not name:find('deltaview://diff/', 1, true) then return false end
 
             -- for the untracked case: assert new_file=true was forwarded to Delta.git_diff
             if _G.fixture.captured_git_diff_opts ~= nil then
