@@ -49,11 +49,8 @@ require('deltaview').setup({
     -- If this setting is true, will show the delta style line numbers in the statuscolumn.
     line_numbers = false,
 
-    -- 'fzf-lua' | 'telescope' | 'fzf' | nil - specify which picker to use. If nil, will go through the order and pick the first available. The order is fzf-lua -> telescope -> fzf -> deltaview quickselect
+    -- 'fzf-lua' | 'telescope' | nil - specify which picker to use. If nil, will go through the order and pick the first available. The order is fzf-lua -> telescope -> deltaview quickselect
     fzf_picker = nil
-
-    -- Use dandavison/delta as the diff viewer if true, uses delta.lua if falsy
-    use_legacy_delta = nil
 
     -- Custom keybindings
     keyconfig = {
@@ -73,9 +70,6 @@ require('deltaview').setup({
         -- Navigate between files (when opened from DeltaMenu)
         next_diff = "]f",
         prev_diff = "[f",
-
-        -- Change diff menu view to quickselect (when in fzf picker. This functionality is not available for fzf-lua and telescope)
-        fzf_toggle = "alt-;",
 
         -- Open help legend
         help_legend = "d?"
@@ -136,13 +130,6 @@ When viewing a diff (DeltaView or Delta):
 | `]f` | Open next file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
 | `[f` | Open previous file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
 | `d?` | Open the help legend, to view all possible keybinds |
-
-When in the file menu:
-
-| Key | Action |
-|-----|--------|
-| Select a file | Open diff for that file |
-| `alt-;` | Change diff menu view to quickselect (when in fzf picker. This functionality is not available for fzf-lua and telescope) |
 
 ==============================================================================
 VIM.UI.SELECT INTERFACE                                   *deltaview-ui-select*

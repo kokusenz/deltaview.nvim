@@ -2,6 +2,8 @@ local M = {}
 local utils = require('deltaview.utils')
 local config = require('deltaview.config')
 local help = require('deltaview.help')
+local delta_ok, delta = pcall(require, 'delta')
+assert(delta_ok, 'Delta.lua module not found. Please install delta.lua to use deltaview.nvim.')
 
 local _echo_timer = nil
 
@@ -66,7 +68,7 @@ M.delta_path = function(ref, context, path)
     return diff_bufnr
 end
 
---- opens a delta.lua git diff buffer for the specified file against a git ref, using Delta.text_diff
+--- opens a delta.lua git diff buffer for the specified file against a git ref, using delta.text_diff
 --- this diff has unlimited context, and allows for one file
 --- @param filepath string The file path to diff
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
@@ -97,13 +99,13 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
             return
         end
 
-        git_data = Delta.parse.get_diff_data_git(diffstring)
+        git_data = delta.parse.get_diff_data_git(diffstring)
     else
         local new_path = filepath:sub(#git_root + 2)
         git_data = {{
             new_path = new_path,
             old_path = nil,
-            language = Delta.parse.get_language_from_filename(filepath)
+            language = delta.parse.get_language_from_filename(filepath)
         }}
     end
 
@@ -128,7 +130,7 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
         end
     end
 
-    local bufnr = Delta.text_diff(s1, s2, git_data[1].language, { context = #file_lines })
+    local bufnr = delta.text_diff(s1, s2, git_data[1].language, { context = #file_lines })
     if bufnr == nil then
         return -- error already notified
     end
@@ -141,11 +143,11 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
         vim.notify('Failed to open buffer at window.' .. tostring(err), vim.log.levels.ERROR)
         return
     end
-    Delta.highlight_delta_artifacts(bufnr)
-    Delta.syntax_highlight_diff_set(bufnr)
-    Delta.diff_highlight_diff(bufnr)
+    delta.highlight_delta_artifacts(bufnr)
+    delta.syntax_highlight_diff_set(bufnr)
+    delta.diff_highlight_diff(bufnr)
     if config.options.line_numbers then
-        Delta.setup_delta_statuscolumn(bufnr)
+        delta.setup_delta_statuscolumn(bufnr)
     end
 
     local delta_diff_data_set = vim.b[bufnr].delta_diff_data_set
@@ -172,7 +174,7 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     return bufnr
 end
 
---- opens a delta.lua git diff buffer for the specified path against a git ref, using Delta.git_diff
+--- opens a delta.lua git diff buffer for the specified path against a git ref, using delta.git_diff
 --- this diff has limited context, and allows for multiple files
 --- when not used on a file, will exclude untracked files. When used explicitly on an untracked file, will work
 --- @param path string The path to diff
@@ -190,7 +192,7 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr, buf_name)
 
     --- @type DeltaOpts
     local opts = { context = context, new_file = is_untracked }
-    local bufnr = Delta.git_diff(ref, path, opts)
+    local bufnr = delta.git_diff(ref, path, opts)
     if bufnr == nil then
         return
     end
@@ -202,11 +204,11 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr, buf_name)
         vim.notify('Failed to open buffer at window.' .. tostring(err), vim.log.levels.ERROR)
         return
     end
-    Delta.highlight_delta_artifacts(bufnr)
-    Delta.syntax_highlight_diff_set(bufnr)
-    Delta.diff_highlight_diff(bufnr)
+    delta.highlight_delta_artifacts(bufnr)
+    delta.syntax_highlight_diff_set(bufnr)
+    delta.diff_highlight_diff(bufnr)
     if config.options.line_numbers then
-        Delta.setup_delta_statuscolumn(bufnr)
+        delta.setup_delta_statuscolumn(bufnr)
     end
 
     local delta_diff_data_set = vim.b[bufnr].delta_diff_data_set
@@ -266,8 +268,8 @@ M.place_cursor_delta_buffer_entry = function(bufnr, winnr, cursor_placement, og_
     --- @cast delta_diff_data_set DiffData[]
 
     for _, diff_data in ipairs(delta_diff_data_set) do
-        -- when using Delta.text_diff, there is no filepath in diff_data to compare to.
-        -- in the interest of making this usable with Delta.text_diff, we do a fail open (if we can't find a filepath, we try to do a cursor placement anyways)
+        -- when using delta.text_diff, there is no filepath in diff_data to compare to.
+        -- in the interest of making this usable with delta.text_diff, we do a fail open (if we can't find a filepath, we try to do a cursor placement anyways)
         local full_path = git_root .. '/' .. (diff_data.new_path or '')
         if cursor_placement.filepath == nil or full_path == cursor_placement.filepath then
             for _, hunk in ipairs(diff_data.hunks) do
@@ -370,7 +372,7 @@ end
 --- @param bufnr number buf_id of delta.lua buffer id
 --- @param winnr number win id of the buffer we are exiting to
 --- @param alternative_bufnr number | nil buf_id of the buffer id to exit to. If given, is used.
---- @return nil | fun(): boolean strategy strategy function returns a boolean when executed if the window succcessfully exited to anotherb uffer and if the cursor was successfully placed. If used on a Delta.text_diff or Delta.patch_diff buffer, will not redirect to any filepath given by the buffer, so would prefer to have alternative_bufnr. If used on a Delta.git_diff buffer where the filepath is displayed, it will navigate to that before placing the cursor
+--- @return nil | fun(): boolean strategy strategy function returns a boolean when executed if the window succcessfully exited to anotherb uffer and if the cursor was successfully placed. If used on a delta.text_diff or delta.patch_diff buffer, will not redirect to any filepath given by the buffer, so would prefer to have alternative_bufnr. If used on a delta.git_diff buffer where the filepath is displayed, it will navigate to that before placing the cursor
 M.get_delta_buffer_cursor_exit_strategy = function(bufnr, winnr, alternative_bufnr)
     M.setup_cursor_placement_tracking(bufnr, winnr)
 

@@ -55,7 +55,7 @@ local T = new_set({
                     },
                     viewconfig = function() return { vs = 'vs', segment = '§', file = '§' } end,
                 }
-                _G.Delta = {
+                package.loaded['delta'] = {
                     parse = { get_diff_data_git = function(_) return {} end },
                     text_diff = function(_s1, _s2, _lang, _opts) return nil end,
                     highlight_delta_artifacts = function(_bufnr) end,
@@ -244,9 +244,9 @@ local OpenGitDiffBuffer = {}
 --   - git rev-parse  → code 0, stdout '/repo'
 --   - git diff       → code 0, non-empty stdout (when filepath='a')
 --   - git show       → code 0, stdout 'old content' (when ref starts with 'x:')
---   - Delta.parse.get_diff_data_git → 1 hunk, old_path='a', new_path='a'
+--   - delta.parse.get_diff_data_git → 1 hunk, old_path='a', new_path='a'
 --   - utils.read_file_lines         → {'line1','line2','line3'}
---   - Delta.text_diff               → creates a real buffer, sets delta_diff_data_set
+--   - delta.text_diff               → creates a real buffer, sets delta_diff_data_set
 --   - vim.notify                    → silenced
 -- Individual cases override specific parts to trigger failure paths.
 local open_git_diff_buffer_happy_mocks = [=[
@@ -277,7 +277,7 @@ local open_git_diff_buffer_happy_mocks = [=[
         return false
     end
 
-    Delta.parse.get_diff_data_git = function(_)
+    package.loaded['delta'].parse.get_diff_data_git = function(_)
         return {
             {
                 hunks = {
@@ -316,7 +316,7 @@ local open_git_diff_buffer_happy_mocks = [=[
         }
     end
 
-    Delta.text_diff = function(_s1, _s2, _lang, _opts)
+    package.loaded['delta'].text_diff = function(_s1, _s2, _lang, _opts)
         local bufnr = vim.api.nvim_create_buf(true, true)
         vim.b[bufnr].delta_diff_data_set = {
             { hunks = {
@@ -357,7 +357,7 @@ OpenGitDiffBuffer.open_git_diff_buffer__property_cases = {
         -- old_path=nil means an untracked file; git show is skipped and s1=''.
         name = 'happy path: old_path nil (untracked, git show skipped)',
         setup_lua = open_git_diff_buffer_happy_mocks .. [=[
-            Delta.parse.get_diff_data_git = function(_)
+            package.loaded['delta'].parse.get_diff_data_git = function(_)
                 return {
                     {
                         hunks = {
@@ -375,10 +375,10 @@ OpenGitDiffBuffer.open_git_diff_buffer__property_cases = {
         },
     },
     {
-        -- Delta.parse returns two hunks; buffer name must encode the hunk count (2).
+        -- delta.parse returns two hunks; buffer name must encode the hunk count (2).
         name = 'happy path: two parsed hunks encoded in buffer name',
         setup_lua = open_git_diff_buffer_happy_mocks .. [=[
-            Delta.parse.get_diff_data_git = function(_)
+            package.loaded['delta'].parse.get_diff_data_git = function(_)
                 return {
                     {
                         hunks = {
@@ -466,10 +466,10 @@ OpenGitDiffBuffer.open_git_diff_buffer__property_cases = {
         },
     },
     {
-        -- Delta.text_diff returns nil (delta.lua internal error); function propagates nil.
-        name = 'failure: Delta.text_diff returns nil',
+        -- delta.text_diff returns nil (delta.lua internal error); function propagates nil.
+        name = 'failure: delta.text_diff returns nil',
         setup_lua = open_git_diff_buffer_happy_mocks .. [=[
-            Delta.text_diff = function() return nil end
+            package.loaded['delta'].text_diff = function() return nil end
         ]=],
         inputs = {
             { filepath = 'a', ref = 'x', winnr = nil, expected_ok = false },
@@ -536,7 +536,7 @@ OpenGitDiffBuffer.open_git_diff_buffer__property_cases = {
         name = 'untracked happy path: git diff and git show skipped',
         setup_lua = open_git_diff_buffer_happy_mocks .. [=[
             package.loaded['deltaview.utils'].is_untracked_file = function(_) return true end
-            Delta.parse.get_language_from_filename = function(_) return nil end
+            package.loaded['delta'].parse.get_language_from_filename = function(_) return nil end
         ]=],
         inputs = {
             { filepath = 'a', ref = 'x', winnr = nil, expected_ok = true },
@@ -606,10 +606,10 @@ T['open_git_diff_buffer()'] = new_set({
         pre_case = function()
             child.lua(open_git_diff_buffer_happy_mocks)
             -- extend the base mocks with what the fallback path requires:
-            --   Delta.parse.get_diff_data  — called by the fallback to re-parse vim's unified diff
+            --   delta.parse.get_diff_data  — called by the fallback to re-parse vim's unified diff
             --   vim.diff / vim.text.diff   — called by the fallback to produce that unified diff
             child.lua([[
-                Delta.parse.get_diff_data = function(_diffstring, _lang)
+                package.loaded['delta'].parse.get_diff_data = function(_diffstring, _lang)
                     -- returns a single DiffData (not wrapped in a table; view.lua wraps it)
                     return {
                         hunks = {
@@ -636,7 +636,7 @@ local OpenGitDiffBufferForPath = {}
 -- Base mock setup shared by all cases. Establishes a fully working happy path:
 --   - git rev-parse  → code 0, stdout '/repo'
 --   - is_untracked_file → false
---   - Delta.git_diff → creates a real buffer, sets delta_diff_data_set
+--   - delta.git_diff → creates a real buffer, sets delta_diff_data_set
 --   - vim.notify     → silenced
 -- Individual cases override specific parts to trigger failure paths.
 local open_git_diff_buffer_for_path_happy_mocks = [=[
@@ -656,7 +656,7 @@ local open_git_diff_buffer_for_path_happy_mocks = [=[
         return true
     end
 
-    Delta.git_diff = function(_ref, _path, _opts)
+    package.loaded['delta'].git_diff = function(_ref, _path, _opts)
         local bufnr = vim.api.nvim_create_buf(true, true)
         vim.b[bufnr].delta_diff_data_set = {
             { hunks = {
@@ -693,10 +693,10 @@ OpenGitDiffBufferForPath.open_git_diff_buffer_for_path__property_cases = {
         },
     },
     {
-        -- Delta.git_diff returns nil; function propagates nil.
-        name = 'failure: Delta.git_diff returns nil',
+        -- delta.git_diff returns nil; function propagates nil.
+        name = 'failure: delta.git_diff returns nil',
         setup_lua = open_git_diff_buffer_for_path_happy_mocks .. [=[
-            Delta.git_diff = function() return nil end
+            package.loaded['delta'].git_diff = function() return nil end
         ]=],
         inputs = {
             { path = 'src/', ref = 'HEAD', context = 3, winnr = nil, buf_name = nil, expected_ok = false },
@@ -727,16 +727,16 @@ OpenGitDiffBufferForPath.open_git_diff_buffer_for_path__property_cases = {
         },
     },
     {
-        -- is_untracked_file=true: opts.new_file is set to true and passed to Delta.git_diff.
+        -- is_untracked_file=true: opts.new_file is set to true and passed to delta.git_diff.
         -- The untracked flag is the only behavioural difference; the rest of the happy path is identical.
         name = 'untracked happy path: is_untracked_file=true sets new_file opt',
         setup_lua = open_git_diff_buffer_for_path_happy_mocks .. [=[
             package.loaded['deltaview.utils'].is_untracked_file = function(_) return true end
 
-            -- capture the opts Delta.git_diff receives so the property can assert new_file=true
+            -- capture the opts delta.git_diff receives so the property can assert new_file=true
             _G.fixture.captured_git_diff_opts = nil
-            local orig_git_diff = Delta.git_diff
-            Delta.git_diff = function(ref, path, opts)
+            local orig_git_diff = package.loaded['delta'].git_diff
+            package.loaded['delta'].git_diff = function(ref, path, opts)
                 _G.fixture.captured_git_diff_opts = opts
                 return orig_git_diff(ref, path, opts)
             end
@@ -778,7 +778,7 @@ OpenGitDiffBufferForPath.properties.buffer_state_matches_expected = [[(function(
             if not name:find(expected_name, 1, true) then return false end
             if not name:find('deltaview://diff/', 1, true) then return false end
 
-            -- for the untracked case: assert new_file=true was forwarded to Delta.git_diff
+            -- for the untracked case: assert new_file=true was forwarded to delta.git_diff
             if _G.fixture.captured_git_diff_opts ~= nil then
                 if _G.fixture.captured_git_diff_opts.new_file ~= true then return false end
             end

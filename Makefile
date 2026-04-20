@@ -28,12 +28,6 @@ setup:
 	else \
 		echo "delta already installed"; \
 	fi
-	@if [ ! -d "deps/fzf" ]; then \
-		echo "Installing fzf (not fzf.vim) for integration test..."; \
-		git clone --filter=blob:none https://github.com/junegunn/fzf deps/fzf; \
-	else \
-		echo "fzf already installed"; \
-	fi
 	@if [ ! -d "deps/fzf_lua" ]; then \
 		echo "Installing fzf_lua for integration tests..."; \
 		git clone --filter=blob:none https://github.com/ibhagwan/fzf-lua deps/fzf_lua; \
@@ -65,7 +59,6 @@ setup-silent:
 	@mkdir -p deps deps/parser
 	@[ -d "deps/mini.test" ] || git clone -q --filter=blob:none https://github.com/nvim-mini/mini.test deps/mini.test
 	@[ -d "deps/delta" ] || git clone -q --filter=blob:none https://github.com/kokusenz/delta.lua deps/delta
-	@[ -d "deps/fzf" ] || git clone -q --filter=blob:none https://github.com/junegunn/fzf deps/fzf
 	@[ -d "deps/fzf_lua" ] || git clone -q --filter=blob:none https://github.com/ibhagwan/fzf-lua deps/fzf_lua
 	@[ -d "deps/telescope" ] || git clone -q --filter=blob:none https://github.com/nvim-telescope/telescope.nvim deps/telescope
 	@[ -d "deps/plenary" ] || git clone -q --filter=blob:none https://github.com/nvim-lua/plenary.nvim deps/plenary

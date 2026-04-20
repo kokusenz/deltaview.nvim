@@ -1,6 +1,6 @@
 # deltaview.nvim
 
-An inline diff viewer for Neovim using [delta.lua](https://github.com/kokusenz/delta.lua). Delta.lua provides two tier diff highlighting and syntax highlighting, while deltaview.nvim controls the behavior of how the user wants to view these diffs. It is lightweight, designed to be opened and closed quickly. This allows the user to use their lsp while reviewing changes, yank deleted lines of code, and navigate around a pull request naturally, rather than being forced into using a filetree.
+An inline diff viewer for Neovim using [delta.lua](https://github.com/kokusenz/delta.lua). Delta.lua is a partial recreation of the [delta](https://github.com/dandavison/delta) pager. Delta.lua provides two tier diff highlighting and syntax highlighting, while deltaview.nvim controls the behavior of how the user wants to view these diffs. It is lightweight, designed to be opened and closed quickly. This allows the user to use their lsp while reviewing changes, yank deleted lines of code, and navigate around a pull request naturally, rather than being forced into using a filetree.
 
 ![DeltaView Screenshot](https://github.com/user-attachments/assets/d4d1e8aa-7fd1-4759-b658-45ca468c18fa)
 
@@ -36,13 +36,11 @@ https://github.com/user-attachments/assets/b4f7cac3-3d96-4a4b-9076-98cd8a33c7d6
 - Neovim >= 0.10
 - Git
 - [delta.lua](https://github.com/kokusenz/delta.lua). Install this separately into your neovim config using the plugin manager of your choice.
-    - the legacy flow (< v0.2.0) will still work without this plugin, provided git-delta is installed
 - (Optional) An fzf picker of your choice. Currently supports
     - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
     - [telescope](https://github.com/nvim-telescope/telescope.nvim)
-    - [fzf](https://github.com/junegunn/fzf) *note that this is the legacy picker. the preview window does not show the delta.lua previews, but rather the original delta previews. I recommend using one of the above two, or setting the fzf_threshold to something high if you prefer not to fuzzy find.
-- (Optional) [delta](https://github.com/dandavison/delta) (git-delta). 
-    - This is required for delta before v0.2.0.
+
+Note that this plugin does not use [delta](https://github.com/dandavison/delta), and it is not a dependency
 
 ## Usage
 
@@ -131,13 +129,6 @@ When viewing a diff (DeltaView or Delta):
 | `[f` | Open previous file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
 | `d?` | Open the help legend, to view all possible keybinds |
 
-When in the file menu:
-
-| Key | Action |
-|-----|--------|
-| Select a file | Open diff for that file |
-| `alt-;` | Change diff menu view to quickselect (when in the legacy fzf picker. This functionality is not available for fzf-lua and telescope) |
-
 All keybindings are configurable
 
 ## Configuration
@@ -167,11 +158,8 @@ require('deltaview').setup({
     -- If this setting is true, will show the delta style line numbers in the statuscolumn.
     line_numbers = false,
 
-    -- 'fzf-lua' | 'telescope' | 'fzf' | nil - specify which picker to use. If nil, will go through the order and pick the first available. The order is fzf-lua -> telescope -> fzf -> deltaview quickselect
+    -- 'fzf-lua' | 'telescope' | nil - specify which picker to use. If nil, will go through the order and pick the first available. The order is fzf-lua -> telescope -> deltaview quickselect
     fzf_picker = nil
-
-    -- Use dandavison/delta as the diff viewer if true, uses delta.lua if falsy
-    use_legacy_delta = nil
 
     -- Custom keybindings
     keyconfig = {
@@ -191,9 +179,6 @@ require('deltaview').setup({
         -- Navigate between files (when opened from DeltaMenu)
         next_diff = "]f",
         prev_diff = "[f",
-
-        -- Change diff menu view to quickselect (when in fzf picker. This functionality is not available for fzf-lua and telescope)
-        fzf_toggle = "alt-;",
 
         -- Open help legend
         help_legend = "d?"

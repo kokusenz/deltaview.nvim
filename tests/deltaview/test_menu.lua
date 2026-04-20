@@ -45,9 +45,6 @@ local T = new_set({
                     open_deltaview_telescope_menu = function(_ref, _mods, _changes_data)
                         _G.fixture.called = 'telescope'
                     end,
-                    open_deltaview_fzf_junegunn_menu = function(_ref, _mods, _changes_data)
-                        _G.fixture.called = 'fzf_junegunn'
-                    end,
                     open_deltaview_quickselect_menu = function(_ref, _mods, _changes_data)
                         _G.fixture.called = 'quickselect'
                     end,
@@ -96,7 +93,7 @@ T['choose_deltaview_fzf_menu()']['calls fzf_lua picker when fzf_picker=fzf-lua a
 end
 
 -- fzf_picker = 'fzf-lua', fzf-lua NOT available → warns and falls through to default.
--- In the default path, with neither fzf-lua nor telescope, falls back to fzf_junegunn.
+-- In the default path, with neither fzf-lua nor telescope, falls back to quickselect.
 T['choose_deltaview_fzf_menu()']['warns and falls back to default when fzf_picker=fzf-lua but fzf-lua is missing'] = function()
     child.lua(block_modules_lua, { 'fzf-lua', 'telescope' })
     child.lua([[
@@ -106,7 +103,7 @@ T['choose_deltaview_fzf_menu()']['warns and falls back to default when fzf_picke
     ]], { ref, mods, changes_data })
 
     eq(type(child.lua_get('_G.fixture.notified')), 'string')
-    eq(child.lua_get('_G.fixture.called'), 'fzf_junegunn')
+    eq(child.lua_get('_G.fixture.called'), 'quickselect')
 end
 
 -- fzf_picker = 'fzf-lua', fzf-lua NOT available, but telescope IS available in default fallback
@@ -136,7 +133,7 @@ T['choose_deltaview_fzf_menu()']['calls telescope picker when fzf_picker=telesco
 end
 
 -- fzf_picker = 'telescope', telescope NOT available → warns and falls through to default.
--- Neither fzf-lua nor telescope available in default, so falls back to fzf_junegunn.
+-- Neither fzf-lua nor telescope available in default, so falls back to quickselect.
 T['choose_deltaview_fzf_menu()']['warns and falls back to default when fzf_picker=telescope but telescope is missing'] = function()
     child.lua(block_modules_lua, { 'fzf-lua', 'telescope' })
     child.lua([[
@@ -146,7 +143,7 @@ T['choose_deltaview_fzf_menu()']['warns and falls back to default when fzf_picke
     ]], { ref, mods, changes_data })
 
     eq(type(child.lua_get('_G.fixture.notified')), 'string')
-    eq(child.lua_get('_G.fixture.called'), 'fzf_junegunn')
+    eq(child.lua_get('_G.fixture.called'), 'quickselect')
 end
 
 -- fzf_picker = 'telescope', telescope NOT available, but fzf-lua IS available in the default fallback
@@ -160,18 +157,6 @@ T['choose_deltaview_fzf_menu()']['falls back to fzf_lua in default path when tel
     ]], { ref, mods, changes_data })
 
     eq(child.lua_get('_G.fixture.called'), 'fzf_lua')
-end
-
--- fzf_picker = 'fzf' always calls fzf_junegunn (it handles its own fallback internally)
-T['choose_deltaview_fzf_menu()']['calls fzf_junegunn picker when fzf_picker=fzf'] = function()
-    child.lua([[
-        local ref, mods, changes_data = ...
-        package.loaded['deltaview.config'].options.fzf_picker = 'fzf'
-        M.choose_deltaview_fzf_menu(ref, mods, changes_data)
-    ]], { ref, mods, changes_data })
-
-    eq(child.lua_get('_G.fixture.called'), 'fzf_junegunn')
-    eq(child.lua_get('_G.fixture.notified'), vim.NIL)
 end
 
 -- default path (nil/unknown picker), fzf-lua available → uses fzf-lua
@@ -199,8 +184,8 @@ T['choose_deltaview_fzf_menu()']['default path: uses telescope when fzf-lua miss
     eq(child.lua_get('_G.fixture.called'), 'telescope')
 end
 
--- default path, neither fzf-lua nor telescope available → falls back to fzf_junegunn
-T['choose_deltaview_fzf_menu()']['default path: falls back to fzf_junegunn when no picker is available'] = function()
+-- default path, neither fzf-lua nor telescope available → falls back to quickselect
+T['choose_deltaview_fzf_menu()']['default path: falls back to quickselect when no picker is available'] = function()
     child.lua(block_modules_lua, { 'fzf-lua', 'telescope' })
     child.lua([[
         local ref, mods, changes_data = ...
@@ -208,7 +193,7 @@ T['choose_deltaview_fzf_menu()']['default path: falls back to fzf_junegunn when 
         M.choose_deltaview_fzf_menu(ref, mods, changes_data)
     ]], { ref, mods, changes_data })
 
-    eq(child.lua_get('_G.fixture.called'), 'fzf_junegunn')
+    eq(child.lua_get('_G.fixture.called'), 'quickselect')
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
