@@ -2,8 +2,6 @@ local M = {}
 local utils = require('deltaview.utils')
 local config = require('deltaview.config')
 local picker = require('deltaview.picker')
-local delta_ok, _ = pcall(require, 'delta')
-assert(delta_ok, 'Delta.lua module not found. Please install delta.lua to use deltaview.nvim.')
 
 --- Creates a menu pane, and orchestrates the logic of switching between a fuzzy finder or a quick select depending on how large the diff is
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.

@@ -11,9 +11,9 @@ M.check = function()
     if has_delta_lua then
         vim.health.ok('delta.lua found')
     else
-        vim.health.warn(
-            'delta.lua is not installed — treesitter syntax highlighting and other delta.lua features are unavailable',
-            { 'Install delta.lua and ensure it is loaded before deltaview' }
+        vim.health.error(
+            'delta.lua is not installed',
+            { 'Install delta.lua, https://github.com/kokusenz/delta.lua' }
         )
     end
 
@@ -67,7 +67,7 @@ M.check = function()
     elseif configured == 'telescope' then
         active_picker = has_telescope and 'telescope (configured)' or 'telescope configured but not found — will use auto-detect'
     else
-        -- auto-detect order: fzf-lua -> telescope -> fzf -> quickselect
+        -- auto-detect order: fzf-lua -> telescope -> quickselect
         if has_fzf_lua then
             active_picker = 'fzf-lua (auto)'
         elseif has_telescope then

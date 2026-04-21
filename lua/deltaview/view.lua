@@ -2,9 +2,6 @@ local M = {}
 local utils = require('deltaview.utils')
 local config = require('deltaview.config')
 local help = require('deltaview.help')
-local delta_ok, delta = pcall(require, 'delta')
-assert(delta_ok, 'Delta.lua module not found. Please install delta.lua to use deltaview.nvim.')
-
 local _echo_timer = nil
 
 --- deltaview file diff buffer orchestrator, using delta.lua. opens a deltaview diff on top of current window
@@ -82,6 +79,8 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
         return
     end
     assert(ref ~= nil)
+    local ok, delta = pcall(require, 'delta')
+    assert(ok, 'Delta.lua module not found. Please verify delta.lua is installed to deltaview.nvim. `:checkhealth deltaview`')
 
     local is_untracked = utils.is_untracked_file(filepath, git_root)
     local git_data
@@ -187,6 +186,8 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr, buf_name)
     assert(path ~= nil)
     assert(ref ~= nil)
     assert(context ~= nil)
+    local ok, delta = pcall(require, 'delta')
+    assert(ok, 'Delta.lua module not found. Please verify delta.lua is installed to deltaview.nvim. `:checkhealth deltaview`')
     local git_root = utils.get_git_root(path)
     local is_untracked = utils.is_untracked_file(path, git_root)
 

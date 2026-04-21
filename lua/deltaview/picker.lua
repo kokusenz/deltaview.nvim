@@ -137,10 +137,14 @@ M.open_deltaview_fzf_lua_menu = function(ref, mods, changes_data)
         local preview_winid = self.win.preview_winid
         local old_bufnr = vim.api.nvim_win_get_buf(preview_winid)
         _buf_name_seq = _buf_name_seq + 1
-        local bufnr = view.open_git_diff_buffer_for_path(filepath, ref, state.default_context, preview_winid, tostring(_buf_name_seq))
-        if bufnr == nil then
+        local bufnr = nil
+        local success, err = pcall(function()
+            bufnr = view.open_git_diff_buffer_for_path(filepath, ref, state.default_context, preview_winid, tostring(_buf_name_seq))
+        end)
+        if not success or bufnr == nil then
             local tmp = self:get_tmp_buffer()
             vim.api.nvim_buf_set_lines(tmp, 0, -1, false, { 'No diff available for: ' .. entry_str })
+            vim.api.nvim_buf_set_lines(tmp, 1, -1, false, { tostring(err) })
             self:set_preview_buf(tmp)
             return
         end
@@ -233,11 +237,15 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
             end
 
             _buf_name_seq = _buf_name_seq + 1
-            local bufnr = view.open_git_diff_buffer_for_path(filepath, ref, state.default_context, preview_winid, tostring(_buf_name_seq))
-            if bufnr == nil then
+            local bufnr = nil
+            local success, err = pcall(function()
+                bufnr = view.open_git_diff_buffer_for_path(filepath, ref, state.default_context, preview_winid, tostring(_buf_name_seq))
+            end)
+            if not success or bufnr == nil then
                 local fallback = vim.api.nvim_create_buf(false, true)
                 table.insert(preview_bufs, fallback)
                 vim.api.nvim_buf_set_lines(fallback, 0, -1, false, { 'No diff available for: ' .. entry.value })
+                vim.api.nvim_buf_set_lines(fallback, 1, -1, false, { tostring(err) })
                 vim.api.nvim_win_set_buf(preview_winid, fallback)
                 return
             end
