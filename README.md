@@ -233,7 +233,4 @@ By default, the UI uses nerd font icons:
     - [snacks](https://github.com/folke/snacks.nvim)
 - Diff two blocks of text against each other; given a yanked section and a visual selected section, vim.text.diff what's in the register against what's highlighted, and display using delta.lua
 - AI Agent integration such that proposed changes are displayable with delta.lua
-
-## Contributing
-
-Contributions are welcome. CONTRIBUTING.md coming soon.
+- Allow bundling, such that users can install only deltaview.nvim without having to install delta.lua
