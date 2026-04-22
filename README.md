@@ -88,7 +88,7 @@ Context can be specified. This can be useful for searching your modified code (e
 
 ```lua
 vim.pack.add({
-    'https://github.com/kokusenz/deltaview.nvim'
+    'https://github.com/kokusenz/deltaview.nvim',
     'https://github.com/kokusenz/delta.lua'
 })
 ```
@@ -98,7 +98,7 @@ Or your favorite plugin manager, such as [lazy.nvim](https://github.com/folke/la
 
 ```lua
 {
-    'kokusenz/deltaview.nvim'
+    'kokusenz/deltaview.nvim',
     dependencies = {
         "kokusenz/delta.lua",
     },
