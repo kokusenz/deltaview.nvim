@@ -87,14 +87,22 @@ Context can be specified. This can be useful for searching your modified code (e
 [vim.pack](https://github.com/neovim/neovim/pull/34009)
 
 ```lua
-vim.pack.add({ 'https://github.com/kokusenz/deltaview.nvim.git'})
+vim.pack.add({
+    'https://github.com/kokusenz/deltaview.nvim'
+    'https://github.com/kokusenz/delta.lua'
+})
 ```
 
-Or your favorite plugin manager:
+
+Or your favorite plugin manager, such as [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
--- example: vim plug
-Plug('kokusenz/deltaview.nvim')
+{
+    'kokusenz/deltaview.nvim'
+    dependencies = {
+        "kokusenz/delta.lua",
+    },
+}
 ```
 
 No setup needed by default. You can configure if you want:
