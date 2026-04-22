@@ -7,16 +7,8 @@ I try to attach a commit to each log, but in the initial pr, I may use the pr in
 
 ## Latest
 
-### [0.2.1] - 2026-04-09
-
-#### Added
-commit - a6607058ca4d50619d44ddcf51df1cc35bdfd85b
-
-- :DeltaView is able to be used when the neovim cwd is not in a git repository, provided the buffer is a git tracked file - a6607058ca4d50619d44ddcf51df1cc35bdfd85b
-
-#### Fixes
-
-- All delta buffer names are now prefixed by deltaview://diff/, in line with how oil.nvim creates custom buffers, and addressing bug related to file watchers - 808cd6fbe4c49b71f03979790725fb173aade357
+### [0.2.2] - 2026-04-22
+pull request - https://github.com/kokusenz/deltaview.nvim/pull/33
 
 #### Breaking Changes
 - `use_legacy_delta` removed: The legacy dandavison/delta binary flow has been removed entirely. `use_legacy_delta = true` is no longer a valid config option. [delta.lua](https://github.com/kokusenz/delta.lua) is now the only supported rendering backend.
@@ -108,3 +100,14 @@ commit - e3f5e0f42d645166e0f78efc7f84dc7bac86f01d
 - Fixed issue with legacy delta workflow, where enter to jump to line no longer worked in the :Delta buffer - d9a530e7b55d035a5341efaba65b47a6d893bc43
 - Fixed issue introduced in e3f5e0f42d645166e0f78efc7f84dc7bac86f01d (original 0.2.0 commit) where deltaview buffer names when opened from telescope are not correct - d9a530e7b55d035a5341efaba65b47a6d893bc43
 - Fixed issue where binary files were displayed with nonzero line numbers in deltamenu - dbb617444d38baeb91922ca03836d928d395f493
+
+### [0.2.1] - 2026-04-09
+
+#### Added
+commit - a6607058ca4d50619d44ddcf51df1cc35bdfd85b
+
+- :DeltaView is able to be used when the neovim cwd is not in a git repository, provided the buffer is a git tracked file - a6607058ca4d50619d44ddcf51df1cc35bdfd85b
+
+#### Fixes
+
+- All delta buffer names are now prefixed by deltaview://diff/, in line with how oil.nvim creates custom buffers, and addressing bug related to file watchers - 808cd6fbe4c49b71f03979790725fb173aade357
