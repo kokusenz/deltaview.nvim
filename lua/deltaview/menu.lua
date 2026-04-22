@@ -1,7 +1,5 @@
 local M = {}
 local utils = require('deltaview.utils')
-local view = require('deltaview.view')
-local state = require('deltaview.state')
 local config = require('deltaview.config')
 local picker = require('deltaview.picker')
 
@@ -57,13 +55,9 @@ M.choose_deltaview_fzf_menu = function(ref, mods, changes_data)
         end
         picker.open_deltaview_telescope_menu(ref, mods, changes_data)
         return
-    elseif config.options.fzf_picker == 'fzf' then
-        -- this function already naturally falls back to quickselect. no need to notify or configure fallback
-        picker.open_deltaview_fzf_junegunn_menu(ref, mods, changes_data)
-        return
     end
     ::default::
-    -- try default order - fzf-lua -> fzf -> quick_select
+    -- try default order - fzf-lua -> quick_select
     local fzf_lua_ok = pcall(require, 'fzf-lua')
     if fzf_lua_ok then
         picker.open_deltaview_fzf_lua_menu(ref, mods, changes_data)
@@ -76,8 +70,7 @@ M.choose_deltaview_fzf_menu = function(ref, mods, changes_data)
         return
     end
 
-    -- fallback - use fzf, which falls back to quickselect if fzf cannot be found
-    picker.open_deltaview_fzf_junegunn_menu(ref, mods, changes_data)
+    picker.open_deltaview_quickselect_menu(ref, mods, changes_data)
 end
 
 return M
