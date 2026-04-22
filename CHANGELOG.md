@@ -1,20 +1,23 @@
 # Changelog
 
 All notable changes to deltaview.nvim will be documented in this file.
-
-This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Because lua is not compiled for a release, I am just choosing a number and specifying which commit I am describing. I will increment a version if I feel like a feature is big enough to merit it.
+I will keep the same version, and append to the "Fixes" or "Changed" section if it is a backwards compatible bug fix or backwards compatible change
+I will increment a version (0.x.y -> 0.x.y+1) if I there is a new feature or breaking change. Nothing should be added to the "Added" section, only the "Fixes" or "Changed" section, so if something feels like it should be added to "Added", it should be a new version.
+I will increment a major version (0.x.y -> 0.x+1.0) if I there is large new feature
 I try to attach a commit to each log, but in the initial pr, I may use the pr instead. Will change the pr to the commit hash (if merged) in a later pr.
+I will keep the version in "Latest" as not a tag, to be extendable for bug fixes. Once it is moved into "History", it is no longer extendable, and a tag will be made.
 
 ## Latest
 
 ### [0.2.2] - 2026-04-22
-pull request - https://github.com/kokusenz/deltaview.nvim/pull/33
 
 #### Breaking Changes
+pull request - https://github.com/kokusenz/deltaview.nvim/pull/33
+
 - `use_legacy_delta` removed: The legacy dandavison/delta binary flow has been removed entirely. `use_legacy_delta = true` is no longer a valid config option. [delta.lua](https://github.com/kokusenz/delta.lua) is now the only supported rendering backend.
-- delta.lua is now a hard dependency**: Previously delta.lua was optional (falling back to the legacy binary). It is now required. A missing delta.lua will surface as an error via `vim.health` and at the point of use.
+- delta.lua is now a hard dependency: Previously delta.lua was optional (falling back to the legacy binary). It is now required. A missing delta.lua will surface as an error via `vim.health` and at the point of use.
 - fzf picker removed: The standalone `fzf` (junegunn) picker backend for `:DeltaMenu` has been removed. Supported pickers are now fzf-lua, telescope, and will fall back to this plugin's custom vim.ui.select. The `fzf_picker` config option no longer accepts `"fzf"` as a value.
-- delta.lua missing alert is now lazy**: Previously, a missing delta.lua dependency triggered a notification at startup. It now surfaces at the point of use (when a diff command is invoked) and via `:checkhealth deltaview`.
+- delta.lua missing alert is now lazy: Previously, a missing delta.lua dependency triggered a notification at startup. It now surfaces at the point of use (when a diff command is invoked) and via `:checkhealth deltaview`.
 
 ## History
 
@@ -70,7 +73,7 @@ commit - e3f5e0f42d645166e0f78efc7f84dc7bac86f01d
 ### [0.1.2] - 2026-01-31
 
 #### Added
-pr - 70f1d2d25c64f2c70afd4b4f92fd56dc29194899
+commit - 70f1d2d25c64f2c70afd4b4f92fd56dc29194899
 
 - yanking code from a Delta buffer will yank the text without any delta line number artifacts.
 
