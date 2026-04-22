@@ -225,6 +225,7 @@ By default, the UI uses nerd font icons:
 ## Troubleshooting
 - :help DeltaView
 - Reach out via an issue
+- Read the changelog for changes or breaking changes
 
 ## Feature Roadmap
 

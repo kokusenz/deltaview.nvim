@@ -18,6 +18,12 @@ commit - a6607058ca4d50619d44ddcf51df1cc35bdfd85b
 
 - All delta buffer names are now prefixed by deltaview://diff/, in line with how oil.nvim creates custom buffers, and addressing bug related to file watchers - 808cd6fbe4c49b71f03979790725fb173aade357
 
+#### Breaking Changes
+- `use_legacy_delta` removed: The legacy dandavison/delta binary flow has been removed entirely. `use_legacy_delta = true` is no longer a valid config option. [delta.lua](https://github.com/kokusenz/delta.lua) is now the only supported rendering backend.
+- delta.lua is now a hard dependency**: Previously delta.lua was optional (falling back to the legacy binary). It is now required. A missing delta.lua will surface as an error via `vim.health` and at the point of use.
+- fzf picker removed: The standalone `fzf` (junegunn) picker backend for `:DeltaMenu` has been removed. Supported pickers are now fzf-lua, telescope, and will fall back to this plugin's custom vim.ui.select. The `fzf_picker` config option no longer accepts `"fzf"` as a value.
+- delta.lua missing alert is now lazy**: Previously, a missing delta.lua dependency triggered a notification at startup. It now surfaces at the point of use (when a diff command is invoked) and via `:checkhealth deltaview`.
+
 ## History
 
 ### [0.1.0] - 2026-01-11
