@@ -56,7 +56,7 @@ M.populate_quickfix_deltamenu_items = function(ref, mods, changes_data)
             for item = info.start_idx, info.end_idx do
                 local entry = items[item]
                 if entry.user_data and entry.user_data.deltaview then
-                    table.insert(out, entry.user_data.bufname .. ' | ' .. entry.text)
+                    table.insert(out, entry.user_data.bufname .. ' > ' .. entry.text)
                 end
             end
             return out
