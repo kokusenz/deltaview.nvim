@@ -27,16 +27,22 @@ M.populate_quickfix_deltamenu_items = function(ref, mods, changes_data)
         -- elseif right_exists then
         --     status = 'A'
         -- end
-        table.insert(qflist, {
+
+        --- @class DeltaViewQfListEntry
+        local qflist_entry = {
             filename = path,
             text = changes_data[path][1], -- todo changes_data is flawed, should not be array
+            --- @class DeltaViewQfListEntryUserData
             user_data = {
-                deltaview = true,
+                deltaview = true, -- identifier, allows us to confidently use @cast DeltaViewQfListEntry
+                show_delta_on_entry = true,
                 ref = ref,
                 bufname = path -- for some reason, using entry.filename in quickfixtextfunc errors.
             }
-        })
+        }
+        table.insert(qflist, qflist_entry)
     end
+    --- @cast qflist DeltaViewQfListEntry[]
 
     vim.fn.setqflist({}, 'r', {
         nr = '$',
@@ -49,7 +55,9 @@ M.populate_quickfix_deltamenu_items = function(ref, mods, changes_data)
             local out = {}
             for item = info.start_idx, info.end_idx do
                 local entry = items[item]
-                table.insert(out, entry.user_data.bufname .. ' | ' .. entry.text)
+                if entry.user_data and entry.user_data.deltaview then
+                    table.insert(out, entry.user_data.bufname .. ' | ' .. entry.text)
+                end
             end
             return out
         end,

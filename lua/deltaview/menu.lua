@@ -47,56 +47,41 @@ M.setup_quickfix_deltaview_on_entry = function()
 
     --- identifies if the buffer is in the quickfix as a deltaview entry, using bufname
     --- @param bufnr number
+    --- @return DeltaViewQfListEntry | nil quickfix_entry entry of getqflist
+    --- @return number | nil quickfix_entry entry of getqflist
     local function get_delta_entry(bufnr)
         assert(bufnr)
-        --- @type {idx: number, items: table[], size: number}
         local qf_info = vim.fn.getqflist({ items = 1, size = 1 })
         if qf_info.size == 0 then
-            return false
+            return
         end
 
-        local match
         local bufname = vim.api.nvim_buf_get_name(bufnr)
-        for _, entry in ipairs(qf_info.items) do
+        for i, entry in ipairs(qf_info.items) do
             if entry.user_data
-                and entry.user_data.ref -- optional check, just sort of ensures it is a deltaview buffer. consider keeping deltaview as always true and using a different flag to determine whether to automatically diff or not
+                and entry.user_data.deltaview
                 and utils.git_rel_to_abs(entry.user_data.bufname) == bufname
             then
-                match = entry
+                --- @cast entry DeltaViewQfListEntry
+                return entry, i
             end
         end
-
-        if
-            not match
-            or not match.user_data
-            or (bufnr and match.bufnr ~= bufnr)
-        then
-            return nil
-        end
-
-        return match
     end
 
     --- clears deltaview flag of current quickfix list entry
     --- @param bufnr number
     local function clear_delta_entry(bufnr)
         assert(bufnr)
-        --- @type {idx: number, items: table[], size: number}
-        local qf_info = vim.fn.getqflist({ idx = 0, items = 1, size = 1 })
-        if qf_info.size == 0 then
-            return
-        end
-
-        local entry = get_delta_entry(bufnr)
+        local entry, idx = get_delta_entry(bufnr)
         if
             entry
             and entry.user_data
             and entry.user_data.deltaview
         then
             local current_qflist = vim.fn.getqflist({ all = 1 }).items
-            if current_qflist[qf_info.idx] and current_qflist[qf_info.idx].user_data then
-                current_qflist[qf_info.idx].user_data.deltaview = nil
-                vim.fn.setqflist({}, 'r', { items = current_qflist, idx = qf_info.idx })
+            if current_qflist[idx] and current_qflist[idx].user_data then
+                current_qflist[idx].user_data.show_delta_on_entry = false
+                vim.fn.setqflist({}, 'r', { items = current_qflist, idx = idx })
             end
         end
     end
@@ -111,8 +96,8 @@ M.setup_quickfix_deltaview_on_entry = function()
         end
 
         for _, entry in ipairs(qf_info.items) do
-            if entry.user_data and not entry.user_data.deltaview then
-                entry.user_data.deltaview = true
+            if entry.user_data and entry.user_data.deltaview and not entry.user_data.show_delta_on_entry then
+                entry.user_data.show_delta_on_entry = true
             end
         end
         vim.fn.setqflist({}, 'r', { items = qf_info.items, idx = idx })
@@ -122,7 +107,7 @@ M.setup_quickfix_deltaview_on_entry = function()
         pattern = '*',
         callback = function(ev)
             local entry = get_delta_entry(ev.buf)
-            if not entry or not entry.user_data or not entry.user_data.deltaview then
+            if not entry or not entry.user_data or not entry.user_data.show_delta_on_entry then
                 return
             end
 
