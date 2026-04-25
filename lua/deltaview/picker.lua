@@ -8,110 +8,53 @@ local help = require('deltaview.help')
 
 local _buf_name_seq = 0
 
---- @param bufnr number
-M.decorate_deltaview_with_next_keybinds = function(bufnr)
-    local adjacent_files = utils.get_adjacent_files(state.diffed_files)
-    if adjacent_files ~= nil then
-        local next_diff_message = ''
-        if config.options.show_verbose_nav then
-            next_diff_message = next_diff_message ..
-                vim.fn.fnamemodify(adjacent_files.prev, ':t') .. ' ' .. config.viewconfig().prev
-        end
-        next_diff_message = next_diff_message ..
-            ' [' .. state.diffed_files.cur_idx ..
-            '|' .. #state.diffed_files.files ..
-            '] ' .. config.viewconfig().next ..
-            ' ' .. vim.fn.fnamemodify(adjacent_files.next, ':t') ..
-            '    '
-
-        local name = vim.api.nvim_buf_get_name(bufnr)
-        vim.api.nvim_buf_set_name(bufnr, name .. '    ' .. next_diff_message)
-
-        vim.keymap.set('n', config.options.keyconfig.next_diff, function()
-            M.programmatically_select_diff_from_menu(adjacent_files.next)
-        end, { buffer = bufnr, silent = true })
-        help.register_keybind(bufnr, config.options.keyconfig.next_diff, 'open next file diff')
-
-        vim.keymap.set('n', config.options.keyconfig.prev_diff, function()
-            M.programmatically_select_diff_from_menu(adjacent_files.prev)
-        end, { buffer = bufnr, silent = true })
-        help.register_keybind(bufnr, config.options.keyconfig.prev_diff, 'open previous file diff')
-    end
-end
-
---- @param filepath string
-M.programmatically_select_diff_from_menu = function(filepath)
-    local rev_parse_result = vim.system({ 'git', 'rev-parse', '--show-toplevel' }):wait()
-    if rev_parse_result.code ~= 0 and rev_parse_result.code ~= 1 then
-        vim.notify('Not in a git repository. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
-        return
-    end
-
-    local sorted_files = utils.get_sorted_diffed_files(state.diff_target_ref)
-    local mods = utils.get_filenames_from_sortedfiles(sorted_files)
-
-    local selected_idx = nil
-    for idx, value in ipairs(mods) do
-        if value == filepath then
-            selected_idx = idx
-        end
-    end
-    assert(selected_idx ~= nil, 'filepath not found in list of diffed files.')
-
-    local success, err = pcall(function()
-        vim.cmd('e ' .. utils.git_rel_to_abs(vim.fn.fnameescape(filepath)))
-        local bufnr = view.deltaview_file(state.diff_target_ref)
-        if bufnr == nil then
-            return
-        end
-        state.diffed_files.files = mods
-        state.diffed_files.cur_idx = selected_idx
-        M.decorate_deltaview_with_next_keybinds(bufnr)
-    end)
-    if not success then
-        vim.notify('An error occured while trying to open DeltaView - ' .. tostring(err), vim.log.levels.ERROR)
-        return
-    end
-end
-
--- TODO this should be removed in favor of quickfix list. Make sure to remove from documentation.
+--- opens a quickfix menu with all entries, with metadata on the items such that autocmd's can recognize when a diff buffer should be opened.
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
---- @param mods string[]
+--- @param mods string[] list of filepaths
 --- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
-M.open_deltaview_quickselect_menu = function(ref, mods, changes_data)
+M.populate_quickfix_deltamenu_items = function(ref, mods, changes_data)
     assert(ref ~= nil)
     assert(mods ~= nil)
     assert(changes_data ~= nil)
 
-    --- @param filepath string
-    --- @param selected_idx number
-    local on_select = function(filepath, selected_idx)
-        if filepath == nil then
-            return
-        end
-
-        local success, err = pcall(function()
-            vim.cmd('e ' .. utils.git_rel_to_abs(vim.fn.fnameescape(filepath)))
-            local bufnr = view.deltaview_file(ref)
-            if bufnr == nil then
-                return
-            end
-            state.diffed_files.files = mods
-            state.diffed_files.cur_idx = selected_idx
-            M.decorate_deltaview_with_next_keybinds(bufnr)
-        end)
-        if not success then
-            vim.notify('An error occured while trying to open DeltaView - ' .. tostring(err), vim.log.levels.ERROR)
-            return
-        end
+    local qflist = {}
+    for _, path in ipairs(mods) do
+        -- this should go in text
+        -- if left_exists and right_exists then
+        --     status = 'M'
+        -- elseif left_exists then
+        --     status = 'D'
+        -- elseif right_exists then
+        --     status = 'A'
+        -- end
+        table.insert(qflist, {
+            filename = path,
+            text = changes_data[path][1], -- todo changes_data is flawed, should not be array
+            user_data = {
+                deltaview = true,
+                ref = ref,
+                bufname = path -- for some reason, using entry.filename in quickfixtextfunc errors.
+            }
+        })
     end
 
-    selector.ui_select(mods, {
-        prompt = 'DeltaView Menu  |  ' .. config.viewconfig().vs .. ' ' .. (ref),
-        label_item = utils.label_filepath_item,
-        win_predefined = config.options.quick_select_view,
-        additional_data = changes_data
-    }, on_select)
+    vim.fn.setqflist({}, 'r', {
+        nr = '$',
+        title = 'DeltaView Menu  |  ' .. config.viewconfig().vs .. ' ' .. (ref),
+        items = qflist,
+        ---@param info {id: number, start_idx: number, end_idx: number}
+        quickfixtextfunc = function(info)
+            --- @type table[]
+            local items = vim.fn.getqflist({ id = info.id, items = 1 }).items
+            local out = {}
+            for item = info.start_idx, info.end_idx do
+                local entry = items[item]
+                table.insert(out, entry.user_data.bufname .. ' | ' .. entry.text)
+            end
+            return out
+        end,
+    })
+
 end
 
 
@@ -139,7 +82,8 @@ M.open_deltaview_fzf_lua_menu = function(ref, mods, changes_data)
         _buf_name_seq = _buf_name_seq + 1
         local bufnr = nil
         local success, err = pcall(function()
-            bufnr = view.open_git_diff_buffer_for_path(filepath, ref, state.default_context, preview_winid, tostring(_buf_name_seq))
+            bufnr = view.open_git_diff_buffer_for_path(filepath, ref, state.default_context, preview_winid,
+                tostring(_buf_name_seq))
         end)
         if not success or bufnr == nil then
             local tmp = self:get_tmp_buffer()
@@ -174,13 +118,6 @@ M.open_deltaview_fzf_lua_menu = function(ref, mods, changes_data)
                     end
                     assert(selected_idx ~= nil)
                     vim.cmd('e ' .. utils.git_rel_to_abs(vim.fn.fnameescape(selected[1])))
-                    local bufnr = view.deltaview_file(state.diff_target_ref)
-                    if bufnr == nil then
-                        return
-                    end
-                    state.diffed_files.files = mods
-                    state.diffed_files.cur_idx = selected_idx
-                    M.decorate_deltaview_with_next_keybinds(bufnr)
                 end
             end
         }
@@ -239,7 +176,8 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
             _buf_name_seq = _buf_name_seq + 1
             local bufnr = nil
             local success, err = pcall(function()
-                bufnr = view.open_git_diff_buffer_for_path(filepath, ref, state.default_context, preview_winid, tostring(_buf_name_seq))
+                bufnr = view.open_git_diff_buffer_for_path(filepath, ref, state.default_context, preview_winid,
+                    tostring(_buf_name_seq))
             end)
             if not success or bufnr == nil then
                 local fallback = vim.api.nvim_create_buf(false, true)
@@ -287,12 +225,8 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
                 assert(selected_idx ~= nil)
 
                 local success, err = pcall(function()
+                    -- todo make sure this is opening quickfix
                     vim.cmd('e ' .. utils.git_rel_to_abs(vim.fn.fnameescape(selected)))
-                    local bufnr = view.deltaview_file(ref)
-                    if bufnr == nil then return end
-                    state.diffed_files.files = mods
-                    state.diffed_files.cur_idx = selected_idx
-                    M.decorate_deltaview_with_next_keybinds(bufnr)
                 end)
                 if not success then
                     vim.notify('An error occured while trying to open DeltaView - ' .. tostring(err),

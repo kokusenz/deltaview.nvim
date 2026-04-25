@@ -1,3 +1,4 @@
+-- TODO delete this file, and register_ui_select, and it from the docs. mark as breaking change.
 local M = {}
 
 ---@enum valid_select_views

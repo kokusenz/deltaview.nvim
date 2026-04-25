@@ -114,6 +114,6 @@ end
 --- @field default_context number | nil if running deltaview on a directory rather than a file, it will show a typical delta view with limited context. Defaults to 3. Set here, or pass it in as a second param to DeltaView, which will persist as the context for this session
 --- @field line_numbers boolean | nil If this setting is true, will show the delta style line numbers in the statuscolumn.
 -- TODO change quickselect to quickfix list, here and in documentation, after quickselect is changed to quickfix
---- @field fzf_picker 'fzf-lua' | 'telescope' | nil specify which picker to use. If nil, will go through the order and pick the first available. fzf-lua -> telescope -> quickselect
+--- @field fzf_picker 'fzf-lua' | 'telescope' | 'quickfix' nil specify which picker to use. If nil, will go through the order and pick the first available. fzf-lua -> telescope -> quickfix
 
 return M

@@ -5,8 +5,6 @@ local delta_view = function(command_argument)
         state.diff_target_ref = command_argument.fargs[1] ~= nil
             and command_argument.fargs[1]
             or state.diff_target_ref
-        state.diffed_files.files = nil
-        state.diffed_files.cur_idx = nil
         require('deltaview.view').deltaview_file(state.diff_target_ref)
     end)
     if not success then
@@ -21,8 +19,6 @@ local delta_menu = function(command_argument)
         state.diff_target_ref = command_argument.fargs[1] ~= nil
             and command_argument.fargs[1]
             or state.diff_target_ref
-        state.diffed_files.files = nil
-        state.diffed_files.cur_idx = nil
         require('deltaview.menu').create_diff_menu_pane(state.diff_target_ref)
     end)
     if not success then
@@ -40,9 +36,6 @@ local delta = function(command_argument)
         state.diff_target_ref = command_argument.fargs[3] ~= nil
             and command_argument.fargs[3]
             or state.diff_target_ref
-        state.diffed_files.files = nil
-        state.diffed_files.cur_idx = nil
-
         local path
         if custom_path ~= nil and custom_path ~= '' then
             path = vim.fn.fnamemodify(custom_path, ':p')

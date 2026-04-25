@@ -244,34 +244,6 @@ M.label_filepath_item = function()
     end
 end
 
---- get the adjacent files (next and previous) for navigation with wrap-around
---- @param diffed_files DiffedFiles table with files array and cur_idx
---- @return AdjacentFiles Table with next and prev file info: { next = { name = string, index = number }, prev = { name = string, index = number } }
-M.get_adjacent_files = function(diffed_files)
-    assert(diffed_files)
-    assert(diffed_files.files)
-    assert(diffed_files.cur_idx)
-    -- calculate next index with wrap-around
-    local next_index = diffed_files.cur_idx + 1
-    if next_index > #diffed_files.files then
-        next_index = 1
-    end
-
-    -- calculate previous index with wrap-around
-    local prev_index = diffed_files.cur_idx - 1
-    if prev_index < 1 then
-        prev_index = #diffed_files.files
-    end
-
-    --- @type AdjacentFiles
-    local adjacents = {
-        next = diffed_files.files[next_index],
-        prev = diffed_files.files[prev_index],
-    }
-
-    return adjacents
-end
-
 --- @param sorted_files SortedFile[]
 --- @return table list of file names
 M.get_filenames_from_sortedfiles = function(sorted_files)

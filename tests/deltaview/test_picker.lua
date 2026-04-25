@@ -280,6 +280,7 @@ T['programmatically_select_diff_from_menu()']['updates state and calls decorate 
         M.programmatically_select_diff_from_menu('b.lua')
     ]])
 
+    -- TODO note state.diffed_files tests need to be updated to remove them
     -- state.diffed_files should be updated to the full mods list
     eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.files"),
         { 'a.lua', 'b.lua', 'c.lua' })
