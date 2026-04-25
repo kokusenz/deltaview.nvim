@@ -21,8 +21,7 @@ M.create_diff_menu_pane = function(ref)
     local mods = utils.get_filenames_from_sortedfiles(sorted_files)
 
     if #mods == 0 then
-        -- TODO allow this to pass through and just open empty quickfix maybe
-        vim.notify('No modified files to display', vim.log.levels.INFO)
+        vim.notify('No changes to display.', vim.log.levels.INFO)
         return
     end
 
@@ -225,6 +224,7 @@ end
 
 
 --- orchestrator of which menu to call, based on config or default order (fzf -> telescope -> quickfix)
+--- This function has a dependency on populate_quickfix_deltamenu_items quickfix list populating first.
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[]
 --- @param changes_data ChangesData for each file in mods, the size of the change in the file, and the status ("M", "D", etc.)
@@ -236,7 +236,7 @@ M.choose_deltaview_menu = function(ref, mods, changes_data)
             goto default
         end
         -- continue using fzf-lua
-        picker.open_deltaview_fzf_lua_menu(ref, mods, changes_data)
+        picker.open_deltaview_fzf_lua_menu()
         return
     elseif config.options.fzf_picker == 'telescope' then
         local ok = pcall(require, 'telescope')
@@ -254,7 +254,7 @@ M.choose_deltaview_menu = function(ref, mods, changes_data)
     -- try default order - fzf-lua -> quickfix
     local fzf_lua_ok = pcall(require, 'fzf-lua')
     if fzf_lua_ok then
-        picker.open_deltaview_fzf_lua_menu(ref, mods, changes_data)
+        picker.open_deltaview_fzf_lua_menu()
         return
     end
 

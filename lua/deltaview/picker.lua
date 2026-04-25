@@ -2,21 +2,36 @@ local M = {}
 local utils = require('deltaview.utils')
 local state = require('deltaview.state')
 local view = require('deltaview.view')
-local selector = require('deltaview.selector')
-local config = require('deltaview.config')
-local help = require('deltaview.help')
 
 local _buf_name_seq = 0
 
---- TODO remove mods and all that maybe, if i can just go off the content in the quickfix list only? just query the current quickfix list, assert that it is populated the way I want
---- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
---- @param mods string[]
---- @param changes_data ChangesData for each file in mods, the size of the change in the file
-M.open_deltaview_fzf_lua_menu = function(ref, mods, changes_data)
+--- TODO integration tests to assert that the preview window behaves as expected for when inside git root, not at git root
+--- opens a fzf-lua picker for deltaview entries in the quickfix list with a delta.lua preview window
+M.open_deltaview_fzf_lua_menu = function()
     local fzf_lua = require('fzf-lua')
     local builtin = require('fzf-lua.previewer.builtin')
 
     local DeltaviewPreviewer = builtin.base:extend()
+
+    local qf_info = vim.fn.getqflist({ items = 1, size = 1 })
+    if qf_info.size == 0 then
+        return
+    end
+
+    local qf_list = {}
+    local mods = {}
+    for i, entry in ipairs(qf_info.items) do
+        --- @cast entry DeltaViewQfListEntry
+        if entry.user_data and entry.user_data.deltaview then
+            table.insert(mods, entry.user_data.bufname)
+            qf_list[entry.user_data.bufname] = {
+                idx = i,
+                ref = entry.user_data.ref,
+                title = ' ' .. entry.user_data.status
+                    .. ' ' .. vim.fn.fnamemodify(entry.user_data.bufname, ':t')
+                    .. ' > ' .. entry.user_data.changes .. ' '}
+        end
+    end
 
     function DeltaviewPreviewer:new(o, opts, fzf_win)
         self.super.new(self, o, opts, fzf_win)
@@ -27,6 +42,7 @@ M.open_deltaview_fzf_lua_menu = function(ref, mods, changes_data)
     function DeltaviewPreviewer:populate_preview_buf(entry_str)
         if not self.win or not self.win:validate_preview() then return end
         local filepath = utils.git_rel_to_abs(entry_str)
+        local ref = qf_list[entry_str].ref
         if filepath == nil then return end
         local preview_winid = self.win.preview_winid
         local old_bufnr = vim.api.nvim_win_get_buf(preview_winid)
@@ -48,9 +64,7 @@ M.open_deltaview_fzf_lua_menu = function(ref, mods, changes_data)
         self:set_style_winopts()
         vim.wo[self.win.preview_winid].wrap = true
         self:safe_buf_delete(old_bufnr)
-        local title = ' ' .. changes_data[entry_str].status .. ' '
-            .. vim.fn.fnamemodify(entry_str, ':t') .. ' > '
-            .. changes_data[entry_str].changes .. ' '
+        local title = qf_list[entry_str].title
         self.win:update_preview_title(title)
     end
 
@@ -63,14 +77,10 @@ M.open_deltaview_fzf_lua_menu = function(ref, mods, changes_data)
         actions = {
             ['default'] = function(selected)
                 if selected and selected[1] then
-                    local selected_idx = nil
-                    for idx, value in ipairs(mods) do
-                        if value == selected[1] then
-                            selected_idx = idx
-                        end
+                    local idx = qf_list[selected[1]].idx
+                    if idx then
+                        vim.cmd('cc ' .. idx)
                     end
-                    assert(selected_idx ~= nil)
-                    vim.cmd('e ' .. utils.git_rel_to_abs(vim.fn.fnameescape(selected[1])))
                 end
             end
         }
