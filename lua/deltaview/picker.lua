@@ -231,7 +231,6 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
                 assert(selected_idx ~= nil)
 
                 local success, err = pcall(function()
-                    -- todo make sure this is opening quickfix
                     vim.cmd('e ' .. utils.git_rel_to_abs(vim.fn.fnameescape(selected)))
                 end)
                 if not success then

@@ -29,8 +29,6 @@ M.basic_viewconfig = {
     dot = "·",
     circle = "•",
     vs = "comparing to",
-    next = "->", -- todo probably remove
-    prev = "<-",
     segment = "≡",
     file = "🗎"
 }
@@ -40,8 +38,6 @@ M.nerdfont_viewconfig = {
     dot = "󰧟", -- nf-md-circle_small
     circle = "󰧞", -- nf-md-circle_medium
     vs = "", -- nf-seti-git
-    next = "󰁕", -- nf-md-arrow_right_thick
-    prev = "󰁎", -- nf-md-arrow_left_thick
     segment = "󰻋", -- nf-md-segment 
     file = "󰈔" -- nf-md-file
 }
@@ -69,8 +65,6 @@ M.defaults = {
         d_toggle_keybind = "<leader>da",
         next_hunk = "<Tab>",
         prev_hunk = "<S-Tab>",
-        next_diff = "]f",
-        prev_diff = "[f",
         help_legend = "d?",
     }
 }
@@ -88,8 +82,6 @@ end
 --- @field dot string
 --- @field circle string
 --- @field vs string
---- @field next string
---- @field prev string
 --- @field segment string
 --- @field file string
 
@@ -100,8 +92,6 @@ end
 --- @field d_toggle_keybind string | nil if defined, will create keybind that runs Delta, and exits Diff buffer if open
 --- @field next_hunk string skip to next hunk in diff.
 --- @field prev_hunk string skip to prev hunk in diff.
---- @field next_diff string when diff was opened from DeltaMenu, open next file in the menu
---- @field prev_diff string when diff was opened from DeltaMenu, open prev file in the menu
 --- @field help_legend string opens the help legend when inside a deltaview buffer
 
 --- @class DeltaViewOpts
@@ -113,7 +103,6 @@ end
 --- @field fzf_threshold number | nil if the number of diffed files is equal to or greater than this threshold, it will show up in a fuzzy finding picker. Defaults to 6. Set to 1 or 0 if you would always like a fuzzy picker
 --- @field default_context number | nil if running deltaview on a directory rather than a file, it will show a typical delta view with limited context. Defaults to 3. Set here, or pass it in as a second param to DeltaView, which will persist as the context for this session
 --- @field line_numbers boolean | nil If this setting is true, will show the delta style line numbers in the statuscolumn.
--- TODO change quickselect to quickfix list, here and in documentation, after quickselect is changed to quickfix
---- @field fzf_picker 'fzf-lua' | 'telescope' | 'quickfix' nil specify which picker to use. If nil, will go through the order and pick the first available. fzf-lua -> telescope -> quickfix
+--- @field fzf_picker 'fzf-lua' | 'telescope' | 'quickfix' | nil specify which picker to use. If nil, will go through the order and pick the first available. fzf-lua -> telescope -> quickfix
 
 return M
