@@ -34,9 +34,60 @@ M.create_diff_menu_pane = function(ref)
 
     -- todo need to deprecate stuff but don't make a breaking change without a warning, saying that this will be removed at xxx
     M.setup_quickfix_deltaview_on_entry()
-    picker.populate_quickfix_deltamenu_items(ref, mods, changes_data)
+    M.populate_quickfix_deltamenu_items(ref, mods, changes_data)
     M.choose_deltaview_menu(ref, mods, changes_data)
 end
+
+--- opens a quickfix menu with all entries, with metadata on the items such that autocmd's can recognize when a diff buffer should be opened.
+--- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
+--- @param mods string[] list of filepaths
+--- @param changes_data ChangesData for each file in mods, the size of the change in the file
+M.populate_quickfix_deltamenu_items = function(ref, mods, changes_data)
+    assert(ref ~= nil)
+    assert(mods ~= nil)
+    assert(changes_data ~= nil)
+
+    local qflist = {}
+    for _, path in ipairs(mods) do
+        local text = path
+        --- @class DeltaViewQfListEntry
+        local qflist_entry = {
+            filename = path,
+            text = text,
+            --- @class DeltaViewQfListEntryUserData
+            user_data = {
+                deltaview = true, -- identifier, allows us to confidently use @cast DeltaViewQfListEntry
+                bufname = path, -- for some reason, using entry.filename in quickfixtextfunc errors.
+                show_delta_on_entry = true,
+                ref = ref,
+                status = changes_data[path].status,
+                changes = changes_data[path].changes,
+            }
+        }
+        table.insert(qflist, qflist_entry)
+    end
+    --- @cast qflist DeltaViewQfListEntry[]
+
+    vim.fn.setqflist({}, 'r', {
+        nr = '$',
+        title = 'DeltaView Menu  |  ' .. config.viewconfig().vs .. ' ' .. (ref),
+        items = qflist,
+        ---@param info {id: number, start_idx: number, end_idx: number}
+        quickfixtextfunc = function(info)
+            --- @type table[]
+            local items = vim.fn.getqflist({ id = info.id, items = 1 }).items
+            local out = {}
+            for item = info.start_idx, info.end_idx do
+                local entry = items[item]
+                if entry.user_data and entry.user_data.deltaview then
+                    table.insert(out, entry.user_data.status .. ' ' .. entry.user_data.bufname .. ' > ' .. entry.user_data.changes)
+                end
+            end
+            return out
+        end,
+    })
+end
+
 
 
 M.setup_quickfix_deltaview_on_entry = function()
