@@ -103,6 +103,17 @@ M.get_sorted_diffed_files = function(ref)
         end
     end
 
+    local name_status_result = vim.system({'git', 'diff', '--name-status', ref}):wait()
+    local file_statuses = {}
+    if name_status_result.code == 0 or name_status_result.code == 1 then
+        for line in name_status_result.stdout:gmatch('[^\n]+') do
+            local status, filepath = line:match('^([MADRCTU])%S*%s+(.+)$')
+            if status and filepath then
+                file_statuses[filepath] = status
+            end
+        end
+    end
+
     local files_w_stats = {}
     for file, tracked in pairs(files) do
         local numstat_result
@@ -156,7 +167,8 @@ M.get_sorted_diffed_files = function(ref)
         table.insert(sorted_files, {
             name = file,
             added = tonumber(stats.added) or 0,
-            removed = tonumber(stats.removed) or 0
+            removed = tonumber(stats.removed) or 0,
+            status = file_statuses[file] or '?',
         })
     end
 
@@ -370,6 +382,7 @@ return M
 --- @field name string
 --- @field added number
 --- @field removed number
+--- @field status 'M'|'A'|'D'|'R'|'C'|'T'|'U'|'?'
 
 --- @class AdjacentFiles
 --- @field next string

@@ -11,7 +11,7 @@ local _buf_name_seq = 0
 --- opens a quickfix menu with all entries, with metadata on the items such that autocmd's can recognize when a diff buffer should be opened.
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[] list of filepaths
---- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
+--- @param changes_data ChangesData for each file in mods, the size of the change in the file
 M.populate_quickfix_deltamenu_items = function(ref, mods, changes_data)
     assert(ref ~= nil)
     assert(mods ~= nil)
@@ -19,25 +19,17 @@ M.populate_quickfix_deltamenu_items = function(ref, mods, changes_data)
 
     local qflist = {}
     for _, path in ipairs(mods) do
-        -- this should go in text
-        -- if left_exists and right_exists then
-        --     status = 'M'
-        -- elseif left_exists then
-        --     status = 'D'
-        -- elseif right_exists then
-        --     status = 'A'
-        -- end
-
         --- @class DeltaViewQfListEntry
         local qflist_entry = {
             filename = path,
-            text = changes_data[path][1], -- todo changes_data is flawed, should not be array
             --- @class DeltaViewQfListEntryUserData
             user_data = {
                 deltaview = true, -- identifier, allows us to confidently use @cast DeltaViewQfListEntry
+                bufname = path, -- for some reason, using entry.filename in quickfixtextfunc errors.
                 show_delta_on_entry = true,
                 ref = ref,
-                bufname = path -- for some reason, using entry.filename in quickfixtextfunc errors.
+                status = changes_data[path].status,
+                changes = changes_data[path].changes,
             }
         }
         table.insert(qflist, qflist_entry)
@@ -56,7 +48,7 @@ M.populate_quickfix_deltamenu_items = function(ref, mods, changes_data)
             for item = info.start_idx, info.end_idx do
                 local entry = items[item]
                 if entry.user_data and entry.user_data.deltaview then
-                    table.insert(out, entry.user_data.bufname .. ' > ' .. entry.text)
+                    table.insert(out, entry.user_data.status .. ' ' .. entry.user_data.bufname .. ' > ' .. entry.user_data.changes)
                 end
             end
             return out
@@ -68,7 +60,7 @@ end
 
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[]
---- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
+--- @param changes_data ChangesData for each file in mods, the size of the change in the file
 M.open_deltaview_fzf_lua_menu = function(ref, mods, changes_data)
     local fzf_lua = require('fzf-lua')
     local builtin = require('fzf-lua.previewer.builtin')
@@ -105,8 +97,10 @@ M.open_deltaview_fzf_lua_menu = function(ref, mods, changes_data)
         self:set_style_winopts()
         vim.wo[self.win.preview_winid].wrap = true
         self:safe_buf_delete(old_bufnr)
-        self.win:update_preview_title(' ' .. vim.fn.fnamemodify(entry_str, ':t') .. ' | '
-            .. tostring(changes_data[entry_str][1] or ''))
+        local title = ' ' .. changes_data[entry_str].status .. ' '
+            .. vim.fn.fnamemodify(entry_str, ':t') .. ' > '
+            .. changes_data[entry_str].changes .. ' '
+        self.win:update_preview_title(title)
     end
 
     fzf_lua.fzf_exec(mods, {
@@ -134,7 +128,7 @@ end
 
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[]
---- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
+--- @param changes_data ChangesData for each file in mods, the size of the change in the file
 M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
     assert(ref ~= nil)
     assert(mods ~= nil)
@@ -155,7 +149,9 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
         title = 'Delta.lua',
         dyn_title = function(_, entry)
             if entry == nil then return 'Delta.lua' end
-            return ' ' .. vim.fn.fnamemodify(entry.value, ':t') .. ' | ' .. changes_data[entry.value][1]
+            return ' ' .. changes_data[entry.value].status .. ' '
+                .. vim.fn.fnamemodify(entry.value, ':t') .. ' '
+                .. changes_data[entry.value].changes .. ' '
         end,
         setup = function(_self)
             return {}
@@ -202,7 +198,9 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
             -- Set the preview border title directly; this works regardless of
             -- the user's dynamic_preview_title config value.
             if status.layout.preview.border then
-                local title = ' ' .. vim.fn.fnamemodify(entry.value, ':t') .. ' | ' .. changes_data[entry.value][1]
+                local title = ' ' .. changes_data[entry.value].status .. ' '
+                    .. vim.fn.fnamemodify(entry.value, ':t') .. ' '
+                    .. changes_data[entry.value].changes .. ' '
                 status.layout.preview.border:change_title(title)
             end
         end,

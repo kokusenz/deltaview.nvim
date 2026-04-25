@@ -16,7 +16,6 @@ M.create_diff_menu_pane = function(ref)
     end
 
     assert(ref)
-    -- TODO need to modify these such that I can identify if a file is deleted, added, or modified, rather than just the changes data
     -- we can poc handling of deleted files first with quickfix list, then raise a separate pr for applying that fix for all pickers
     local sorted_files = utils.get_sorted_diffed_files(ref)
     local mods = utils.get_filenames_from_sortedfiles(sorted_files)
@@ -27,10 +26,10 @@ M.create_diff_menu_pane = function(ref)
         return
     end
 
-    --- @type table<string, string[]>
+    --- @type ChangesData
     local changes_data = {}
     for _, value in ipairs(sorted_files) do
-        changes_data[value.name] = { '+' .. value.added .. ',-' .. value.removed }
+        changes_data[value.name] = { changes = '+' .. value.added .. ',-' .. value.removed, status = value.status }
     end
 
     -- todo need to deprecate stuff but don't make a breaking change without a warning, saying that this will be removed at xxx
@@ -110,11 +109,10 @@ M.setup_quickfix_deltaview_on_entry = function()
                 return
             end
 
-            local entry = get_delta_entry(ev.buf)
-            local is_deltaview_entry = entry and entry.user_data and entry.user_data.deltaview
+            local entry, _ = get_delta_entry(ev.buf)
 
             -- left the deltamenu workflow entirely: restore/clear the quickfix list
-            if not is_deltaview_entry then
+            if entry == nil then
                 local qf_nr = vim.fn.getqflist({ nr = 0 }).nr
                 if qf_nr > 1 then
                     vim.cmd('colder')
@@ -135,6 +133,11 @@ M.setup_quickfix_deltaview_on_entry = function()
                 local success, err = pcall(function()
                     restore_delta_entries()
                     clear_delta_entry(ev.buf)
+                    -- return to last known cursor position; quickfix without lnum automatically puts you at top
+                    local last_pos = vim.api.nvim_buf_get_mark(ev.buf, '"')
+                    if last_pos[1] > 0 then
+                        vim.api.nvim_win_set_cursor(0, last_pos)
+                    end
                     local bufnr = view.deltaview_file(entry.user_data.ref)
                     if bufnr ~= nil then
                         help.register_keybind(bufnr, ']q', 'use quickfix keybind to open next file diff')
@@ -156,12 +159,12 @@ end
 --- orchestrator of which menu to call, based on config or default order (fzf -> telescope -> quickfix)
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[]
---- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
+--- @param changes_data ChangesData for each file in mods, the size of the change in the file, and the status ("M", "D", etc.)
 M.choose_deltaview_menu = function(ref, mods, changes_data)
     if config.options.fzf_picker == 'fzf-lua' then
         local ok = pcall(require, 'fzf-lua')
         if not ok then
-            vim.notify('fzf-lua not found. attempting to use the first picker available.', vim.log.levels.WARN)
+            vim.notify('fzf-lua not found. Falling back to the first picker available.', vim.log.levels.WARN)
             goto default
         end
         -- continue using fzf-lua
@@ -170,7 +173,7 @@ M.choose_deltaview_menu = function(ref, mods, changes_data)
     elseif config.options.fzf_picker == 'telescope' then
         local ok = pcall(require, 'telescope')
         if not ok then
-            vim.notify('telescope not found. attempting to use the first picker available.', vim.log.levels.WARN)
+            vim.notify('telescope not found. Falling back to the first picker available.', vim.log.levels.WARN)
             goto default
         end
         picker.open_deltaview_telescope_menu(ref, mods, changes_data)
@@ -196,5 +199,7 @@ M.choose_deltaview_menu = function(ref, mods, changes_data)
     -- fallback; just open quickfix menu
     vim.cmd('copen')
 end
+
+--- @alias ChangesData table<string, table<string, string>>
 
 return M
