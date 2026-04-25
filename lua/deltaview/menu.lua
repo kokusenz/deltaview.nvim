@@ -109,25 +109,12 @@ M.setup_quickfix_deltaview_on_entry = function()
             if vim.bo[ev.buf].buftype ~= '' then
                 return
             end
-            -- todo; reduce cyclomatic complexity
+
             local entry = get_delta_entry(ev.buf)
-            if
-                not entry
-                or not entry.user_data
-                or not entry.user_data.deltaview
-                or not entry.user_data.show_delta_on_entry
-            then
-                if
-                    entry
-                    and entry.user_data
-                    and entry.user_data.deltaview
-                    and not entry.user_data.show_delta_on_entry
-                then
-                    -- we are still in deltamenu quickfix workflow. simply return
-                    return
-                end
-                -- not a deltamenu list item. left the deltamenu workflow. restore previous
-                -- quickfix list or clear so as to not interfere with natural programming
+            local is_deltaview_entry = entry and entry.user_data and entry.user_data.deltaview
+
+            -- left the deltamenu workflow entirely: restore/clear the quickfix list
+            if not is_deltaview_entry then
                 local qf_nr = vim.fn.getqflist({ nr = 0 }).nr
                 if qf_nr > 1 then
                     vim.cmd('colder')
@@ -138,6 +125,12 @@ M.setup_quickfix_deltaview_on_entry = function()
                 return
             end
 
+            -- still in the deltamenu workflow but entry should not trigger a diff view
+            if not entry.user_data.show_delta_on_entry then
+                return
+            end
+
+            -- deltamenu entry that should open a diff view
             vim.schedule(function()
                 local success, err = pcall(function()
                     restore_delta_entries()
