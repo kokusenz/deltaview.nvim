@@ -378,11 +378,12 @@ return M
 --- @field added number
 --- @field removed number
 
+--- @alias Status 'M'|'A'|'D'|'R'|'C'|'T'|'U'|'?'
 --- @class SortedFile
 --- @field name string
 --- @field added number
 --- @field removed number
---- @field status 'M'|'A'|'D'|'R'|'C'|'T'|'U'|'?'
+--- @field status Status
 
 --- @class AdjacentFiles
 --- @field next string

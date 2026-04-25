@@ -32,7 +32,6 @@ M.create_diff_menu_pane = function(ref)
         changes_data[value.name] = { changes = '+' .. value.added .. ',-' .. value.removed, status = value.status }
     end
 
-    -- todo need to deprecate stuff but don't make a breaking change without a warning, saying that this will be removed at xxx
     M.setup_quickfix_deltaview_on_entry()
     M.populate_quickfix_deltamenu_items(ref, mods, changes_data)
     M.choose_deltaview_menu(ref, mods, changes_data)
@@ -50,17 +49,24 @@ M.populate_quickfix_deltamenu_items = function(ref, mods, changes_data)
     local qflist = {}
     for _, path in ipairs(mods) do
         local text = path
+        local status = changes_data[path].status
+        --- @cast status Status
+        local filepath = path
+        if status == 'D' then
+            -- need /tmp because this isn't a scratch buffer neovim controls the deletion of
+            filepath = '/tmp/deltaview://deleted/' .. utils.git_rel_to_abs(path)
+        end
         --- @class DeltaViewQfListEntry
         local qflist_entry = {
-            filename = path,
+            filename = filepath,
             text = text,
             --- @class DeltaViewQfListEntryUserData
             user_data = {
                 deltaview = true, -- identifier, allows us to confidently use @cast DeltaViewQfListEntry
-                bufname = path, -- for some reason, using entry.filename in quickfixtextfunc errors.
+                bufname = path, -- note that this is different from filename; is the same most of the time, but for deleted files, can be different
                 show_delta_on_entry = true,
                 ref = ref,
-                status = changes_data[path].status,
+                status = status,
                 changes = changes_data[path].changes,
             }
         }
@@ -88,8 +94,6 @@ M.populate_quickfix_deltamenu_items = function(ref, mods, changes_data)
     })
 end
 
-
-
 M.setup_quickfix_deltaview_on_entry = function()
     if _quickfix_autocmd_registered then
         return
@@ -107,8 +111,13 @@ M.setup_quickfix_deltaview_on_entry = function()
         end
 
         local bufname = vim.api.nvim_buf_get_name(bufnr)
+        if string.match(bufname, 'deltaview://deleted/') then
+            -- if this is a buffer we created to represent a deleted buffer, the naming is weird. So this will match it up.
+            bufname = string.gsub(bufname, '.*/deltaview://deleted/', '')
+        end
         for i, entry in ipairs(qf_info.items) do
-            if entry.user_data
+            if
+                entry.user_data
                 and entry.user_data.deltaview
                 and utils.git_rel_to_abs(entry.user_data.bufname) == bufname
             then
@@ -189,7 +198,15 @@ M.setup_quickfix_deltaview_on_entry = function()
                     if last_pos[1] > 0 then
                         vim.api.nvim_win_set_cursor(0, last_pos)
                     end
-                    local bufnr = view.deltaview_file(entry.user_data.ref)
+                    local bufnr
+                    if entry.user_data.status == 'D' then
+                        -- delta_path works for deleted files, while deltaview_file doesn't because it expects a real file to exist to function off of.
+                        -- slight design discrepancy here; this has the delta.lua header, while the others don't. But I can live with that.
+                        -- alternative is to refactor deltaview_file to no longer assume it is being called from a real file, and take in a path like delta_path does
+                        bufnr = view.delta_path(entry.user_data.ref, require('deltaview.state').default_context, entry.user_data.bufname)
+                    else
+                        bufnr = view.deltaview_file(entry.user_data.ref)
+                    end
                     if bufnr ~= nil then
                         help.register_keybind(bufnr, ']q', 'use quickfix keybind to open next file diff')
                         help.register_keybind(bufnr, '[q', 'use quickfix keybind to open prev file diff')

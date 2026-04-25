@@ -8,6 +8,7 @@ local help = require('deltaview.help')
 
 local _buf_name_seq = 0
 
+--- TODO remove mods and all that maybe, if i can just go off the content in the quickfix list only? just query the current quickfix list, assert that it is populated the way I want
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param mods string[]
 --- @param changes_data ChangesData for each file in mods, the size of the change in the file
