@@ -106,8 +106,35 @@ M.setup_quickfix_deltaview_on_entry = function()
     vim.api.nvim_create_autocmd('BufWinEnter', {
         pattern = '*',
         callback = function(ev)
+            if vim.bo[ev.buf].buftype ~= '' then
+                return
+            end
+            -- todo; reduce cyclomatic complexity
             local entry = get_delta_entry(ev.buf)
-            if not entry or not entry.user_data or not entry.user_data.show_delta_on_entry then
+            if
+                not entry
+                or not entry.user_data
+                or not entry.user_data.deltaview
+                or not entry.user_data.show_delta_on_entry
+            then
+                if
+                    entry
+                    and entry.user_data
+                    and entry.user_data.deltaview
+                    and not entry.user_data.show_delta_on_entry
+                then
+                    -- we are still in deltamenu quickfix workflow. simply return
+                    return
+                end
+                -- not a deltamenu list item. left the deltamenu workflow. restore previous
+                -- quickfix list or clear so as to not interfere with natural programming
+                local qf_nr = vim.fn.getqflist({ nr = 0 }).nr
+                if qf_nr > 1 then
+                    vim.cmd('colder')
+                else
+                    vim.fn.setqflist({}, 'r', { items = {}, title = '' })
+                end
+                vim.cmd('cclose')
                 return
             end
 
