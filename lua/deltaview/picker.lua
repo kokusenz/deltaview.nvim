@@ -5,6 +5,40 @@ local view = require('deltaview.view')
 
 local _buf_name_seq = 0
 
+M.open_vim_ui_select = function()
+    local qf_info = vim.fn.getqflist({ items = 1, size = 1 })
+    if qf_info.size == 0 then
+        return
+    end
+
+    local qf_list = {}
+    local mods = {}
+    for i, entry in ipairs(qf_info.items) do
+        --- @cast entry DeltaViewQfListEntry
+        if entry.user_data and entry.user_data.deltaview then
+            table.insert(mods, entry.user_data.bufname)
+            qf_list[entry.user_data.bufname] = {
+                idx = i,
+                title = ' ' .. entry.user_data.status
+                    .. ' ' .. vim.fn.fnamemodify(entry.user_data.bufname, ':t')
+                    .. ' > ' .. entry.user_data.changes .. ' '}
+        end
+    end
+
+    vim.ui.select(mods, {
+        prompt = 'DeltaView Menu',
+        format_item = function(item)
+            return qf_list[item].title
+        end,
+    }, function(choice)
+        if not choice then return end
+        local idx = qf_list[choice].idx
+        if idx then
+            vim.cmd('cc ' .. idx)
+        end
+    end)
+end
+
 --- TODO integration tests to assert that the preview window behaves as expected for when inside git root, not at git root
 --- opens a fzf-lua picker for deltaview entries in the quickfix list with a delta.lua preview window
 M.open_deltaview_fzf_lua_menu = function()

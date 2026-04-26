@@ -226,12 +226,9 @@ M.setup_quickfix_deltaview_on_entry = function()
 end
 
 
---- orchestrator of which menu to call, based on config or default order (fzf -> telescope -> quickfix)
+--- orchestrator of which picker to use, based on config or default order; see fzf_picker in lua/deltaview/config.lua
 --- This function has a dependency on populate_quickfix_deltamenu_items quickfix list populating first.
---- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
---- @param mods string[]
---- @param changes_data ChangesData for each file in mods, the size of the change in the file, and the status ("M", "D", etc.)
-M.choose_deltaview_menu = function(ref, mods, changes_data)
+M.choose_deltaview_menu = function()
     if config.options.fzf_picker == 'fzf-lua' then
         local ok = pcall(require, 'fzf-lua')
         if not ok then
@@ -251,6 +248,9 @@ M.choose_deltaview_menu = function(ref, mods, changes_data)
         return
     elseif config.options.fzf_picker == 'quickfix' then
         vim.cmd('copen')
+        return
+    elseif config.options.fzf_picker == 'ui_select' then
+        picker.open_vim_ui_select()
         return
     end
     ::default::
