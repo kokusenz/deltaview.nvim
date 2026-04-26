@@ -97,7 +97,6 @@ M.open_deltaview_fzf_lua_menu = function()
         -- Inform fzf-lua about the new buffer and clean up the old placeholder.
         self.preview_bufnr = bufnr
         self:set_style_winopts()
-        vim.wo[self.win.preview_winid].wrap = true
         self:safe_buf_delete(old_bufnr)
         local title = qf_list[entry_str].title
         self.win:update_preview_title(title)
@@ -200,7 +199,11 @@ M.open_deltaview_telescope_menu = function()
             end
 
             table.insert(preview_bufs, bufnr)
-            vim.wo[preview_winid].wrap = true
+            vim.schedule(function()
+                if vim.api.nvim_win_is_valid(preview_winid) then
+                    vim.wo[preview_winid].wrap = false
+                end
+            end)
 
             -- Set the preview border title directly; this works regardless of
             -- the user's dynamic_preview_title config value.
