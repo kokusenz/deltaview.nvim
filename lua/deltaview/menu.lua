@@ -175,7 +175,14 @@ M.setup_quickfix_deltaview_on_entry = function()
 
             -- left the deltamenu workflow entirely: restore/clear the quickfix list
             if entry == nil then
-                local qf_nr = vim.fn.getqflist({ nr = 0 }).nr
+                local qf_info = vim.fn.getqflist({ nr = 0, items = 1 })
+                -- if the quickfix list is not a deltaview quickfix list, do not clear. entry returns nil for non deltaview quickfix list
+                for _, qf_item in ipairs(qf_info.items) do
+                    if not qf_item.user_data or not qf_item.user_data.deltaview then
+                        return
+                    end
+                end
+                local qf_nr = qf_info.nr
                 if qf_nr > 1 then
                     vim.cmd('colder')
                 else
