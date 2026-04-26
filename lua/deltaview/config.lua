@@ -78,14 +78,14 @@ M.setup = function(opts)
 
     -- flagging breaking changes
     if opts and opts.keyconfig and opts.keyconfig.next_diff ~= nil then
-        vim.notify([[Deltaview next_diff keybind has been deprecated, as a result of an overall behavioral change to DeltaMenu that involves using the quickfix list underneath all pickers. You can now achieve the original function of this keybind by using ']q', or `:cnext`. This keybind will be binded to `:cnext` temporarily, but please adjust yoru configuration accordingly. This keybind will be removed in the near future.]], vim.log.levels.WARN)
+        vim.notify([[Deltaview next_diff keybind has been deprecated, as a result of an overall behavioral change to DeltaMenu that involves using the quickfix list underneath all pickers. You can now achieve the original function of this keybind by using ']q', or `:cnext`. This keybind will be bound to `:cnext` temporarily, but please adjust yoru configuration accordingly. This keybind will be removed in the near future.]], vim.log.levels.WARN)
         vim.keymap.set('n', opts.keyconfig.next_diff, function() vim.cmd('cnext') end)
     end
     if opts and opts.keyconfig and opts.keyconfig.prev_diff ~= nil then
-        vim.notify([[[Deltaview prev_diff keybind has been deprecated, as a result of an overall behavioral change to DeltaMenu that involves using the quickfix list underneath all pickers. You can now achieve the original function of this keybind by using ']q', or `:cprev`. This keybind will be binded to `:cprev` temporarily, but please adjust yoru configuration accordingly. This keybind will be removed in the near future.]], vim.log.levels.WARN)
+        vim.notify([[[Deltaview prev_diff keybind has been deprecated, as a result of an overall behavioral change to DeltaMenu that involves using the quickfix list underneath all pickers. You can now achieve the original function of this keybind by using ']q', or `:cprev`. This keybind will be bound to `:cprev` temporarily, but please adjust yoru configuration accordingly. This keybind will be removed in the near future.]], vim.log.levels.WARN)
         vim.keymap.set('n', opts.keyconfig.prev_diff, function() vim.cmd('cprev') end)
     end
-    if opts and opts.fzf_threshold and opts.fzf_threshold > 0 then
+    if opts and opts.fzf_threshold then
         vim.notify([[Support for the Deltaview fzf_threshold configuration option has been removed, as a result of an overall behavioral change to DeltaMenu that involves using the quickfix list underneath all pickers. The benefit of this option was deemed no longer necessary. Please remove this from your configuration.]], vim.log.levels.WARN)
     end
 end
