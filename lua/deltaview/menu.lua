@@ -247,7 +247,7 @@ M.choose_deltaview_menu = function(ref, mods, changes_data)
             vim.notify('telescope not found. Falling back to the first picker available.', vim.log.levels.WARN)
             goto default
         end
-        picker.open_deltaview_telescope_menu(ref, mods, changes_data)
+        picker.open_deltaview_telescope_menu()
         return
     elseif config.options.fzf_picker == 'quickfix' then
         vim.cmd('copen')
@@ -263,7 +263,7 @@ M.choose_deltaview_menu = function(ref, mods, changes_data)
 
     local telescope_ok = pcall(require, 'telescope')
     if telescope_ok then
-        picker.open_deltaview_telescope_menu(ref, mods, changes_data)
+        picker.open_deltaview_telescope_menu()
         return
     end
 

@@ -87,21 +87,33 @@ M.open_deltaview_fzf_lua_menu = function()
     })
 end
 
---- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
---- @param mods string[]
---- @param changes_data ChangesData for each file in mods, the size of the change in the file
-M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
-    assert(ref ~= nil)
-    assert(mods ~= nil)
-    assert(changes_data ~= nil)
-
-    local telescope = require('telescope')
+M.open_deltaview_telescope_menu = function()
     local pickers = require('telescope.pickers')
     local finders = require('telescope.finders')
     local conf = require('telescope.config').values
     local actions = require('telescope.actions')
     local action_state = require('telescope.actions.state')
     local previewers = require('telescope.previewers')
+
+    local qf_info = vim.fn.getqflist({ items = 1, size = 1 })
+    if qf_info.size == 0 then
+        return
+    end
+
+    local qf_list = {}
+    local mods = {}
+    for i, entry in ipairs(qf_info.items) do
+        --- @cast entry DeltaViewQfListEntry
+        if entry.user_data and entry.user_data.deltaview then
+            table.insert(mods, entry.user_data.bufname)
+            qf_list[entry.user_data.bufname] = {
+                idx = i,
+                ref = entry.user_data.ref,
+                title = ' ' .. entry.user_data.status
+                    .. ' ' .. vim.fn.fnamemodify(entry.user_data.bufname, ':t')
+                    .. ' > ' .. entry.user_data.changes .. ' '}
+        end
+    end
 
     -- Track buffers we create so we can clean them up on teardown.
     local preview_bufs = {}
@@ -110,9 +122,7 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
         title = 'Delta.lua',
         dyn_title = function(_, entry)
             if entry == nil then return 'Delta.lua' end
-            return ' ' .. changes_data[entry.value].status .. ' '
-                .. vim.fn.fnamemodify(entry.value, ':t') .. ' '
-                .. changes_data[entry.value].changes .. ' '
+            return qf_list[entry.value].title
         end,
         setup = function(_self)
             return {}
@@ -141,7 +151,7 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
             _buf_name_seq = _buf_name_seq + 1
             local bufnr = nil
             local success, err = pcall(function()
-                bufnr = view.open_git_diff_buffer_for_path(filepath, ref, state.default_context, preview_winid,
+                bufnr = view.open_git_diff_buffer_for_path(filepath, qf_list[entry.value].ref, state.default_context, preview_winid,
                     tostring(_buf_name_seq))
             end)
             if not success or bufnr == nil then
@@ -159,9 +169,7 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
             -- Set the preview border title directly; this works regardless of
             -- the user's dynamic_preview_title config value.
             if status.layout.preview.border then
-                local title = ' ' .. changes_data[entry.value].status .. ' '
-                    .. vim.fn.fnamemodify(entry.value, ':t') .. ' '
-                    .. changes_data[entry.value].changes .. ' '
+                local title = qf_list[entry.value].title
                 status.layout.preview.border:change_title(title)
             end
         end,
@@ -183,20 +191,10 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
                 if selection == nil then return end
 
                 local selected = selection.value
-                local selected_idx = nil
-                for idx, value in ipairs(mods) do
-                    if value == selected then
-                        selected_idx = idx
-                    end
-                end
-                assert(selected_idx ~= nil)
 
-                local success, err = pcall(function()
-                    vim.cmd('e ' .. utils.git_rel_to_abs(vim.fn.fnameescape(selected)))
-                end)
-                if not success then
-                    vim.notify('An error occured while trying to open DeltaView - ' .. tostring(err),
-                        vim.log.levels.ERROR)
+                local idx = qf_list[selected].idx
+                if idx then
+                    vim.cmd('cc ' .. idx)
                 end
             end)
             return true
