@@ -107,9 +107,13 @@ M.get_sorted_diffed_files = function(ref)
     local file_statuses = {}
     if name_status_result.code == 0 or name_status_result.code == 1 then
         for line in name_status_result.stdout:gmatch('[^\n]+') do
-            local status, filepath = line:match('^([MADRCTU])%S*%s+(.+)$')
+            local status, filepath, changed_filepath = line:match('^([MADRCTU])%S*%s+(%S+)%s*(%S*)$')
             if status and filepath then
-                file_statuses[filepath] = status
+                if changed_filepath == '' then
+                    file_statuses[filepath] = status
+                else
+                    file_statuses[changed_filepath] = status
+                end
             end
         end
     end
