@@ -89,7 +89,8 @@ M.open_deltaview_fzf_lua_menu = function()
         if not success or bufnr == nil then
             local tmp = self:get_tmp_buffer()
             vim.api.nvim_buf_set_lines(tmp, 0, -1, false, { 'No diff available for: ' .. entry_str })
-            vim.api.nvim_buf_set_lines(tmp, 1, -1, false, { tostring(err) })
+            local lines = vim.fn.split(tostring(err), "\n")
+            vim.api.nvim_buf_set_lines(tmp, 1, -1, false, lines)
             self:set_preview_buf(tmp)
             return
         end
@@ -192,7 +193,8 @@ M.open_deltaview_telescope_menu = function()
                 local fallback = vim.api.nvim_create_buf(false, true)
                 table.insert(preview_bufs, fallback)
                 vim.api.nvim_buf_set_lines(fallback, 0, -1, false, { 'No diff available for: ' .. entry.value })
-                vim.api.nvim_buf_set_lines(fallback, 1, -1, false, { tostring(err) })
+                local lines = vim.fn.split(tostring(err), "\n")
+                vim.api.nvim_buf_set_lines(fallback, 1, -1, false, lines)
                 vim.api.nvim_win_set_buf(preview_winid, fallback)
                 return
             end
