@@ -222,6 +222,7 @@ end
 --- @param view string
 M.register_default_select_view = function(view)
     assert(view ~= nil, "nil view was attempted to be registered as the default view for DeltaView's vim-ui-select")
+    vim.notify([[DeltaView quick select has been deprecated, as a result of an overall behavioral change to DeltaMenu that involves using the quickfix list as the default fallback selector. The selector itself, as well as require('deltaview').register_ui_select will be removed in the near future. Please adjust your configuration accordingly.]], vim.log.levels.WARN)
     local found = false
     for _, value in pairs(M.VIEWS) do
         if value == view then

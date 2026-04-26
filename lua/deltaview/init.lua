@@ -21,7 +21,6 @@ M.register_ui_select = function(select_view)
     if select_view ~= nil then
         selector.register_default_select_view(select_view)
     end
-    vim.notify([[Deltaview quick select is now deprecated, in favor of using the quickfix list. The selector itself, as well as require('deltaview').register_ui_select will be removed in the near future. Please adjust your configuration accordingly.]], vim.log.levels.WARN)
     vim.ui.select = selector.ui_select
 end
 
