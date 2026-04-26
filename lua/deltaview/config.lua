@@ -55,7 +55,6 @@ M.defaults = {
     use_nerdfonts = true,
     show_verbose_nav = false,
     quick_select_view = 'hsplit',
-    fzf_threshold = 0,
     default_context = 3,
     line_numbers = false,
     fzf_picker = nil,
@@ -99,8 +98,6 @@ end
 --- @field keyconfig KeyConfig | nil
 --- @field show_verbose_nav boolean | nil Show both prev and next filenames (true) or just position + next (false, default)
 --- @field quick_select_view string | nil 'bottom' | 'center' | 'hsplit' - the position of DeltaMenu. Defaults to 'hsplit'
--- TODO remove fzf_threshold after quickselect is changed to quickfix. there is no benefit to this variable anymore after quickselect is removed in favor of quickfix
---- @field fzf_threshold number | nil if the number of diffed files is equal to or greater than this threshold, it will show up in a fuzzy finding picker. Defaults to 6. Set to 1 or 0 if you would always like a fuzzy picker
 --- @field default_context number | nil if running deltaview on a directory rather than a file, it will show a typical delta view with limited context. Defaults to 3. Set here, or pass it in as a second param to DeltaView, which will persist as the context for this session
 --- @field line_numbers boolean | nil If this setting is true, will show the delta style line numbers in the statuscolumn.
 --- @field fzf_picker 'fzf-lua' | 'telescope' | 'quickfix' | 'ui_select' nil specify which picker to use. If nil, will go through the order and pick the first available. fzf-lua -> telescope -> quickfix -> ui_select. ui_select refers to vim.ui.select, and will respect whichever picker you are using; this exists as an option for a picker that doesn't use a previewer. For example, with fzf-lua, you might use require('fzf-lua').register_ui_select() for a fuzzy picker without ap reviewer, then set this option.
