@@ -50,10 +50,12 @@ M.populate_quickfix_deltamenu_items = function(ref, mods, changes_data)
         local text = path
         local status = changes_data[path].status
         --- @cast status Status
-        local filepath = path
+        local filepath
         if status == 'D' then
             -- need /tmp because this isn't a scratch buffer neovim controls the deletion of
             filepath = '/tmp/deltaview://deleted/' .. utils.git_rel_to_abs(path)
+        else
+            filepath = utils.git_rel_to_abs(path)
         end
         --- @class DeltaViewQfListEntry
         local qflist_entry = {
@@ -62,7 +64,8 @@ M.populate_quickfix_deltamenu_items = function(ref, mods, changes_data)
             --- @class DeltaViewQfListEntryUserData
             user_data = {
                 deltaview = true, -- identifier, allows us to confidently use @cast DeltaViewQfListEntry
-                bufname = path, -- note that this is different from filename; is the same most of the time, but for deleted files, can be different
+                bufname = path,
+                abs_path = utils.git_rel_to_abs(path), -- note that this is different from filename; is the same most of the time, but for deleted files, can be different
                 show_delta_on_entry = true,
                 ref = ref,
                 status = status,
@@ -118,7 +121,7 @@ M.setup_quickfix_deltaview_on_entry = function()
             if
                 entry.user_data
                 and entry.user_data.deltaview
-                and utils.git_rel_to_abs(entry.user_data.bufname) == bufname
+                and entry.user_data.abs_path == bufname
             then
                 --- @cast entry DeltaViewQfListEntry
                 return entry, i
@@ -202,7 +205,7 @@ M.setup_quickfix_deltaview_on_entry = function()
                         -- delta_path works for deleted files, while deltaview_file doesn't because it expects a real file to exist to function off of.
                         -- slight design discrepancy here; this has the delta.lua header, while the others don't. But I can live with that.
                         -- alternative is to refactor deltaview_file to no longer assume it is being called from a real file, and take in a path like delta_path does
-                        bufnr = view.delta_path(entry.user_data.ref, require('deltaview.state').default_context, entry.user_data.bufname)
+                        bufnr = view.delta_path(entry.user_data.ref, require('deltaview.state').default_context, entry.user_data.abs_path)
                     else
                         bufnr = view.deltaview_file(entry.user_data.ref)
                     end
