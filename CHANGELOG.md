@@ -1,9 +1,8 @@
 # Changelog
 
 All notable changes to deltaview.nvim will be documented in this file.
-I will keep the same version, and append to the "Fixes" or "Changed" section if it is a backwards compatible bug fix or backwards compatible change
-I will increment a version (0.x.y -> 0.x.y+1) if I there is a new feature or breaking change. Nothing should be added to the "Added" section, only the "Fixes" or "Changed" section, so if something feels like it should be added to "Added", it should be a new version.
-I will increment a major version (0.x.y -> 0.x+1.0) if I there is large new feature
+
+This project adheres (or tries) to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 I try to attach a commit to each log, but in the initial pr, I may use the pr instead. Will change the pr to the commit hash (if merged) in a later pr.
 I will keep the version in "Latest" as not a tag, to be extendable for bug fixes. Once it is moved into "History", it is no longer extendable, and a tag will be made.
 
