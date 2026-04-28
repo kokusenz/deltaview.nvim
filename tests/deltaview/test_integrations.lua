@@ -818,4 +818,31 @@ T['Delta integration — untracked file']['cwd higher than git root: creates a d
     eq(has_diff_data, true)
 end
 
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- keybind setup integration
+
+-- Verifies that a user's own keymap for a key is not overwritten when they configure deltaview
+-- to leave that key alone (by setting the corresponding keybind option to '' or nil).
+-- The VimEnter autocmd in plugin/commands.lua calls setup_keybinds(), which must skip
+-- registration when the option is empty/nil — leaving any pre-existing mapping intact.
+
+T['keybind setup integration'] = new_set()
+
+T['keybind setup integration']['user keybind for <leader>dm survives when dm_toggle_keybind is disabled'] = function()
+    -- Simulate: user maps <leader>dm to their own function, then calls deltaview's setup
+    -- with dm_toggle_keybind = '' to prevent deltaview from claiming that key.
+    -- After setup_keybinds() runs (as VimEnter would trigger it), the user's mapping must
+    -- still be active.
+    child.lua([[
+        vim.g.mapleader = ','
+        _G.keybind_called = false
+        vim.keymap.set('n', '<leader>dm', function() _G.keybind_called = true end)
+        M.setup({ keyconfig = { dm_toggle_keybind = '' } })
+        require('deltaview.config').setup_keybinds()
+    ]])
+    child.type_keys(',dm')
+    local called = child.lua_get('_G.keybind_called')
+    eq(called, true)
+end
+
 return T
