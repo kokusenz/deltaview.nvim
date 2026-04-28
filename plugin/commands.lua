@@ -92,7 +92,11 @@ local ref_complete = function(ref_arg_position, branches)
 end
 
 -- fetch git branches once at setup time
-local all_branches = vim.fn.systemlist('git branch --format="%(refname:short)"')
+local result = vim.system({'git', 'branch', '--format=%(refname:short)'}):wait()
+local all_branches = {}
+if result.code == 0 and result.stdout ~= '' then
+    all_branches = vim.split(result.stdout, "\n", { trimempty = true })
+end
 
 vim.api.nvim_create_user_command('DeltaView', delta_view, {
     nargs = '?',
@@ -100,15 +104,6 @@ vim.api.nvim_create_user_command('DeltaView', delta_view, {
     desc =
     'Open Diff View against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
 })
-
-local config = require('deltaview.config')
-
--- :DeltaView global keybind
-if config.options.keyconfig.dv_toggle_keybind ~= nil and config.options.keyconfig.dv_toggle_keybind ~= '' then
-    vim.keymap.set('n', config.options.keyconfig.dv_toggle_keybind, function()
-        vim.cmd('DeltaView')
-    end)
-end
 
 -- :DeltaMenu command
 vim.api.nvim_create_user_command('DeltaMenu', delta_menu,
@@ -118,13 +113,6 @@ vim.api.nvim_create_user_command('DeltaMenu', delta_menu,
         desc =
         'Open Diff Menu against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
     })
-
--- :DeltaMenu global keybind
-if config.options.keyconfig.dm_toggle_keybind ~= nil and config.options.keyconfig.dm_toggle_keybind ~= '' then
-    vim.keymap.set('n', config.options.keyconfig.dm_toggle_keybind, function()
-        vim.cmd('DeltaMenu')
-    end)
-end
 
 -- :Delta command
 vim.api.nvim_create_user_command('Delta', delta, {
@@ -146,9 +134,6 @@ vim.api.nvim_create_user_command('Delta', delta, {
     'Open Diff View for a path against a git ref. Usage: Delta [path] [context] [ref]. Defaults to current buffer path or cwd.'
 })
 
--- :Delta global keybind
-if config.options.keyconfig.d_toggle_keybind ~= nil and config.options.keyconfig.d_toggle_keybind ~= '' then
-    vim.keymap.set('n', config.options.keyconfig.d_toggle_keybind, function()
-        vim.cmd('Delta')
-    end)
-end
+vim.api.nvim_create_autocmd('VimEnter', {
+    callback = function() require('deltaview.config').setup_keybinds() end
+})
