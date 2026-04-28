@@ -1,13 +1,28 @@
 local M = {}
 
---- @class ViewConfig
---- @field dot string
---- @field circle string
---- @field vs string
---- @field next string
---- @field prev string
---- @field segment string
---- @field file string
+M.setup_keybinds = function()
+    -- :DeltaView global keybind
+    if M.options.keyconfig.dv_toggle_keybind ~= nil and M.options.keyconfig.dv_toggle_keybind ~= '' then
+        vim.keymap.set('n', M.options.keyconfig.dv_toggle_keybind, function()
+            vim.cmd('DeltaView')
+        end)
+    end
+
+    -- :DeltaMenu global keybind
+    if M.options.keyconfig.dm_toggle_keybind ~= nil and M.options.keyconfig.dm_toggle_keybind ~= '' then
+        vim.keymap.set('n', M.options.keyconfig.dm_toggle_keybind, function()
+            vim.cmd('DeltaMenu')
+        end)
+    end
+
+
+    -- :Delta global keybind
+    if M.options.keyconfig.d_toggle_keybind ~= nil and M.options.keyconfig.d_toggle_keybind ~= '' then
+        vim.keymap.set('n', M.options.keyconfig.d_toggle_keybind, function()
+            vim.cmd('Delta')
+        end)
+    end
+end
 
 --- @type ViewConfig
 M.basic_viewconfig = {
@@ -68,6 +83,16 @@ M.options = vim.deepcopy(M.defaults)
 M.setup = function(opts)
     M.options = vim.tbl_deep_extend("force", M.options, opts or {})
 end
+
+--- @class ViewConfig
+--- @field dot string
+--- @field circle string
+--- @field vs string
+--- @field next string
+--- @field prev string
+--- @field segment string
+--- @field file string
+
 
 --- @class KeyConfig
 --- @field dv_toggle_keybind string | nil if defined, will create keybind that runs DeltaView, and exits Diff buffer if open. By default, <leader>dv.

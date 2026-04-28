@@ -8,9 +8,20 @@ I will keep the version in "Latest" as not a tag, to be extendable for bug fixes
 
 ## Latest
 
-### [0.2.2] - ongoing
+### [0.2.3] - 2024-04-28 to ongoing
 
-- initial commit - https://github.com/kokusenz/deltaview.nvim/pull/33
+- initial commit - https://github.com/kokusenz/deltaview.nvim/pull/35
+
+#### Added
+
+- Support lazy loading by moving command registration to plugin/ and deferring module requires until command invocation
+
+## History
+
+### [0.2.2] - 2026-04-19 to 2026-04-22
+
+- initial commit - 685980572d9cae89a4c8d63c0ac959bad52b33b4
+- final commit - 685980572d9cae89a4c8d63c0ac959bad52b33b4
 
 #### Breaking Changes
 
@@ -18,8 +29,6 @@ I will keep the version in "Latest" as not a tag, to be extendable for bug fixes
 - delta.lua is now a hard dependency - Previously delta.lua was optional (falling back to the legacy binary). It is now required. A missing delta.lua will surface as an error via `vim.health` and at the point of use.
 - fzf picker removed - The standalone `fzf` (junegunn) picker backend for `:DeltaMenu` has been removed. Supported pickers are now fzf-lua, telescope, and will fall back to this plugin's custom vim.ui.select. The `fzf_picker` config option no longer accepts `"fzf"` as a value.
 - delta.lua missing alert is now lazy - Previously, a missing delta.lua dependency triggered a notification at startup. It now surfaces at the point of use (when a diff command is invoked) and via `:checkhealth deltaview`.
-
-## History
 
 ### [0.2.1] - 2026-04-09 to 2026-04-14
 

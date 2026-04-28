@@ -300,21 +300,6 @@ M.read_file_lines = function(filepath)
     return lines
 end
 
---- Filter git refs based on user input (case insensitive)
---- @param refs table List of git refs
---- @param arg_lead string User's partial input
---- @return table Filtered list of refs
-M.filter_refs = function(refs, arg_lead)
-    local filtered = {}
-    local arg_lead_lower = string.lower(arg_lead)
-    for _, ref in ipairs(refs) do
-        if vim.startswith(string.lower(ref), arg_lead_lower) then
-            table.insert(filtered, ref)
-        end
-    end
-    return filtered
-end
-
 --- Validates that the added/removed lines in two DiffData[] tables are consistent.
 --- The tables may differ structurally (hunk count, formatted_diff_line_num, etc.), but
 --- the sequence of changed lines must agree on content, old_line_num, new_line_num, and line_type.

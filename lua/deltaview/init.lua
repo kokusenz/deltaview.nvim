@@ -3,7 +3,6 @@ local M = {}
 --- @param opts DeltaViewOpts
 M.setup = function(opts)
     require('deltaview.config').setup(opts)
-    require('deltaview.commands').setup()
 end
 
 --- check if a buffer is a deltaview diff buffer
