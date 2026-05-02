@@ -33,7 +33,7 @@ M.create_diff_menu_pane = function(ref)
 
     M.setup_quickfix_deltaview_on_entry()
     M.populate_quickfix_deltamenu_items(ref, mods, changes_data)
-    M.choose_deltaview_menu(ref, mods, changes_data)
+    M.choose_deltaview_menu()
 end
 
 --- opens a quickfix menu with all entries, with metadata on the items such that autocmd's can recognize when a diff buffer should be opened.
@@ -76,7 +76,7 @@ M.populate_quickfix_deltamenu_items = function(ref, mods, changes_data)
     end
     --- @cast qflist DeltaViewQfListEntry[]
 
-    vim.fn.setqflist({}, 'r', {
+    vim.fn.setqflist({}, ' ', {
         nr = '$',
         title = 'DeltaView Menu  |  ' .. config.viewconfig().vs .. ' ' .. (ref),
         items = qflist,
@@ -105,7 +105,7 @@ M.setup_quickfix_deltaview_on_entry = function()
     --- @param bufnr number
     --- @return DeltaViewQfListEntry | nil quickfix_entry entry of getqflist
     --- @return number | nil quickfix_entry entry of getqflist
-    local function get_delta_entry(bufnr)
+    local get_delta_entry = function(bufnr)
         assert(bufnr)
         local qf_info = vim.fn.getqflist({ items = 1, size = 1 })
         if qf_info.size == 0 then
@@ -131,7 +131,7 @@ M.setup_quickfix_deltaview_on_entry = function()
 
     --- clears deltaview flag of current quickfix list entry
     --- @param bufnr number
-    local function clear_delta_entry(bufnr)
+    local clear_delta_entry = function(bufnr)
         assert(bufnr)
         local entry, idx = get_delta_entry(bufnr)
         if
@@ -148,7 +148,7 @@ M.setup_quickfix_deltaview_on_entry = function()
     end
 
     --- restores deltaview user_data flag for all quickfix list entries
-    local function restore_delta_entries()
+    local restore_delta_entries = function()
         --- @type {items: table[], size: number}
         local qf_info = vim.fn.getqflist({ items = 1, size = 1 })
         local idx = vim.fn.getqflist({ idx = 0 }).idx
@@ -175,20 +175,7 @@ M.setup_quickfix_deltaview_on_entry = function()
 
             -- left the deltamenu workflow entirely: restore/clear the quickfix list
             if entry == nil then
-                local qf_info = vim.fn.getqflist({ nr = 0, items = 1 })
-                -- if the quickfix list is not a deltaview quickfix list, do not clear. entry returns nil for non deltaview quickfix list
-                for _, qf_item in ipairs(qf_info.items) do
-                    if not qf_item.user_data or not qf_item.user_data.deltaview then
-                        return
-                    end
-                end
-                local qf_nr = qf_info.nr
-                if qf_nr > 1 then
-                    vim.cmd('colder')
-                else
-                    vim.fn.setqflist({}, 'r', { items = {}, title = '' })
-                end
-                vim.cmd('cclose')
+                utils.undo_deltamenu_qf_list()
                 return
             end
 
@@ -219,6 +206,7 @@ M.setup_quickfix_deltaview_on_entry = function()
                     if bufnr ~= nil then
                         help.register_keybind(bufnr, ']q', 'use quickfix keybind to open next file diff')
                         help.register_keybind(bufnr, '[q', 'use quickfix keybind to open prev file diff')
+                        help.register_keybind(bufnr, ':DeltaMenu clear', 'Clear items in quickfix list populated by :DeltaMenu. The intention is, if you open a file that is in the DeltaMenu quickfix list, it will automatically open to the :DeltaView view. This behavior is usually desired, but sometimes can get in the way, so use the "clear" command if you have finished your reviewing workflow. The quickfix list will also automatically clear if you open a file that is not in the quickfix list.')
                     end
                 end)
                 if not success then

@@ -16,9 +16,12 @@ end
 local delta_menu = function(command_argument)
     local state = require('deltaview.state')
     local success, err = pcall(function()
-        state.diff_target_ref = command_argument.fargs[1] ~= nil
-            and command_argument.fargs[1]
-            or state.diff_target_ref
+        local arg = command_argument.fargs[1]
+        if arg == 'clear' then
+            require('deltaview.utils').undo_deltamenu_qf_list()
+            return
+        end
+        state.diff_target_ref = arg ~= nil and arg or state.diff_target_ref
         require('deltaview.menu').create_diff_menu_pane(state.diff_target_ref)
     end)
     if not success then

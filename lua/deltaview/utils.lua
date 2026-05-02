@@ -376,6 +376,25 @@ M.get_git_root = function(path)
     return vim.trim(rev_parse_result.stdout)
 end
 
+M.undo_deltamenu_qf_list = function()
+    local qf_info = vim.fn.getqflist({ nr = '$', items = 1 })
+    -- if the quickfix list is not a deltaview quickfix list, do not clear. entry returns nil for non deltaview quickfix list
+    for _, qf_item in ipairs(qf_info.items) do
+        if not qf_item.user_data or not qf_item.user_data.deltaview then
+            return
+        end
+    end
+    local qf_nr = qf_info.nr
+    vim.print(qf_nr)
+    if qf_nr > 1 then
+        vim.cmd('colder')
+    else
+        vim.fn.setqflist({}, 'r', { items = {}, title = '' })
+    end
+    vim.cmd('cclose')
+end
+
+
 return M
 
 --- @class DiffNumstat
