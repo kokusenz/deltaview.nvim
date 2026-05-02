@@ -7,10 +7,10 @@ local child = MiniTest.new_child_neovim()
 -- setup
 
 local T = new_set({
-    hooks = {
-        pre_case = function()
-            child.restart({ '-u', 'scripts/minimal_init.lua' })
-            child.lua([[
+  hooks = {
+    pre_case = function()
+      child.restart({ '-u', 'scripts/minimal_init.lua' })
+      child.lua([[
                 package.loaded['deltaview.utils'] = {
                     get_adjacent_files = function(_diffed_files) return nil end,
                     get_sorted_diffed_files = function(_ref) return {} end,
@@ -50,19 +50,19 @@ local T = new_set({
 
                 M = require('deltaview.picker')
             ]])
-            child.lua([[_G.fixture = {}]])
-        end,
-        post_once = child.stop,
-    },
+      child.lua([[_G.fixture = {}]])
+    end,
+    post_once = child.stop,
+  },
 })
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
 -- decorate_deltaview_with_next_keybinds() - example based tests
 
 T['decorate_deltaview_with_next_keybinds()'] = new_set({
-    hooks = {
-        pre_case = function()
-            child.lua([[
+  hooks = {
+    pre_case = function()
+      child.lua([[
                 -- Create a real scratch buffer so buf_get/set_name work normally.
                 local bufnr = vim.api.nvim_create_buf(true, true)
                 vim.api.nvim_buf_set_name(bufnr, 'myfile.lua')
@@ -90,13 +90,13 @@ T['decorate_deltaview_with_next_keybinds()'] = new_set({
                     cur_idx = 2,
                 }
             ]])
-        end,
-    },
+    end,
+  },
 })
 
 -- adjacent_files is nil: nothing should happen
 T['decorate_deltaview_with_next_keybinds()']['does nothing when adjacent_files is nil'] = function()
-    child.lua([[
+  child.lua([[
         package.loaded['deltaview.utils'].get_adjacent_files = function(_) return nil end
         local original_name = vim.api.nvim_buf_get_name(_G.fixture.bufnr)
         M.decorate_deltaview_with_next_keybinds(_G.fixture.bufnr)
@@ -104,15 +104,15 @@ T['decorate_deltaview_with_next_keybinds()']['does nothing when adjacent_files i
         _G.fixture.original_name = original_name
     ]])
 
-    local original = child.lua_get('_G.fixture.original_name')
-    local after = child.lua_get('_G.fixture.name_after')
-    eq(original, after)
-    eq(child.lua_get('next((_G.fixture.keymap_set_args))'), vim.NIL)
+  local original = child.lua_get('_G.fixture.original_name')
+  local after = child.lua_get('_G.fixture.name_after')
+  eq(original, after)
+  eq(child.lua_get('next((_G.fixture.keymap_set_args))'), vim.NIL)
 end
 
 -- adjacent_files non-nil, show_verbose_nav = false: name includes [idx|total] block, no prev prefix
 T['decorate_deltaview_with_next_keybinds()']['sets buffer name with navigation info when show_verbose_nav is false'] = function()
-    child.lua([[
+  child.lua([[
         package.loaded['deltaview.config'].options.show_verbose_nav = false
         package.loaded['deltaview.utils'].get_adjacent_files = function(_)
             return { prev = 'path/to/a.lua', next = 'path/to/c.lua' }
@@ -121,19 +121,19 @@ T['decorate_deltaview_with_next_keybinds()']['sets buffer name with navigation i
         _G.fixture.name = vim.api.nvim_buf_get_name(_G.fixture.bufnr)
     ]])
 
-    local name = child.lua_get('_G.fixture.name')
-    -- Should contain the [cur|total] index block
-    eq(name:find('%[2|3%]') ~= nil, true)
-    -- Should contain the next file's tail
-    eq(name:find('c%.lua') ~= nil, true)
-    -- Should NOT contain the prev file's tail before the index block (no verbose prefix)
-    local idx_pos = name:find('%[2|3%]')
-    eq(name:sub(1, idx_pos - 1):find('a%.lua'), nil)
+  local name = child.lua_get('_G.fixture.name')
+  -- Should contain the [cur|total] index block
+  eq(name:find('%[2|3%]') ~= nil, true)
+  -- Should contain the next file's tail
+  eq(name:find('c%.lua') ~= nil, true)
+  -- Should NOT contain the prev file's tail before the index block (no verbose prefix)
+  local idx_pos = name:find('%[2|3%]')
+  eq(name:sub(1, idx_pos - 1):find('a%.lua'), nil)
 end
 
 -- adjacent_files non-nil, show_verbose_nav = true: name is prefixed with prev filename + prev icon
 T['decorate_deltaview_with_next_keybinds()']['prefixes buffer name with prev filename when show_verbose_nav is true'] = function()
-    child.lua([[
+  child.lua([[
         package.loaded['deltaview.config'].options.show_verbose_nav = true
         package.loaded['deltaview.utils'].get_adjacent_files = function(_)
             return { prev = 'path/to/a.lua', next = 'path/to/c.lua' }
@@ -142,51 +142,51 @@ T['decorate_deltaview_with_next_keybinds()']['prefixes buffer name with prev fil
         _G.fixture.name = vim.api.nvim_buf_get_name(_G.fixture.bufnr)
     ]])
 
-    local name = child.lua_get('_G.fixture.name')
-    -- Both prev and next file tails should appear
-    eq(name:find('a%.lua') ~= nil, true)
-    eq(name:find('c%.lua') ~= nil, true)
-    -- prev tail should appear before the [idx|total] block
-    local prev_pos = name:find('a%.lua')
-    local idx_pos = name:find('%[2|3%]')
-    eq(prev_pos < idx_pos, true)
+  local name = child.lua_get('_G.fixture.name')
+  -- Both prev and next file tails should appear
+  eq(name:find('a%.lua') ~= nil, true)
+  eq(name:find('c%.lua') ~= nil, true)
+  -- prev tail should appear before the [idx|total] block
+  local prev_pos = name:find('a%.lua')
+  local idx_pos = name:find('%[2|3%]')
+  eq(prev_pos < idx_pos, true)
 end
 
 -- next_diff keybind is registered with the correct mode, buffer, and silent options
 T['decorate_deltaview_with_next_keybinds()']['registers next_diff keybind on the correct buffer'] = function()
-    child.lua([[
+  child.lua([[
         package.loaded['deltaview.utils'].get_adjacent_files = function(_)
             return { prev = 'path/to/a.lua', next = 'path/to/c.lua' }
         end
         M.decorate_deltaview_with_next_keybinds(_G.fixture.bufnr)
     ]])
 
-    -- Read serializable fields one at a time to avoid the child trying to serialize `rhs` (a function).
-    eq(child.lua_get("_G.fixture.keymap_set_args[']d'].mode"), 'n')
-    eq(child.lua_get("_G.fixture.keymap_set_args[']d'].lhs"), ']d')
-    eq(child.lua_get("_G.fixture.keymap_set_args[']d'].opts.buffer"), child.lua_get('_G.fixture.bufnr'))
-    eq(child.lua_get("_G.fixture.keymap_set_args[']d'].opts.silent"), true)
+  -- Read serializable fields one at a time to avoid the child trying to serialize `rhs` (a function).
+  eq(child.lua_get("_G.fixture.keymap_set_args[']d'].mode"), 'n')
+  eq(child.lua_get("_G.fixture.keymap_set_args[']d'].lhs"), ']d')
+  eq(child.lua_get("_G.fixture.keymap_set_args[']d'].opts.buffer"), child.lua_get('_G.fixture.bufnr'))
+  eq(child.lua_get("_G.fixture.keymap_set_args[']d'].opts.silent"), true)
 end
 
 -- prev_diff keybind is registered with the correct mode, buffer, and silent options
 T['decorate_deltaview_with_next_keybinds()']['registers prev_diff keybind on the correct buffer'] = function()
-    child.lua([[
+  child.lua([[
         package.loaded['deltaview.utils'].get_adjacent_files = function(_)
             return { prev = 'path/to/a.lua', next = 'path/to/c.lua' }
         end
         M.decorate_deltaview_with_next_keybinds(_G.fixture.bufnr)
     ]])
 
-    -- Read serializable fields one at a time to avoid the child trying to serialize `rhs` (a function).
-    eq(child.lua_get("_G.fixture.keymap_set_args['[d'].mode"), 'n')
-    eq(child.lua_get("_G.fixture.keymap_set_args['[d'].lhs"), '[d')
-    eq(child.lua_get("_G.fixture.keymap_set_args['[d'].opts.buffer"), child.lua_get('_G.fixture.bufnr'))
-    eq(child.lua_get("_G.fixture.keymap_set_args['[d'].opts.silent"), true)
+  -- Read serializable fields one at a time to avoid the child trying to serialize `rhs` (a function).
+  eq(child.lua_get("_G.fixture.keymap_set_args['[d'].mode"), 'n')
+  eq(child.lua_get("_G.fixture.keymap_set_args['[d'].lhs"), '[d')
+  eq(child.lua_get("_G.fixture.keymap_set_args['[d'].opts.buffer"), child.lua_get('_G.fixture.bufnr'))
+  eq(child.lua_get("_G.fixture.keymap_set_args['[d'].opts.silent"), true)
 end
 
 -- next_diff keybind rhs calls programmatically_select_diff_from_menu with adjacent_files.next
 T['decorate_deltaview_with_next_keybinds()']['next_diff keybind navigates to the next adjacent file'] = function()
-    child.lua([[
+  child.lua([[
         package.loaded['deltaview.utils'].get_adjacent_files = function(_)
             return { prev = 'path/to/a.lua', next = 'path/to/c.lua' }
         end
@@ -195,12 +195,12 @@ T['decorate_deltaview_with_next_keybinds()']['next_diff keybind navigates to the
         _G.fixture.keymap_set_args[']d'].rhs()
     ]])
 
-    eq(child.lua_get('_G.fixture.programmatically_selected'), 'path/to/c.lua')
+  eq(child.lua_get('_G.fixture.programmatically_selected'), 'path/to/c.lua')
 end
 
 -- prev_diff keybind rhs calls programmatically_select_diff_from_menu with adjacent_files.prev
 T['decorate_deltaview_with_next_keybinds()']['prev_diff keybind navigates to the previous adjacent file'] = function()
-    child.lua([[
+  child.lua([[
         package.loaded['deltaview.utils'].get_adjacent_files = function(_)
             return { prev = 'path/to/a.lua', next = 'path/to/c.lua' }
         end
@@ -209,16 +209,16 @@ T['decorate_deltaview_with_next_keybinds()']['prev_diff keybind navigates to the
         _G.fixture.keymap_set_args['[d'].rhs()
     ]])
 
-    eq(child.lua_get('_G.fixture.programmatically_selected'), 'path/to/a.lua')
+  eq(child.lua_get('_G.fixture.programmatically_selected'), 'path/to/a.lua')
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
 -- programmatically_select_diff_from_menu() - example based tests
 
 T['programmatically_select_diff_from_menu()'] = new_set({
-    hooks = {
-        pre_case = function()
-            child.lua([[
+  hooks = {
+    pre_case = function()
+      child.lua([[
                 -- Happy-path defaults: in git repo, mods contains 'b.lua' at index 2.
                 vim.system = function(_cmd, _opts)
                     return { wait = function() return { code = 0, stdout = '/repo', stderr = '' } end }
@@ -248,76 +248,76 @@ T['programmatically_select_diff_from_menu()'] = new_set({
                 _G.fixture.mods = { 'a.lua', 'b.lua', 'c.lua' }
                 _G.fixture.deltaview_file_result = 42
             ]])
-        end,
-    },
+    end,
+  },
 })
 
 T['programmatically_select_diff_from_menu()']['notifies and returns when not in a git repository'] = function()
-    child.lua([[
+  child.lua([[
         vim.system = function(_cmd, _opts)
             return { wait = function() return { code = 128, stdout = '', stderr = '' } end }
         end
         M.programmatically_select_diff_from_menu('b.lua')
     ]])
 
-    eq(type(child.lua_get('_G.fixture.notified')), 'string')
-    eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
+  eq(type(child.lua_get('_G.fixture.notified')), 'string')
+  eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
 end
 
 T['programmatically_select_diff_from_menu()']['raises when filepath is not found in mods'] = function()
-    child.lua([[
+  child.lua([[
         local ok, _err = pcall(function()
             M.programmatically_select_diff_from_menu('not_in_list.lua')
         end)
         _G.fixture.assert_failed = not ok
     ]])
 
-    eq(child.lua_get('_G.fixture.assert_failed'), true)
+  eq(child.lua_get('_G.fixture.assert_failed'), true)
 end
 
 T['programmatically_select_diff_from_menu()']['updates state and calls decorate on happy path'] = function()
-    child.lua([[
+  child.lua([[
         M.programmatically_select_diff_from_menu('b.lua')
     ]])
 
-    -- state.diffed_files should be updated to the full mods list
-    eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.files"),
-        { 'a.lua', 'b.lua', 'c.lua' })
-    -- cur_idx should be the position of 'b.lua' in mods (index 2)
-    eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 2)
-    -- decorate should have been called with the bufnr returned by deltaview_file
-    eq(child.lua_get('_G.fixture.decorate_called_with'), 42)
+  -- state.diffed_files should be updated to the full mods list
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.files"),
+    { 'a.lua', 'b.lua', 'c.lua' })
+  -- cur_idx should be the position of 'b.lua' in mods (index 2)
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 2)
+  -- decorate should have been called with the bufnr returned by deltaview_file
+  eq(child.lua_get('_G.fixture.decorate_called_with'), 42)
 end
 
 T['programmatically_select_diff_from_menu()']['does not update state when deltaview_file returns nil'] = function()
-    child.lua([[
+  child.lua([[
         _G.fixture.deltaview_file_result = nil
         -- Preset a known cur_idx so we can confirm it is left unchanged.
         package.loaded['deltaview.state'].diffed_files.cur_idx = 99
         M.programmatically_select_diff_from_menu('b.lua')
     ]])
 
-    eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
-    eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
+  eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
 end
 
 T['programmatically_select_diff_from_menu()']['notifies error when the pcall body throws'] = function()
-    child.lua([[
+  child.lua([[
         vim.cmd = function(_) error('disk full') end
         M.programmatically_select_diff_from_menu('b.lua')
     ]])
 
-    eq(type(child.lua_get('_G.fixture.notified')), 'string')
-    eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
+  eq(type(child.lua_get('_G.fixture.notified')), 'string')
+  eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
 -- open_deltaview_quickselect_menu() - example based tests
 
 T['open_deltaview_quickselect_menu()'] = new_set({
-    hooks = {
-        pre_case = function()
-            child.lua([[
+  hooks = {
+    pre_case = function()
+      child.lua([[
                 -- Capture ui_select arguments for assertion and to expose on_select.
                 package.loaded['deltaview.selector'].ui_select = function(items, opts, on_select)
                     _G.fixture.ui_select_items = items
@@ -339,112 +339,112 @@ T['open_deltaview_quickselect_menu()'] = new_set({
 
                 _G.fixture.deltaview_file_result = 42
             ]])
-        end,
-    },
+    end,
+  },
 })
 
 T['open_deltaview_quickselect_menu()']['raises when ref is nil'] = function()
-    child.lua([[
+  child.lua([[
         local ok, _err = pcall(function()
             M.open_deltaview_quickselect_menu(nil, {}, {})
         end)
         _G.fixture.assert_failed = not ok
     ]])
 
-    eq(child.lua_get('_G.fixture.assert_failed'), true)
+  eq(child.lua_get('_G.fixture.assert_failed'), true)
 end
 
 T['open_deltaview_quickselect_menu()']['raises when mods is nil'] = function()
-    child.lua([[
+  child.lua([[
         local ok, _err = pcall(function()
             M.open_deltaview_quickselect_menu('HEAD', nil, {})
         end)
         _G.fixture.assert_failed = not ok
     ]])
 
-    eq(child.lua_get('_G.fixture.assert_failed'), true)
+  eq(child.lua_get('_G.fixture.assert_failed'), true)
 end
 
 T['open_deltaview_quickselect_menu()']['raises when changes_data is nil'] = function()
-    child.lua([[
+  child.lua([[
         local ok, _err = pcall(function()
             M.open_deltaview_quickselect_menu('HEAD', {}, nil)
         end)
         _G.fixture.assert_failed = not ok
     ]])
 
-    eq(child.lua_get('_G.fixture.assert_failed'), true)
+  eq(child.lua_get('_G.fixture.assert_failed'), true)
 end
 
 T['open_deltaview_quickselect_menu()']['calls ui_select with mods as items'] = function()
-    child.lua([[
+  child.lua([[
         M.open_deltaview_quickselect_menu('HEAD', { 'a.lua', 'b.lua' }, {})
     ]])
 
-    eq(child.lua_get('_G.fixture.ui_select_items'), { 'a.lua', 'b.lua' })
+  eq(child.lua_get('_G.fixture.ui_select_items'), { 'a.lua', 'b.lua' })
 end
 
 T['open_deltaview_quickselect_menu()']['calls ui_select with prompt containing the ref'] = function()
-    child.lua([[
+  child.lua([[
         M.open_deltaview_quickselect_menu('mybranch', { 'a.lua' }, {})
     ]])
 
-    local prompt = child.lua_get('_G.fixture.ui_select_opts.prompt')
-    eq(prompt:find('mybranch') ~= nil, true)
+  local prompt = child.lua_get('_G.fixture.ui_select_opts.prompt')
+  eq(prompt:find('mybranch') ~= nil, true)
 end
 
 T['open_deltaview_quickselect_menu()']['on_select: does nothing when filepath is nil'] = function()
-    child.lua([[
+  child.lua([[
         package.loaded['deltaview.state'].diffed_files.cur_idx = 99
         M.open_deltaview_quickselect_menu('HEAD', { 'a.lua', 'b.lua' }, {})
         _G.fixture.captured_on_select(nil, 1)
     ]])
 
-    eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
-    eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
+  eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
 end
 
 T['open_deltaview_quickselect_menu()']['on_select: updates state and calls decorate on happy path'] = function()
-    child.lua([[
+  child.lua([[
         M.open_deltaview_quickselect_menu('HEAD', { 'a.lua', 'b.lua', 'c.lua' }, {})
         _G.fixture.captured_on_select('b.lua', 2)
     ]])
 
-    eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.files"), { 'a.lua', 'b.lua', 'c.lua' })
-    eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 2)
-    eq(child.lua_get('_G.fixture.decorate_called_with'), 42)
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.files"), { 'a.lua', 'b.lua', 'c.lua' })
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 2)
+  eq(child.lua_get('_G.fixture.decorate_called_with'), 42)
 end
 
 T['open_deltaview_quickselect_menu()']['on_select: does not update state when deltaview_file returns nil'] = function()
-    child.lua([[
+  child.lua([[
         _G.fixture.deltaview_file_result = nil
         package.loaded['deltaview.state'].diffed_files.cur_idx = 99
         M.open_deltaview_quickselect_menu('HEAD', { 'a.lua', 'b.lua' }, {})
         _G.fixture.captured_on_select('b.lua', 2)
     ]])
 
-    eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
-    eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
+  eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
 end
 
 T['open_deltaview_quickselect_menu()']['on_select: notifies error when pcall body throws'] = function()
-    child.lua([[
+  child.lua([[
         vim.cmd = function(_) error('disk full') end
         M.open_deltaview_quickselect_menu('HEAD', { 'a.lua', 'b.lua' }, {})
         _G.fixture.captured_on_select('b.lua', 2)
     ]])
 
-    eq(type(child.lua_get('_G.fixture.notified')), 'string')
-    eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
+  eq(type(child.lua_get('_G.fixture.notified')), 'string')
+  eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
 -- open_deltaview_fzf_lua_menu() - example based tests
 
 T['open_deltaview_fzf_lua_menu()'] = new_set({
-    hooks = {
-        pre_case = function()
-            child.lua([[
+  hooks = {
+    pre_case = function()
+      child.lua([[
                 -- Stub builtin previewer base with a minimal class that supports :extend().
                 local base_stub = {}
                 base_stub.extend = function(self)
@@ -477,75 +477,75 @@ T['open_deltaview_fzf_lua_menu()'] = new_set({
 
                 _G.fixture.deltaview_file_result = 42
             ]])
-        end,
-    },
+    end,
+  },
 })
 
 T['open_deltaview_fzf_lua_menu()']['calls fzf_exec with mods as items'] = function()
-    child.lua([[
+  child.lua([[
         M.open_deltaview_fzf_lua_menu('HEAD', { 'a.lua', 'b.lua' }, {})
     ]])
 
-    eq(child.lua_get('_G.fixture.fzf_exec_items'), { 'a.lua', 'b.lua' })
+  eq(child.lua_get('_G.fixture.fzf_exec_items'), { 'a.lua', 'b.lua' })
 end
 
 T['open_deltaview_fzf_lua_menu()']['calls fzf_exec with winopts title containing diff_target_ref'] = function()
-    child.lua([[
+  child.lua([[
         package.loaded['deltaview.state'].diff_target_ref = 'mybranch'
         M.open_deltaview_fzf_lua_menu('HEAD', { 'a.lua' }, {})
     ]])
 
-    local title = child.lua_get('_G.fixture.fzf_exec_title')
-    eq(title:find('mybranch') ~= nil, true)
+  local title = child.lua_get('_G.fixture.fzf_exec_title')
+  eq(title:find('mybranch') ~= nil, true)
 end
 
 T['open_deltaview_fzf_lua_menu()']['default action: does nothing when selected is nil'] = function()
-    child.lua([[
+  child.lua([[
         package.loaded['deltaview.state'].diffed_files.cur_idx = 99
         M.open_deltaview_fzf_lua_menu('HEAD', { 'a.lua', 'b.lua' }, {})
         _G.fixture.captured_default_action(nil)
     ]])
 
-    eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
-    eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
+  eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
 end
 
 T['open_deltaview_fzf_lua_menu()']['default action: does nothing when selected is empty'] = function()
-    child.lua([[
+  child.lua([[
         package.loaded['deltaview.state'].diffed_files.cur_idx = 99
         M.open_deltaview_fzf_lua_menu('HEAD', { 'a.lua', 'b.lua' }, {})
         _G.fixture.captured_default_action({})
     ]])
 
-    eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
-    eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
+  eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
 end
 
 T['open_deltaview_fzf_lua_menu()']['default action: updates state and calls decorate on happy path'] = function()
-    child.lua([[
+  child.lua([[
         M.open_deltaview_fzf_lua_menu('HEAD', { 'a.lua', 'b.lua', 'c.lua' }, {})
         _G.fixture.captured_default_action({ 'b.lua' })
     ]])
 
-    eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.files"), { 'a.lua', 'b.lua', 'c.lua' })
-    eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 2)
-    eq(child.lua_get('_G.fixture.decorate_called_with'), 42)
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.files"), { 'a.lua', 'b.lua', 'c.lua' })
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 2)
+  eq(child.lua_get('_G.fixture.decorate_called_with'), 42)
 end
 
 T['open_deltaview_fzf_lua_menu()']['default action: does not update state when deltaview_file returns nil'] = function()
-    child.lua([[
+  child.lua([[
         _G.fixture.deltaview_file_result = nil
         package.loaded['deltaview.state'].diffed_files.cur_idx = 99
         M.open_deltaview_fzf_lua_menu('HEAD', { 'a.lua', 'b.lua' }, {})
         _G.fixture.captured_default_action({ 'b.lua' })
     ]])
 
-    eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
-    eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
+  eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
 end
 
 T['open_deltaview_fzf_lua_menu()']['default action: raises when selection not found in mods'] = function()
-    child.lua([[
+  child.lua([[
         M.open_deltaview_fzf_lua_menu('HEAD', { 'a.lua', 'b.lua' }, {})
         local ok, _err = pcall(function()
             _G.fixture.captured_default_action({ 'not_in_list.lua' })
@@ -553,16 +553,16 @@ T['open_deltaview_fzf_lua_menu()']['default action: raises when selection not fo
         _G.fixture.assert_failed = not ok
     ]])
 
-    eq(child.lua_get('_G.fixture.assert_failed'), true)
+  eq(child.lua_get('_G.fixture.assert_failed'), true)
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
 -- open_deltaview_telescope_menu() - example based tests
 
 T['open_deltaview_telescope_menu()'] = new_set({
-    hooks = {
-        pre_case = function()
-            child.lua([[
+  hooks = {
+    pre_case = function()
+      child.lua([[
                 package.loaded['telescope'] = {}
 
                 package.loaded['telescope.finders'] = {
@@ -620,89 +620,89 @@ T['open_deltaview_telescope_menu()'] = new_set({
 
                 _G.fixture.deltaview_file_result = 42
             ]])
-        end,
-    },
+    end,
+  },
 })
 
 T['open_deltaview_telescope_menu()']['raises when ref is nil'] = function()
-    child.lua([[
+  child.lua([[
         local ok, _err = pcall(function()
             M.open_deltaview_telescope_menu(nil, {}, {})
         end)
         _G.fixture.assert_failed = not ok
     ]])
 
-    eq(child.lua_get('_G.fixture.assert_failed'), true)
+  eq(child.lua_get('_G.fixture.assert_failed'), true)
 end
 
 T['open_deltaview_telescope_menu()']['raises when mods is nil'] = function()
-    child.lua([[
+  child.lua([[
         local ok, _err = pcall(function()
             M.open_deltaview_telescope_menu('HEAD', nil, {})
         end)
         _G.fixture.assert_failed = not ok
     ]])
 
-    eq(child.lua_get('_G.fixture.assert_failed'), true)
+  eq(child.lua_get('_G.fixture.assert_failed'), true)
 end
 
 T['open_deltaview_telescope_menu()']['raises when changes_data is nil'] = function()
-    child.lua([[
+  child.lua([[
         local ok, _err = pcall(function()
             M.open_deltaview_telescope_menu('HEAD', {}, nil)
         end)
         _G.fixture.assert_failed = not ok
     ]])
 
-    eq(child.lua_get('_G.fixture.assert_failed'), true)
+  eq(child.lua_get('_G.fixture.assert_failed'), true)
 end
 
 T['open_deltaview_telescope_menu()']['passes mods as finder results'] = function()
-    child.lua([[
+  child.lua([[
         M.open_deltaview_telescope_menu('HEAD', { 'a.lua', 'b.lua' }, {})
     ]])
 
-    eq(child.lua_get('_G.fixture.finder_results'), { 'a.lua', 'b.lua' })
+  eq(child.lua_get('_G.fixture.finder_results'), { 'a.lua', 'b.lua' })
 end
 
 T['open_deltaview_telescope_menu()']['results_title contains diff_target_ref'] = function()
-    child.lua([[
+  child.lua([[
         package.loaded['deltaview.state'].diff_target_ref = 'mybranch'
         M.open_deltaview_telescope_menu('HEAD', { 'a.lua' }, {})
     ]])
 
-    local title = child.lua_get('_G.fixture.results_title')
-    eq(title:find('mybranch') ~= nil, true)
+  local title = child.lua_get('_G.fixture.results_title')
+  eq(title:find('mybranch') ~= nil, true)
 end
 
 -- select_default handler tests — invoke _G.fixture.captured_select_handler directly
 
 T['open_deltaview_telescope_menu()']['select_default: does nothing when get_selected_entry returns nil'] = function()
-    child.lua([[
+  child.lua([[
         package.loaded['deltaview.state'].diffed_files.cur_idx = 99
         _G.fixture.selected_entry = nil
         M.open_deltaview_telescope_menu('HEAD', { 'a.lua', 'b.lua' }, {})
         _G.fixture.captured_select_handler()
     ]])
 
-    eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
-    eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
+  eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
 end
 
 T['open_deltaview_telescope_menu()']['select_default: updates state and calls decorate on happy path'] = function()
-    child.lua([[
+  child.lua([[
         _G.fixture.selected_entry = { value = 'b.lua' }
         M.open_deltaview_telescope_menu('HEAD', { 'a.lua', 'b.lua', 'c.lua' }, {})
         _G.fixture.captured_select_handler()
     ]])
 
-    eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.files"), { 'a.lua', 'b.lua', 'c.lua' })
-    eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 2)
-    eq(child.lua_get('_G.fixture.decorate_called_with'), 42)
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.files"), { 'a.lua', 'b.lua', 'c.lua' })
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 2)
+  eq(child.lua_get('_G.fixture.decorate_called_with'), 42)
 end
 
 T['open_deltaview_telescope_menu()']['select_default: raises when selection not found in mods'] = function()
-    child.lua([[
+  child.lua([[
         _G.fixture.selected_entry = { value = 'not_in_list.lua' }
         M.open_deltaview_telescope_menu('HEAD', { 'a.lua', 'b.lua' }, {})
         local ok, _err = pcall(function()
@@ -711,11 +711,11 @@ T['open_deltaview_telescope_menu()']['select_default: raises when selection not 
         _G.fixture.assert_failed = not ok
     ]])
 
-    eq(child.lua_get('_G.fixture.assert_failed'), true)
+  eq(child.lua_get('_G.fixture.assert_failed'), true)
 end
 
 T['open_deltaview_telescope_menu()']['select_default: does not update state when deltaview_file returns nil'] = function()
-    child.lua([[
+  child.lua([[
         _G.fixture.deltaview_file_result = nil
         _G.fixture.selected_entry = { value = 'b.lua' }
         package.loaded['deltaview.state'].diffed_files.cur_idx = 99
@@ -723,20 +723,197 @@ T['open_deltaview_telescope_menu()']['select_default: does not update state when
         _G.fixture.captured_select_handler()
     ]])
 
-    eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
-    eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
+  eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
 end
 
 T['open_deltaview_telescope_menu()']['select_default: notifies error when pcall body throws'] = function()
-    child.lua([[
+  child.lua([[
         vim.cmd = function(_) error('disk full') end
         _G.fixture.selected_entry = { value = 'b.lua' }
         M.open_deltaview_telescope_menu('HEAD', { 'a.lua', 'b.lua' }, {})
         _G.fixture.captured_select_handler()
     ]])
 
-    eq(type(child.lua_get('_G.fixture.notified')), 'string')
-    eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
+  eq(type(child.lua_get('_G.fixture.notified')), 'string')
+  eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
+end
+
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- open_deltaview_snacks_menu() - example based tests
+
+T['open_deltaview_snacks_menu()'] = new_set({
+  hooks = {
+    pre_case = function()
+      child.lua([[
+                package.loaded['snacks'] = {
+                    picker = {
+                        pick = function(opts)
+                            _G.fixture.snacks_opts = opts
+                            _G.fixture.snacks_items = opts.items
+                            _G.fixture.snacks_title = opts.title
+                            _G.fixture.captured_confirm = opts.confirm
+                            _G.fixture.captured_preview = opts.preview
+                        end,
+                    },
+                }
+
+                vim.fn.fnameescape = function(p) return p end
+                vim.fn.fnamemodify = function(path, _mod)
+                    return path:match('([^/]+)$') or path
+                end
+                vim.cmd = function(_) end
+                package.loaded['deltaview.utils'].git_rel_to_abs = function(p) return p end
+                package.loaded['deltaview.view'].deltaview_file = function(_ref)
+                    return _G.fixture.deltaview_file_result
+                end
+                package.loaded['deltaview.view'].open_git_diff_buffer_for_path = function(_filepath, _ref, _context, winid, _suffix)
+                    _G.fixture.preview_winid = winid
+                    return _G.fixture.preview_bufnr
+                end
+
+                M.decorate_deltaview_with_next_keybinds = function(bufnr)
+                    _G.fixture.decorate_called_with = bufnr
+                end
+
+                _G.fixture.deltaview_file_result = 42
+                _G.fixture.preview_bufnr = 43
+            ]])
+    end,
+  },
+})
+
+T['open_deltaview_snacks_menu()']['raises when ref is nil'] = function()
+  child.lua([[
+        local ok, _err = pcall(function()
+            M.open_deltaview_snacks_menu(nil, {}, {})
+        end)
+        _G.fixture.assert_failed = not ok
+    ]])
+
+  eq(child.lua_get('_G.fixture.assert_failed'), true)
+end
+
+T['open_deltaview_snacks_menu()']['raises when mods is nil'] = function()
+  child.lua([[
+        local ok, _err = pcall(function()
+            M.open_deltaview_snacks_menu('HEAD', nil, {})
+        end)
+        _G.fixture.assert_failed = not ok
+    ]])
+
+  eq(child.lua_get('_G.fixture.assert_failed'), true)
+end
+
+T['open_deltaview_snacks_menu()']['raises when changes_data is nil'] = function()
+  child.lua([[
+        local ok, _err = pcall(function()
+            M.open_deltaview_snacks_menu('HEAD', {}, nil)
+        end)
+        _G.fixture.assert_failed = not ok
+    ]])
+
+  eq(child.lua_get('_G.fixture.assert_failed'), true)
+end
+
+T['open_deltaview_snacks_menu()']['passes mods as snacks picker items'] = function()
+  child.lua([[
+        M.open_deltaview_snacks_menu('HEAD', { 'a.lua', 'b.lua' }, {})
+    ]])
+
+  eq(child.lua_get('_G.fixture.snacks_items[1].value'), 'a.lua')
+  eq(child.lua_get('_G.fixture.snacks_items[2].value'), 'b.lua')
+end
+
+T['open_deltaview_snacks_menu()']['title contains DeltaView Menu'] = function()
+  child.lua([[
+        M.open_deltaview_snacks_menu('HEAD', { 'a.lua' }, {})
+    ]])
+
+  eq(child.lua_get('_G.fixture.snacks_title'), 'DeltaView Menu')
+end
+
+T['open_deltaview_snacks_menu()']['confirm: does nothing when item is nil'] = function()
+  child.lua([[
+        package.loaded['deltaview.state'].diffed_files.cur_idx = 99
+        M.open_deltaview_snacks_menu('HEAD', { 'a.lua', 'b.lua' }, {})
+        _G.fixture.captured_confirm({ close = function() _G.fixture.closed = true end }, nil)
+    ]])
+
+  eq(child.lua_get('_G.fixture.closed'), true)
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
+  eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
+end
+
+T['open_deltaview_snacks_menu()']['confirm: updates state and calls decorate on happy path'] = function()
+  child.lua([[
+        M.open_deltaview_snacks_menu('HEAD', { 'a.lua', 'b.lua', 'c.lua' }, {})
+        _G.fixture.captured_confirm({ close = function() _G.fixture.closed = true end }, { value = 'b.lua' })
+    ]])
+
+  eq(child.lua_get('_G.fixture.closed'), true)
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.files"), { 'a.lua', 'b.lua', 'c.lua' })
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 2)
+  eq(child.lua_get('_G.fixture.decorate_called_with'), 42)
+end
+
+T['open_deltaview_snacks_menu()']['confirm: raises when selection not found in mods'] = function()
+  child.lua([[
+        M.open_deltaview_snacks_menu('HEAD', { 'a.lua', 'b.lua' }, {})
+        local ok, _err = pcall(function()
+            _G.fixture.captured_confirm({ close = function() end }, { value = 'not_in_list.lua' })
+        end)
+        _G.fixture.assert_failed = not ok
+    ]])
+
+  eq(child.lua_get('_G.fixture.assert_failed'), true)
+end
+
+T['open_deltaview_snacks_menu()']['confirm: does not update state when deltaview_file returns nil'] = function()
+  child.lua([[
+        _G.fixture.deltaview_file_result = nil
+        package.loaded['deltaview.state'].diffed_files.cur_idx = 99
+        M.open_deltaview_snacks_menu('HEAD', { 'a.lua', 'b.lua' }, {})
+        _G.fixture.captured_confirm({ close = function() end }, { value = 'b.lua' })
+    ]])
+
+  eq(child.lua_get("package.loaded['deltaview.state'].diffed_files.cur_idx"), 99)
+  eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
+end
+
+T['open_deltaview_snacks_menu()']['confirm: notifies error when pcall body throws'] = function()
+  child.lua([[
+        vim.cmd = function(_) error('disk full') end
+        M.open_deltaview_snacks_menu('HEAD', { 'a.lua', 'b.lua' }, {})
+        _G.fixture.captured_confirm({ close = function() end }, { value = 'b.lua' })
+    ]])
+
+  eq(type(child.lua_get('_G.fixture.notified')), 'string')
+  eq(child.lua_get('_G.fixture.decorate_called_with'), vim.NIL)
+end
+
+T['open_deltaview_snacks_menu()']['preview: opens deltaview diff buffer in snacks preview window'] = function()
+  child.lua([[
+        local preview_buf = vim.api.nvim_create_buf(false, true)
+        _G.fixture.preview_bufnr = preview_buf
+        M.open_deltaview_snacks_menu('HEAD', { 'dir/a.lua' }, { ['dir/a.lua'] = { '+1,-0' } })
+        _G.fixture.preview_ctx = {
+            item = { value = 'dir/a.lua' },
+            win = 1000,
+            preview = {
+                set_buf = function(_, bufnr) _G.fixture.preview_set_buf = bufnr end,
+                set_title = function(_, title) _G.fixture.preview_title = title end,
+                wo = function(_, opts) _G.fixture.preview_wo = opts end,
+                set_lines = function(_, lines) _G.fixture.preview_lines = lines end,
+            },
+        }
+        _G.fixture.captured_preview(_G.fixture.preview_ctx)
+    ]])
+
+  eq(child.lua_get('_G.fixture.preview_winid'), false)
+  eq(child.lua_get('_G.fixture.preview_set_buf'), child.lua_get('_G.fixture.preview_bufnr'))
+  eq(child.lua_get('_G.fixture.preview_title'):find('a.lua') ~= nil, true)
+  eq(child.lua_get('_G.fixture.preview_wo.wrap'), true)
 end
 
 return T

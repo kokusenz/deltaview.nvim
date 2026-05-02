@@ -28,10 +28,10 @@ local block_modules_lua = [[
 -- setup
 
 local T = new_set({
-    hooks = {
-        pre_case = function()
-            child.restart({ '-u', 'scripts/minimal_init.lua' })
-            child.lua([[
+  hooks = {
+    pre_case = function()
+      child.restart({ '-u', 'scripts/minimal_init.lua' })
+      child.lua([[
                 package.loaded['deltaview.config'] = {
                     options = {
                         fzf_picker = nil,
@@ -44,6 +44,9 @@ local T = new_set({
                     end,
                     open_deltaview_telescope_menu = function(_ref, _mods, _changes_data)
                         _G.fixture.called = 'telescope'
+                    end,
+                    open_deltaview_snacks_menu = function(_ref, _mods, _changes_data)
+                        _G.fixture.called = 'snacks'
                     end,
                     open_deltaview_quickselect_menu = function(_ref, _mods, _changes_data)
                         _G.fixture.called = 'quickselect'
@@ -63,10 +66,10 @@ local T = new_set({
 
                 M = require('deltaview.menu')
             ]])
-            child.lua([[_G.fixture = {}]])
-        end,
-        post_once = child.stop,
-    },
+      child.lua([[_G.fixture = {}]])
+    end,
+    post_once = child.stop,
+  },
 })
 
 -- Shared test inputs
@@ -81,119 +84,159 @@ T['choose_deltaview_fzf_menu()'] = new_set()
 
 -- fzf_picker = 'fzf-lua', fzf-lua is available
 T['choose_deltaview_fzf_menu()']['calls fzf_lua picker when fzf_picker=fzf-lua and fzf-lua is available'] = function()
-    child.lua([[
+  child.lua([[
         local ref, mods, changes_data = ...
         package.loaded['deltaview.config'].options.fzf_picker = 'fzf-lua'
         package.loaded['fzf-lua'] = {}  -- simulate fzf-lua installed
         M.choose_deltaview_fzf_menu(ref, mods, changes_data)
     ]], { ref, mods, changes_data })
 
-    eq(child.lua_get('_G.fixture.called'), 'fzf_lua')
-    eq(child.lua_get('_G.fixture.notified'), vim.NIL)
+  eq(child.lua_get('_G.fixture.called'), 'fzf_lua')
+  eq(child.lua_get('_G.fixture.notified'), vim.NIL)
 end
 
--- fzf_picker = 'fzf-lua', fzf-lua NOT available → warns and falls through to default.
--- In the default path, with neither fzf-lua nor telescope, falls back to quickselect.
+-- fzf_picker = 'fzf-lua', fzf-lua NOT available -> warns and falls through to default.
+-- In the default path, with neither fzf-lua, telescope, nor snacks, falls back to quickselect.
 T['choose_deltaview_fzf_menu()']['warns and falls back to default when fzf_picker=fzf-lua but fzf-lua is missing'] = function()
-    child.lua(block_modules_lua, { 'fzf-lua', 'telescope' })
-    child.lua([[
+  child.lua(block_modules_lua, { 'fzf-lua', 'telescope', 'snacks' })
+  child.lua([[
         local ref, mods, changes_data = ...
         package.loaded['deltaview.config'].options.fzf_picker = 'fzf-lua'
         M.choose_deltaview_fzf_menu(ref, mods, changes_data)
     ]], { ref, mods, changes_data })
 
-    eq(type(child.lua_get('_G.fixture.notified')), 'string')
-    eq(child.lua_get('_G.fixture.called'), 'quickselect')
+  eq(type(child.lua_get('_G.fixture.notified')), 'string')
+  eq(child.lua_get('_G.fixture.called'), 'quickselect')
 end
 
 -- fzf_picker = 'fzf-lua', fzf-lua NOT available, but telescope IS available in default fallback
 T['choose_deltaview_fzf_menu()']['falls back to telescope in default path when fzf-lua missing but telescope available'] = function()
-    child.lua(block_modules_lua, { 'fzf-lua' })
-    child.lua([[
+  child.lua(block_modules_lua, { 'fzf-lua' })
+  child.lua([[
         local ref, mods, changes_data = ...
         package.loaded['deltaview.config'].options.fzf_picker = 'fzf-lua'
         package.loaded['telescope'] = {}  -- telescope installed
         M.choose_deltaview_fzf_menu(ref, mods, changes_data)
     ]], { ref, mods, changes_data })
 
-    eq(child.lua_get('_G.fixture.called'), 'telescope')
+  eq(child.lua_get('_G.fixture.called'), 'telescope')
 end
 
 -- fzf_picker = 'telescope', telescope is available
 T['choose_deltaview_fzf_menu()']['calls telescope picker when fzf_picker=telescope and telescope is available'] = function()
-    child.lua([[
+  child.lua([[
         local ref, mods, changes_data = ...
         package.loaded['deltaview.config'].options.fzf_picker = 'telescope'
         package.loaded['telescope'] = {}  -- simulate telescope installed
         M.choose_deltaview_fzf_menu(ref, mods, changes_data)
     ]], { ref, mods, changes_data })
 
-    eq(child.lua_get('_G.fixture.called'), 'telescope')
-    eq(child.lua_get('_G.fixture.notified'), vim.NIL)
+  eq(child.lua_get('_G.fixture.called'), 'telescope')
+  eq(child.lua_get('_G.fixture.notified'), vim.NIL)
 end
 
--- fzf_picker = 'telescope', telescope NOT available → warns and falls through to default.
--- Neither fzf-lua nor telescope available in default, so falls back to quickselect.
+-- fzf_picker = 'telescope', telescope NOT available -> warns and falls through to default.
+-- Neither fzf-lua, telescope, nor snacks available in default, so falls back to quickselect.
 T['choose_deltaview_fzf_menu()']['warns and falls back to default when fzf_picker=telescope but telescope is missing'] = function()
-    child.lua(block_modules_lua, { 'fzf-lua', 'telescope' })
-    child.lua([[
+  child.lua(block_modules_lua, { 'fzf-lua', 'telescope', 'snacks' })
+  child.lua([[
         local ref, mods, changes_data = ...
         package.loaded['deltaview.config'].options.fzf_picker = 'telescope'
         M.choose_deltaview_fzf_menu(ref, mods, changes_data)
     ]], { ref, mods, changes_data })
 
-    eq(type(child.lua_get('_G.fixture.notified')), 'string')
-    eq(child.lua_get('_G.fixture.called'), 'quickselect')
+  eq(type(child.lua_get('_G.fixture.notified')), 'string')
+  eq(child.lua_get('_G.fixture.called'), 'quickselect')
 end
 
 -- fzf_picker = 'telescope', telescope NOT available, but fzf-lua IS available in the default fallback
 T['choose_deltaview_fzf_menu()']['falls back to fzf_lua in default path when telescope missing but fzf-lua available'] = function()
-    child.lua(block_modules_lua, { 'telescope' })
-    child.lua([[
+  child.lua(block_modules_lua, { 'telescope' })
+  child.lua([[
         local ref, mods, changes_data = ...
         package.loaded['deltaview.config'].options.fzf_picker = 'telescope'
         package.loaded['fzf-lua'] = {}  -- fzf-lua installed
         M.choose_deltaview_fzf_menu(ref, mods, changes_data)
     ]], { ref, mods, changes_data })
 
-    eq(child.lua_get('_G.fixture.called'), 'fzf_lua')
+  eq(child.lua_get('_G.fixture.called'), 'fzf_lua')
 end
 
 -- default path (nil/unknown picker), fzf-lua available → uses fzf-lua
 T['choose_deltaview_fzf_menu()']['default path: uses fzf_lua when fzf-lua is available'] = function()
-    child.lua([[
+  child.lua([[
         local ref, mods, changes_data = ...
         package.loaded['deltaview.config'].options.fzf_picker = nil
         package.loaded['fzf-lua'] = {}  -- fzf-lua installed
         M.choose_deltaview_fzf_menu(ref, mods, changes_data)
     ]], { ref, mods, changes_data })
 
-    eq(child.lua_get('_G.fixture.called'), 'fzf_lua')
+  eq(child.lua_get('_G.fixture.called'), 'fzf_lua')
 end
 
 -- default path, fzf-lua NOT available, telescope available → uses telescope
 T['choose_deltaview_fzf_menu()']['default path: uses telescope when fzf-lua missing but telescope available'] = function()
-    child.lua(block_modules_lua, { 'fzf-lua' })
-    child.lua([[
+  child.lua(block_modules_lua, { 'fzf-lua' })
+  child.lua([[
         local ref, mods, changes_data = ...
         package.loaded['deltaview.config'].options.fzf_picker = nil
         package.loaded['telescope'] = {}  -- telescope installed
         M.choose_deltaview_fzf_menu(ref, mods, changes_data)
     ]], { ref, mods, changes_data })
 
-    eq(child.lua_get('_G.fixture.called'), 'telescope')
+  eq(child.lua_get('_G.fixture.called'), 'telescope')
 end
 
--- default path, neither fzf-lua nor telescope available → falls back to quickselect
+-- fzf_picker = 'snacks', snacks is available
+T['choose_deltaview_fzf_menu()']['calls snacks picker when fzf_picker=snacks and snacks is available'] = function()
+  child.lua([[
+        local ref, mods, changes_data = ...
+        package.loaded['deltaview.config'].options.fzf_picker = 'snacks'
+        package.loaded['snacks'] = {}  -- simulate snacks.nvim installed
+        M.choose_deltaview_fzf_menu(ref, mods, changes_data)
+    ]], { ref, mods, changes_data })
+
+  eq(child.lua_get('_G.fixture.called'), 'snacks')
+  eq(child.lua_get('_G.fixture.notified'), vim.NIL)
+end
+
+-- fzf_picker = 'snacks', snacks NOT available -> warns and falls through to default.
+-- Neither fzf-lua, telescope, nor snacks available in default, so falls back to quickselect.
+T['choose_deltaview_fzf_menu()']['warns and falls back to default when fzf_picker=snacks but snacks is missing'] = function()
+  child.lua(block_modules_lua, { 'fzf-lua', 'telescope', 'snacks' })
+  child.lua([[
+        local ref, mods, changes_data = ...
+        package.loaded['deltaview.config'].options.fzf_picker = 'snacks'
+        M.choose_deltaview_fzf_menu(ref, mods, changes_data)
+    ]], { ref, mods, changes_data })
+
+  eq(type(child.lua_get('_G.fixture.notified')), 'string')
+  eq(child.lua_get('_G.fixture.called'), 'quickselect')
+end
+
+-- default path, fzf-lua and telescope NOT available, snacks available -> uses snacks
+T['choose_deltaview_fzf_menu()']['default path: uses snacks when fzf-lua and telescope are missing but snacks is available'] = function()
+  child.lua(block_modules_lua, { 'fzf-lua', 'telescope' })
+  child.lua([[
+        local ref, mods, changes_data = ...
+        package.loaded['deltaview.config'].options.fzf_picker = nil
+        package.loaded['snacks'] = {}  -- snacks.nvim installed
+        M.choose_deltaview_fzf_menu(ref, mods, changes_data)
+    ]], { ref, mods, changes_data })
+
+  eq(child.lua_get('_G.fixture.called'), 'snacks')
+end
+
+-- default path, neither fzf-lua, telescope, nor snacks available -> falls back to quickselect
 T['choose_deltaview_fzf_menu()']['default path: falls back to quickselect when no picker is available'] = function()
-    child.lua(block_modules_lua, { 'fzf-lua', 'telescope' })
-    child.lua([[
+  child.lua(block_modules_lua, { 'fzf-lua', 'telescope', 'snacks' })
+  child.lua([[
         local ref, mods, changes_data = ...
         package.loaded['deltaview.config'].options.fzf_picker = nil
         M.choose_deltaview_fzf_menu(ref, mods, changes_data)
     ]], { ref, mods, changes_data })
 
-    eq(child.lua_get('_G.fixture.called'), 'quickselect')
+  eq(child.lua_get('_G.fixture.called'), 'quickselect')
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -202,19 +245,19 @@ end
 -- Helper: builds a list of sorted_file entries (the shape utils.get_sorted_diffed_files returns)
 -- and a flat list of filenames (the shape utils.get_filenames_from_sortedfiles returns).
 local function make_files(n)
-    local sorted, names = {}, {}
-    for i = 1, n do
-        local name = 'file' .. i .. '.lua'
-        table.insert(sorted, { name = name, added = i, removed = 0 })
-        table.insert(names, name)
-    end
-    return sorted, names
+  local sorted, names = {}, {}
+  for i = 1, n do
+    local name = 'file' .. i .. '.lua'
+    table.insert(sorted, { name = name, added = i, removed = 0 })
+    table.insert(names, name)
+  end
+  return sorted, names
 end
 
 T['create_diff_menu_pane()'] = new_set({
-    hooks = {
-        pre_case = function()
-            child.lua([[
+  hooks = {
+    pre_case = function()
+      child.lua([[
                 -- Happy-path defaults: we are inside a git repo, git rev-parse succeeds.
                 vim.system = function(_cmd, _opts)
                     return {
@@ -237,45 +280,45 @@ T['create_diff_menu_pane()'] = new_set({
                     _G.fixture.called = 'choose_fzf_menu'
                 end
             ]])
-        end,
-    },
+    end,
+  },
 })
 
 T['create_diff_menu_pane()']['notifies and returns when not in a git repository'] = function()
-    child.lua([[
+  child.lua([[
         vim.system = function(_cmd, _opts)
             return { wait = function() return { code = 128, stdout = '', stderr = '' } end }
         end
         M.create_diff_menu_pane('HEAD')
     ]])
 
-    eq(type(child.lua_get('_G.fixture.notified')), 'string')
-    eq(child.lua_get('_G.fixture.called'), vim.NIL)
+  eq(type(child.lua_get('_G.fixture.notified')), 'string')
+  eq(child.lua_get('_G.fixture.called'), vim.NIL)
 end
 
 T['create_diff_menu_pane()']['raises when ref is nil'] = function()
-    child.lua([[
+  child.lua([[
         local ok, _err = pcall(function() M.create_diff_menu_pane(nil) end)
         _G.fixture.assert_failed = not ok
     ]])
 
-    eq(child.lua_get('_G.fixture.assert_failed'), true)
+  eq(child.lua_get('_G.fixture.assert_failed'), true)
 end
 
 T['create_diff_menu_pane()']['notifies and returns when there are no modified files'] = function()
-    child.lua([[
+  child.lua([[
         _G.fixture.sorted_files = {}
         _G.fixture.mods = {}
         M.create_diff_menu_pane('HEAD')
     ]])
 
-    eq(type(child.lua_get('_G.fixture.notified')), 'string')
-    eq(child.lua_get('_G.fixture.called'), vim.NIL)
+  eq(type(child.lua_get('_G.fixture.notified')), 'string')
+  eq(child.lua_get('_G.fixture.called'), vim.NIL)
 end
 
 T['create_diff_menu_pane()']['opens quickselect when mods count is below threshold'] = function()
-    local sorted, names = make_files(3)
-    child.lua([[
+  local sorted, names = make_files(3)
+  child.lua([[
         local sorted, names = ...
         _G.fixture.sorted_files = sorted
         _G.fixture.mods = names
@@ -283,12 +326,12 @@ T['create_diff_menu_pane()']['opens quickselect when mods count is below thresho
         M.create_diff_menu_pane('HEAD')
     ]], { sorted, names })
 
-    eq(child.lua_get('_G.fixture.called'), 'quickselect')
+  eq(child.lua_get('_G.fixture.called'), 'quickselect')
 end
 
 T['create_diff_menu_pane()']['opens fzf menu when mods count equals threshold'] = function()
-    local sorted, names = make_files(6)
-    child.lua([[
+  local sorted, names = make_files(6)
+  child.lua([[
         local sorted, names = ...
         _G.fixture.sorted_files = sorted
         _G.fixture.mods = names
@@ -296,12 +339,12 @@ T['create_diff_menu_pane()']['opens fzf menu when mods count equals threshold'] 
         M.create_diff_menu_pane('HEAD')
     ]], { sorted, names })
 
-    eq(child.lua_get('_G.fixture.called'), 'choose_fzf_menu')
+  eq(child.lua_get('_G.fixture.called'), 'choose_fzf_menu')
 end
 
 T['create_diff_menu_pane()']['opens fzf menu when mods count exceeds threshold'] = function()
-    local sorted, names = make_files(10)
-    child.lua([[
+  local sorted, names = make_files(10)
+  child.lua([[
         local sorted, names = ...
         _G.fixture.sorted_files = sorted
         _G.fixture.mods = names
@@ -309,7 +352,7 @@ T['create_diff_menu_pane()']['opens fzf menu when mods count exceeds threshold']
         M.create_diff_menu_pane('HEAD')
     ]], { sorted, names })
 
-    eq(child.lua_get('_G.fixture.called'), 'choose_fzf_menu')
+  eq(child.lua_get('_G.fixture.called'), 'choose_fzf_menu')
 end
 
 return T

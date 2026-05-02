@@ -44,6 +44,7 @@ M.check = function()
 
     local has_fzf_lua = pcall(require, 'fzf-lua')
     local has_telescope = pcall(require, 'telescope')
+    local has_snacks = pcall(require, 'snacks')
 
     if has_fzf_lua then
         vim.health.ok('fzf-lua available')
@@ -57,6 +58,12 @@ M.check = function()
         vim.health.warn('telescope not found (optional)')
     end
 
+    if has_snacks then
+        vim.health.ok('snacks.nvim available')
+    else
+        vim.health.warn('snacks.nvim not found (optional)')
+    end
+
     vim.health.ok('quickselect always available (built-in fallback)')
 
     -- report which picker will actually be used
@@ -66,12 +73,16 @@ M.check = function()
         active_picker = has_fzf_lua and 'fzf-lua (configured)' or 'fzf-lua configured but not found — will use auto-detect'
     elseif configured == 'telescope' then
         active_picker = has_telescope and 'telescope (configured)' or 'telescope configured but not found — will use auto-detect'
+    elseif configured == 'snacks' then
+        active_picker = has_snacks and 'snacks.nvim (configured)' or 'snacks.nvim configured but not found — will use auto-detect'
     else
-        -- auto-detect order: fzf-lua -> telescope -> quickselect
+        -- auto-detect order: fzf-lua -> telescope -> snacks -> quickselect
         if has_fzf_lua then
             active_picker = 'fzf-lua (auto)'
         elseif has_telescope then
             active_picker = 'telescope (auto)'
+        elseif has_snacks then
+            active_picker = 'snacks.nvim (auto)'
         else
             active_picker = 'quickselect (built-in)'
         end

@@ -304,4 +304,88 @@ M.open_deltaview_telescope_menu = function(ref, mods, changes_data)
     }):find()
 end
 
+--- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
+--- @param mods string[]
+--- @param changes_data table<string, string[]> for each file in mods, the size of the change in the file
+M.open_deltaview_snacks_menu = function(ref, mods, changes_data)
+    assert(ref ~= nil)
+    assert(mods ~= nil)
+    assert(changes_data ~= nil)
+
+    local Snacks = require('snacks')
+    local items = {}
+    for _, filepath in ipairs(mods) do
+        table.insert(items, {
+            text = filepath,
+            value = filepath,
+            file = utils.git_rel_to_abs(filepath),
+        })
+    end
+
+    Snacks.picker.pick({
+        source = 'deltaview',
+        title = 'DeltaView Menu',
+        items = items,
+        format = function(item)
+            return {
+                { item.text },
+                { '    │    ' .. tostring((changes_data[item.value] or {})[1] or '') },
+            }
+        end,
+        preview = function(ctx)
+            local filepath = utils.git_rel_to_abs(ctx.item.value)
+            if filepath == nil then
+                ctx.preview:set_lines({ 'No diff available for: ' .. ctx.item.value })
+                return true
+            end
+
+            _buf_name_seq = _buf_name_seq + 1
+            local bufnr = nil
+            local success, err = pcall(function()
+                bufnr = view.open_git_diff_buffer_for_path(filepath, ref, state.default_context, false,
+                    tostring(_buf_name_seq))
+            end)
+            if not success or bufnr == nil then
+                ctx.preview:set_lines({
+                    'No diff available for: ' .. ctx.item.value,
+                    tostring(err),
+                })
+                return true
+            end
+
+            ctx.preview:set_buf(bufnr)
+            ctx.preview:set_title(' ' .. vim.fn.fnamemodify(ctx.item.value, ':t') .. ' | '
+                .. tostring((changes_data[ctx.item.value] or {})[1] or ''))
+            ctx.preview:wo({ wrap = true })
+            return true
+        end,
+        confirm = function(picker, item)
+            picker:close()
+            if item == nil then return end
+
+            local selected = item.value
+            local selected_idx = nil
+            for idx, value in ipairs(mods) do
+                if value == selected then
+                    selected_idx = idx
+                end
+            end
+            assert(selected_idx ~= nil)
+
+            local success, err = pcall(function()
+                vim.cmd('e ' .. utils.git_rel_to_abs(vim.fn.fnameescape(selected)))
+                local bufnr = view.deltaview_file(ref)
+                if bufnr == nil then return end
+                state.diffed_files.files = mods
+                state.diffed_files.cur_idx = selected_idx
+                M.decorate_deltaview_with_next_keybinds(bufnr)
+            end)
+            if not success then
+                vim.notify('An error occured while trying to open DeltaView - ' .. tostring(err),
+                    vim.log.levels.ERROR)
+            end
+        end,
+    })
+end
+
 return M

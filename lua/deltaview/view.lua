@@ -69,7 +69,7 @@ end
 --- this diff has unlimited context, and allows for one file
 --- @param filepath string The file path to diff
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
---- @param winnr number | nil Optional window number to open on.
+--- @param winnr number | false | nil Optional window number to open on. Pass false to create and return the buffer without displaying it.
 --- @return number | nil bufnr buf id of delta.lua buffer
 M.open_git_diff_buffer = function(filepath, ref, winnr)
     assert(filepath ~= nil)
@@ -198,12 +198,14 @@ M.open_git_diff_buffer_for_path = function(path, ref, context, winnr, buf_name)
         return
     end
 
-    local success, err = pcall(function()
-        vim.api.nvim_win_set_buf(winnr or 0, bufnr)
-    end)
-    if not success then
-        vim.notify('Failed to open buffer at window.' .. tostring(err), vim.log.levels.ERROR)
-        return
+    if winnr ~= false then
+        local success, err = pcall(function()
+            vim.api.nvim_win_set_buf(winnr or 0, bufnr)
+        end)
+        if not success then
+            vim.notify('Failed to open buffer at window.' .. tostring(err), vim.log.levels.ERROR)
+            return
+        end
     end
     delta.highlight_delta_artifacts(bufnr)
     delta.syntax_highlight_diff_set(bufnr)

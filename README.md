@@ -13,12 +13,15 @@ This plugin's approach is to treat inline diffs as readonly, separate buffers. S
 ## Demos
 
 ### :DeltaView demo
+
 https://github.com/user-attachments/assets/6a28f113-9462-4568-93ca-6db6e7f8be97
 
 ### :Delta demo
+
 https://github.com/user-attachments/assets/9695e4ac-b858-41fd-9eb2-c082636dde2c
 
 ### :DeltaMenu demo
+
 https://github.com/user-attachments/assets/b4f7cac3-3d96-4a4b-9076-98cd8a33c7d6
 
 ## Features
@@ -36,9 +39,10 @@ https://github.com/user-attachments/assets/b4f7cac3-3d96-4a4b-9076-98cd8a33c7d6
 - Neovim >= 0.10
 - Git
 - [delta.lua](https://github.com/kokusenz/delta.lua). Install this separately into your neovim config using the plugin manager of your choice.
-- (Optional) An fzf picker of your choice. Currently supports
-    - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
-    - [telescope](https://github.com/nvim-telescope/telescope.nvim)
+- (Optional) A picker of your choice. Currently supports
+  - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
+  - [telescope](https://github.com/nvim-telescope/telescope.nvim)
+  - [snacks.nvim](https://github.com/folke/snacks.nvim)
 
 Note that this plugin does not use [delta](https://github.com/dandavison/delta), and it is not a dependency
 
@@ -70,7 +74,7 @@ Open an picker to preview, select, and view diffs from all modified files.
 #### `:Delta [path] [context] [ref]`
 
 Open the inline delta diff view for the current path. This view has a configurable amount of context to show alongside your diff hunks. Attempts to place the cursor on entry if there is a corresponding line in the diff. Will sync the cursor on exit, same as DeltaView.
-This works on both files and directories, by being in a directory path using netrw or some other filetree plugin. This can be useful for if you want to diff specific directories rather than the whole git directory. 
+This works on both files and directories, by being in a directory path using netrw or some other filetree plugin. This can be useful for if you want to diff specific directories rather than the whole git directory.
 If you are unable to navigate to a directory because you use something like [oil.nvim](https://github.com/stevearc/oil.nvim), you can pass the path as an argument
 Context can be specified. This can be useful for searching your modified code (eg. looking for stray print statements).
 
@@ -79,7 +83,8 @@ Context can be specified. This can be useful for searching your modified code (e
 :Delta . 10 main...HEAD     " Show all files changed from the common ancestor with the main branch, with 10 lines of context, for everything in the cwd
 ```
 
-**Note**: 
+**Note**:
+
 - All commands use the last ref used. If `:DeltaMenu main` was used, future calls to `:DeltaMenu`, `:DeltaView`, and `:Delta` will default to `main` instead of `HEAD`.
 
 ## Installation
@@ -92,7 +97,6 @@ vim.pack.add({
     'https://github.com/kokusenz/delta.lua'
 })
 ```
-
 
 Or your favorite plugin manager, such as [lazy.nvim](https://github.com/folke/lazy.nvim):
 
@@ -120,22 +124,22 @@ require('deltaview').setup({
 
 ### Default Keybindings
 
-| Key | Action |
-|-----|--------|
+| Key          | Action     |
+| ------------ | ---------- |
 | `<leader>dl` | :DeltaView |
 | `<leader>dm` | :DeltaMenu |
-| `<leader>da` | :Delta |
+| `<leader>da` | :Delta     |
 
 When viewing a diff (DeltaView or Delta):
 
-| Key | Action |
-|-----|--------|
-| `<Esc>` or `q` | Return to source file |
-| `<Tab>` | Jump to next hunk |
-| `<Shift-Tab>` | Jump to previous hunk |
-| `]f` | Open next file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
-| `[f` | Open previous file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
-| `d?` | Open the help legend, to view all possible keybinds |
+| Key            | Action                                                                                 |
+| -------------- | -------------------------------------------------------------------------------------- |
+| `<Esc>` or `q` | Return to source file                                                                  |
+| `<Tab>`        | Jump to next hunk                                                                      |
+| `<Shift-Tab>`  | Jump to previous hunk                                                                  |
+| `]f`           | Open next file in menu (if opened from DeltaMenu, or in Delta with multiple files)     |
+| `[f`           | Open previous file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
+| `d?`           | Open the help legend, to view all possible keybinds                                    |
 
 All keybindings are configurable
 
@@ -166,7 +170,9 @@ require('deltaview').setup({
     -- If this setting is true, will show the delta style line numbers in the statuscolumn.
     line_numbers = false,
 
-    -- 'fzf-lua' | 'telescope' | nil - specify which picker to use. If nil, will go through the order and pick the first available. The order is fzf-lua -> telescope -> deltaview quickselect
+    -- 'fzf-lua' | 'telescope' | 'snacks' | nil - specify which picker to use.
+    -- If nil, will go through the order and pick the first available.
+    -- The order is fzf-lua -> telescope -> snacks -> deltaview quickselect
     fzf_picker = nil
 
     -- Custom keybindings
@@ -223,6 +229,7 @@ By default, the UI uses nerd font icons:
 ```
 
 ## Troubleshooting
+
 - :help DeltaView
 - Reach out via an issue
 - Read the changelog for changes or breaking changes
@@ -230,8 +237,7 @@ By default, the UI uses nerd font icons:
 ## Feature Roadmap
 
 - Options for using the pickers in:
-    - [mini.pick](https://github.com/nvim-mini/mini.pick)
-    - [snacks](https://github.com/folke/snacks.nvim)
+  - [mini.pick](https://github.com/nvim-mini/mini.pick)
 - Diff two blocks of text against each other; given a yanked section and a visual selected section, vim.text.diff what's in the register against what's highlighted, and display using delta.lua
 - AI Agent integration such that proposed changes are displayable with delta.lua
 - Allow bundling, such that users can install only deltaview.nvim without having to install delta.lua

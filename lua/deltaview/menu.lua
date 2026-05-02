@@ -55,9 +55,17 @@ M.choose_deltaview_fzf_menu = function(ref, mods, changes_data)
         end
         picker.open_deltaview_telescope_menu(ref, mods, changes_data)
         return
+    elseif config.options.fzf_picker == 'snacks' then
+        local ok = pcall(require, 'snacks')
+        if not ok then
+            vim.notify('snacks.nvim not found. attempting to use the first picker available.', vim.log.levels.WARN)
+            goto default
+        end
+        picker.open_deltaview_snacks_menu(ref, mods, changes_data)
+        return
     end
     ::default::
-    -- try default order - fzf-lua -> quick_select
+    -- try default order - fzf-lua -> telescope -> snacks -> quickselect
     local fzf_lua_ok = pcall(require, 'fzf-lua')
     if fzf_lua_ok then
         picker.open_deltaview_fzf_lua_menu(ref, mods, changes_data)
@@ -67,6 +75,12 @@ M.choose_deltaview_fzf_menu = function(ref, mods, changes_data)
     local telescope_ok = pcall(require, 'telescope')
     if telescope_ok then
         picker.open_deltaview_telescope_menu(ref, mods, changes_data)
+        return
+    end
+
+    local snacks_ok = pcall(require, 'snacks')
+    if snacks_ok then
+        picker.open_deltaview_snacks_menu(ref, mods, changes_data)
         return
     end
 
