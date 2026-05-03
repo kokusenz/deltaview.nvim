@@ -84,6 +84,21 @@ local setup_qflist = [[
     end
 ]]
 
+-- Shared helper: 3-entry list where the middle entry is NOT a deltaview entry.
+-- Use as: child.lua(setup_qflist_mixed)
+local setup_qflist_mixed = [[
+    vim.fn.getqflist = function(_opts)
+        return {
+            size = 3,
+            items = {
+                { user_data = { deltaview = true,  bufname = 'a.lua', status = 'M', changes = '10', ref = 'HEAD' } },
+                { user_data = { deltaview = false, bufname = 'ignored.lua' } },
+                { user_data = { deltaview = true,  bufname = 'b.lua', status = 'A', changes = '5',  ref = 'main' } },
+            },
+        }
+    end
+]]
+
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
 -- open_vim_ui_select() - example based tests
 
@@ -135,6 +150,30 @@ T['open_vim_ui_select()']['on_choice: runs cc with correct idx on selection'] = 
     ]])
 
     eq(child.lua_get('_G.fixture.last_cmd'), 'cc 2')
+end
+
+T['open_vim_ui_select()']['skips non-deltaview entries when building item list'] = function()
+    child.lua(setup_qflist_mixed)
+    child.lua([[M.open_vim_ui_select()]])
+
+    eq(child.lua_get('_G.fixture.select_items'), { 'a.lua', 'b.lua' })
+end
+
+T['open_vim_ui_select()']['format_item: returns title for a known entry'] = function()
+    child.lua(setup_qflist)
+    child.lua([[
+        vim.ui.select = function(items, opts, on_choice)
+            _G.fixture.select_items  = items
+            _G.fixture.format_item   = opts and opts.format_item
+            _G.fixture.on_choice     = on_choice
+        end
+        M.open_vim_ui_select()
+    ]])
+
+    local title = child.lua_get([[_G.fixture.format_item('a.lua')]])
+    -- title is built from status + fnamemodify(bufname) + changes; just assert it's a non-empty string
+    eq(type(title), 'string')
+    eq(#title > 0, true)
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -233,6 +272,28 @@ T['open_deltaview_fzf_lua_menu()']['default action: raises when selection not in
     ]])
 
     eq(child.lua_get('_G.fixture.assert_failed'), true)
+end
+
+T['open_deltaview_fzf_lua_menu()']['skips non-deltaview entries when building item list'] = function()
+    child.lua(setup_qflist_mixed)
+    child.lua([[M.open_deltaview_fzf_lua_menu()]])
+
+    eq(child.lua_get('_G.fixture.fzf_exec_items'), { 'a.lua', 'b.lua' })
+end
+
+T['open_deltaview_fzf_lua_menu()']['passes a previewer to fzf_exec'] = function()
+    child.lua(setup_qflist)
+    child.lua([[
+        package.loaded['fzf-lua'] = {
+            fzf_exec = function(items, opts)
+                _G.fixture.fzf_exec_items    = items
+                _G.fixture.fzf_has_previewer = opts.previewer ~= nil
+            end
+        }
+        M.open_deltaview_fzf_lua_menu()
+    ]])
+
+    eq(child.lua_get('_G.fixture.fzf_has_previewer'), true)
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -347,6 +408,78 @@ T['open_deltaview_telescope_menu()']['select_default: raises when selection not 
     ]])
 
     eq(child.lua_get('_G.fixture.assert_failed'), true)
+end
+
+T['open_deltaview_telescope_menu()']['skips non-deltaview entries when building item list'] = function()
+    child.lua(setup_qflist_mixed)
+    child.lua([[M.open_deltaview_telescope_menu()]])
+
+    eq(child.lua_get('_G.fixture.finder_results'), { 'a.lua', 'b.lua' })
+end
+
+T['open_deltaview_telescope_menu()']['passes a previewer to pickers.new'] = function()
+    child.lua(setup_qflist)
+    child.lua([[
+        package.loaded['telescope.previewers'] = {
+            new = function(_opts)
+                _G.fixture.previewer_created = true
+                return { _stub = true }
+            end,
+        }
+        package.loaded['telescope.pickers'] = {
+            new = function(_opts, picker_opts)
+                _G.fixture.results_title     = picker_opts.results_title
+                _G.fixture.finder_results    = picker_opts.finder and picker_opts.finder.results
+                _G.fixture.has_previewer     = picker_opts.previewer ~= nil
+                if picker_opts.attach_mappings then
+                    picker_opts.attach_mappings(0, function() end)
+                end
+                return { find = function(self) end }
+            end,
+        }
+        M.open_deltaview_telescope_menu()
+    ]])
+
+    eq(child.lua_get('_G.fixture.previewer_created'), true)
+    eq(child.lua_get('_G.fixture.has_previewer'), true)
+end
+
+T['open_deltaview_telescope_menu()']['sets prompt_title to DeltaView Menu'] = function()
+    child.lua(setup_qflist)
+    child.lua([[
+        package.loaded['telescope.pickers'] = {
+            new = function(_opts, picker_opts)
+                _G.fixture.prompt_title   = picker_opts.prompt_title
+                _G.fixture.finder_results = picker_opts.finder and picker_opts.finder.results
+                if picker_opts.attach_mappings then
+                    picker_opts.attach_mappings(0, function() end)
+                end
+                return { find = function(self) end }
+            end,
+        }
+        M.open_deltaview_telescope_menu()
+    ]])
+
+    eq(child.lua_get('_G.fixture.prompt_title'), 'DeltaView Menu')
+end
+
+T['open_deltaview_telescope_menu()']['enables dynamic_preview_title'] = function()
+    child.lua(setup_qflist)
+    child.lua([[
+        package.loaded['telescope.pickers'] = {
+            new = function(_opts, picker_opts)
+                _G.fixture.dynamic_preview_title = picker_opts.dynamic_preview_title
+                _G.fixture.finder_results        = picker_opts.finder and picker_opts.finder.results
+                if picker_opts.attach_mappings then
+                    picker_opts.attach_mappings(0, function() end)
+                end
+                return { find = function(self) end }
+            end,
+        }
+        M.open_deltaview_telescope_menu()
+    ]])
+
+    eq(child.lua_get('_G.fixture.dynamic_preview_title'), true)
 end
 
 return T
