@@ -385,7 +385,6 @@ M.undo_deltamenu_qf_list = function()
         end
     end
     local qf_nr = qf_info.nr
-    vim.print(qf_nr)
     if qf_nr > 1 then
         vim.cmd('colder')
     else
