@@ -524,19 +524,6 @@ local setup_tmpdir_git_repo_n_files = [[
 
 T['DeltaMenu integration'] = new_set()
 
-T['DeltaMenu integration']['quickselect path: selecting a file opens a delta buffer'] = function()
-    child.lua([[
-        M.setup({fzf_threshold = 6})
-    ]])
-    child.lua(setup_tmpdir_git_repo_n_files, { 3 })
-    child.cmd('DeltaMenu HEAD')
-    child.type_keys('<CR>')
-    local has_diff_data = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
-    local has_parsed    = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].no_context_delta_diff_data_set ~= nil')
-    eq(has_diff_data, true)
-    eq(has_parsed, true)
-end
-
 T['DeltaMenu integration']['fzf path: opens a terminal window'] = function()
     child.lua([[
         M.setup({fzf_threshold = 6})

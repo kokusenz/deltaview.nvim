@@ -742,13 +742,18 @@ T['get_sorted_diffed_files()'] = new_set({
                 end
 
                 vim.system = function(cmd, _opts)
-                    -- Distinguish the three vim.system call sites by command shape:
-                    -- 1. dirstat: {'git', 'diff', ref, '-X', '--dirstat=lines,0'}
-                    -- 2. numstat: {'git', 'diff', '--numstat', ref, '--', abs_path}
+                    -- Distinguish the four vim.system call sites by command shape:
+                    -- 1. dirstat:     {'git', 'diff', ref, '-X', '--dirstat=lines,0'}
+                    -- 2. name-status: {'git', 'diff', '--name-status', ref}
+                    -- 3. numstat (tracked):   {'git', 'diff', '--numstat', ref, '--', abs_path}
+                    -- 4. numstat (untracked): {'git', 'diff', '--numstat', '--no-index', '--', '/dev/null', abs_path}
                     local stdout
                     if cmd[1] == 'git' and cmd[2] == 'diff' and cmd[4] == '-X' then
                         -- dirstat call
                         stdout = _G.fixture.dirstat_out or ''
+                    elseif cmd[1] == 'git' and cmd[2] == 'diff' and cmd[3] == '--name-status' then
+                        -- name-status call
+                        stdout = _G.fixture.name_status_out or ''
                     elseif cmd[1] == 'git' and cmd[2] == 'diff' and cmd[3] == '--numstat' then
                         -- untracked: {'git','diff','--numstat','--no-index','--','/dev/null', abs_path}  -> cmd[7]
                         -- tracked:   {'git','diff','--numstat', ref,         '--', abs_path}            -> cmd[6]
@@ -787,17 +792,19 @@ T['get_sorted_diffed_files()']['returns empty table and notifies on dirstat git 
     eq(notify_called, true)
 end
 
-T['get_sorted_diffed_files()']['single tracked file returns correct name, added, removed'] = function()
+T['get_sorted_diffed_files()']['single tracked file returns correct name, added, removed, and status'] = function()
     child.lua([[
-        _G.fixture.files_map   = { ['lua/foo.lua'] = true }
-        _G.fixture.dirstat_out = '  100.0% lua/\n'
-        _G.fixture.numstat_map = { ['/repo/lua/foo.lua'] = '10\t3\tlua/foo.lua\n' }
+        _G.fixture.files_map      = { ['lua/foo.lua'] = true }
+        _G.fixture.dirstat_out    = '  100.0% lua/\n'
+        _G.fixture.name_status_out = 'M\tlua/foo.lua\n'
+        _G.fixture.numstat_map    = { ['/repo/lua/foo.lua'] = '10\t3\tlua/foo.lua\n' }
     ]])
     local result = child.lua_get([[M.get_sorted_diffed_files('HEAD')]])
     eq(#result, 1)
     eq(result[1].name,    'lua/foo.lua')
     eq(result[1].added,   10)
     eq(result[1].removed, 3)
+    eq(result[1].status,  'M')
 end
 
 T['get_sorted_diffed_files()']['files sorted by directory dirstat weight descending'] = function()
