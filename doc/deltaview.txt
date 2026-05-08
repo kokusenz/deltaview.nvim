@@ -85,6 +85,9 @@ COMMANDS                                                  *deltaview-commands*
                                                                 *:DeltaMenu*
 :DeltaMenu [ref]        Opens a picker to preview, select, and view diffs from all modified files. Uses the last ref that was used, or HEAD by default if ref is omitted. Supports three-dot refs (e.g. develop...HEAD).
 
+TODO fit the following blurb into the helpdocs somehow to help clarify intent of how the quickfix list should be used. Was originally the d? menu message for describing :colder / :cex []
+Undo the current quickfix list if populated by :DeltaMenu qfa. The reason to use this is, if you open a file that is in the DeltaMenu quickfix list, it will automatically open to the :DeltaView view. This behavior is usually desired, but sometimes can get in the way. Clear the quickfix list to disable the automatic :DeltaView. The quickfix list will also automatically clear if you open a file that is not in the quickfix list.
+
                                                                 *:Delta*
 :Delta [path] [context] [ref]    Opens the delta diff view with configurable context for a path. Attempts to place the cursor on entry if there is a corresponding line in the diff. Will sync the cursor on exit, same as DeltaView. Uses the last ref that was used, or HEAD by default. Uses the last specified context size, or 3 by default. Uses the current path (use netrw or some other filetree plugin to nav to it), or a specified path.
 

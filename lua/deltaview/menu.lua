@@ -6,9 +6,10 @@ local picker = require('deltaview.picker')
 local view = require('deltaview.view')
 local help = require('deltaview.help')
 
---- Creates a menu pane, and orchestrates the logic of switching between a fuzzy finder or a quick select depending on how large the diff is
+--- get items needed for display in :DeltaMenu. notifies if error
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
-M.create_diff_menu_pane = function(ref)
+--- @return DeltaMenuItems | nil returns nil if it needs to notify that there is an error
+local get_modified_files = function(ref)
     local rev_parse_result = vim.system({ 'git', 'rev-parse', '--show-toplevel' }):wait()
     if rev_parse_result.code ~= 0 and rev_parse_result.code ~= 1 then
         vim.notify('Not in a git repository. Cannot open DeltaView menu for git.', vim.log.levels.WARN)
@@ -30,25 +31,70 @@ M.create_diff_menu_pane = function(ref)
     for _, value in ipairs(sorted_files) do
         changes_data[value.name] = { changes = '+' .. value.added .. ',-' .. value.removed, status = value.status }
     end
-
-    M.setup_quickfix_deltaview_on_entry()
-    M.populate_quickfix_deltamenu_items(ref, mods, changes_data)
-    M.choose_deltaview_menu()
+    return { mods = mods, changes_data = changes_data, ref = ref }
 end
 
---- opens a quickfix menu with all entries, with metadata on the items such that autocmd's can recognize when a diff buffer should be opened.
---- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
---- @param mods string[] list of filepaths
---- @param changes_data ChangesData for each file in mods, the size of the change in the file
-M.populate_quickfix_deltamenu_items = function(ref, mods, changes_data)
-    assert(ref ~= nil)
-    assert(mods ~= nil)
-    assert(changes_data ~= nil)
+--- @type fun(dv_data: DeltaViewQfListEntryUserData): nil
+local open_deltaview_on_buffer = function(dv_data)
+    vim.schedule(function()
+        local success, err = pcall(function()
+            -- return to last known cursor position; quickfix without lnum automatically puts you at top
+            -- commented out; can be confusing when restarting nvim sessions
+            -- while it's a nice qol to jump back to where you were, DiffTool also doesn't have this behavior. ok to leave it out
+            -- local last_pos = vim.api.nvim_buf_get_mark(0, '"')
+            -- if last_pos[1] > 0 then
+            --     vim.api.nvim_win_set_cursor(0, last_pos)
+            -- end
+            local dv_bufid
+            if dv_data.status == 'D' then
+                -- delta_path works for deleted files, while deltaview_file doesn't because it expects a real file to exist to function off of.
+                -- slight design discrepancy here; this has the delta.lua header, while the others don't. But I can live with that.
+                -- alternative is to refactor deltaview_file to no longer assume it is being called from a real file, and take in a path like delta_path does
+                dv_bufid = view.delta_path(dv_data.ref, require('deltaview.state').default_context, dv_data.abs_path)
+            else
+                dv_bufid = view.deltaview_file(dv_data.ref)
+            end
+            if dv_bufid ~= nil then
+                help.register_keybind(dv_bufid, ':DeltaMenu! [ref]',
+                    'Populate the quickfix list with all diff files, then open it')
+                help.register_keybind(dv_bufid, ']q / [q ',
+                    'Use native quickfix keybind to open next diff file or prev diff file if in quickfix list')
+                help.register_keybind(dv_bufid, ':colder OR :cex []',
+                    'Restore the previous quickfix list, exiting the DeltaMenu review workflow')
+
+                -- flagging breaking changes
+                if config.options.keyconfig.next_diff ~= nil and config.options.keyconfig.next_diff ~= '' then
+                    vim.keymap.set('n', config.options.keyconfig.next_diff, function()
+                        vim.notify([[Deltaview next_diff keybind has been removed. You can achieve the original function of this keybind by first populating the quickfix list using `:DeltaMenu qfa(dd)`, then using ']q', or `:cnext`. Please read CHANGELOG.txt for v0.3.0 for more details. This warning will be removed in the near future.]], vim.log.levels.WARN)
+                    end)
+                end
+
+                if config.options.keyconfig.prev_diff ~= nil and config.options.keyconfig.prev_diff ~= '' then
+                    vim.keymap.set('n', config.options.keyconfig.prev_diff, function()
+                        vim.notify([[Deltaview prev_diff keybind has been removed. You can achieve the original function of this keybind by first populating the quickfix list using `:DeltaMenu qfa(dd)`, then using ']q', or `:cnext`. Please read CHANGELOG.txt for v0.3.0 for more details. This warning will be removed in the near future.]], vim.log.levels.WARN)
+                    end)
+                end
+            end
+        end)
+        if not success then
+            vim.notify('An error occured while trying to open DeltaView - ' .. tostring(err),
+                vim.log.levels.ERROR)
+            return
+        end
+    end)
+end
+
+--- @param deltamenu_items DeltaMenuItems
+--- @return DeltaViewQfListEntry[]
+local get_deltaview_qf_list_entries = function(deltamenu_items)
+    assert(deltamenu_items.ref ~= nil)
+    assert(deltamenu_items.mods ~= nil)
+    assert(deltamenu_items.changes_data ~= nil)
 
     local qflist = {}
-    for _, path in ipairs(mods) do
+    for _, path in ipairs(deltamenu_items.mods) do
         local text = path
-        local status = changes_data[path].status
+        local status = deltamenu_items.changes_data[path].status
         --- @cast status Status
         local filepath
         if status == 'D' then
@@ -63,22 +109,39 @@ M.populate_quickfix_deltamenu_items = function(ref, mods, changes_data)
             text = text,
             --- @class DeltaViewQfListEntryUserData
             user_data = {
-                deltaview = true, -- identifier, allows us to confidently use @cast DeltaViewQfListEntry
+                deltaview = true,                      -- identifier, allows us to confidently use @cast DeltaViewQfListEntry
                 bufname = path,
                 abs_path = utils.git_rel_to_abs(path), -- note that this is different from filename; is the same most of the time, but for deleted files, can be different
                 show_delta_on_entry = true,
-                ref = ref,
+                ref = deltamenu_items.ref,
                 status = status,
-                changes = changes_data[path].changes,
+                changes = deltamenu_items.changes_data[path].changes,
             }
         }
         table.insert(qflist, qflist_entry)
     end
     --- @cast qflist DeltaViewQfListEntry[]
+    return qflist
+end
+
+--- Creates a menu pane, and orchestrates the logic of switching between a fuzzy finder or a quick select depending on how large the diff is
+--- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
+M.create_diff_menu_pane = function(ref)
+    local deltamenu_items = get_modified_files(ref)
+    if deltamenu_items == nil then return end
+    local deltaview_qf_list_entries = get_deltaview_qf_list_entries(deltamenu_items)
+    M.choose_deltaview_menu(deltaview_qf_list_entries)
+end
+
+--- Populates the quickfix menu with all entries, with metadata on the items such that autocmd's can recognize when a diff buffer should be opened.
+M.populate_quickfix_deltamenu_items = function()
+    local deltamenu_items = get_modified_files(require('deltaview.state').diff_target_ref)
+    if deltamenu_items == nil then return end
+    local qflist = get_deltaview_qf_list_entries(deltamenu_items)
 
     vim.fn.setqflist({}, ' ', {
         nr = '$',
-        title = 'DeltaView Menu  |  ' .. config.viewconfig().vs .. ' ' .. (ref),
+        title = 'DeltaView Menu  |  ' .. config.viewconfig().vs .. ' ' .. (deltamenu_items.ref),
         items = qflist,
         ---@param info {id: number, start_idx: number, end_idx: number}
         quickfixtextfunc = function(info)
@@ -88,12 +151,53 @@ M.populate_quickfix_deltamenu_items = function(ref, mods, changes_data)
             for item = info.start_idx, info.end_idx do
                 local entry = items[item]
                 if entry.user_data and entry.user_data.deltaview then
-                    table.insert(out, entry.user_data.status .. ' ' .. entry.user_data.bufname .. ' > ' .. entry.user_data.changes)
+                    table.insert(out,
+                        entry.user_data.status .. ' ' .. entry.user_data.bufname .. ' > ' .. entry.user_data.changes)
                 end
             end
             return out
         end,
     })
+end
+
+--- orchestrator of which picker to use, based on config or default order; see fzf_picker in lua/deltaview/config.lua
+--- @param deltaview_qf_list DeltaViewQfListEntry[]
+M.choose_deltaview_menu = function(deltaview_qf_list)
+    if config.options.fzf_picker == 'fzf-lua' then
+        local ok = pcall(require, 'fzf-lua')
+        if not ok then
+            vim.notify('fzf-lua not found. Falling back to the first picker available.', vim.log.levels.WARN)
+            goto default
+        end
+        -- continue using fzf-lua
+        picker.open_deltaview_fzf_lua_menu(deltaview_qf_list, open_deltaview_on_buffer)
+        return
+    elseif config.options.fzf_picker == 'telescope' then
+        local ok = pcall(require, 'telescope')
+        if not ok then
+            vim.notify('telescope not found. Falling back to the first picker available.', vim.log.levels.WARN)
+            goto default
+        end
+        picker.open_deltaview_telescope_menu(deltaview_qf_list, open_deltaview_on_buffer)
+        return
+    elseif config.options.fzf_picker == 'ui_select' then
+        picker.open_vim_ui_select(deltaview_qf_list, open_deltaview_on_buffer)
+        return
+    end
+    ::default::
+    local fzf_lua_ok = pcall(require, 'fzf-lua')
+    if fzf_lua_ok then
+        picker.open_deltaview_fzf_lua_menu(deltaview_qf_list, open_deltaview_on_buffer)
+        return
+    end
+
+    local telescope_ok = pcall(require, 'telescope')
+    if telescope_ok then
+        picker.open_deltaview_telescope_menu(deltaview_qf_list, open_deltaview_on_buffer)
+        return
+    end
+
+    picker.open_vim_ui_select(deltaview_qf_list, open_deltaview_on_buffer)
 end
 
 M.setup_quickfix_deltaview_on_entry = function()
@@ -184,88 +288,25 @@ M.setup_quickfix_deltaview_on_entry = function()
                 return
             end
 
-            -- deltamenu entry that should open a diff view
             vim.schedule(function()
-                local success, err = pcall(function()
-                    restore_delta_entries()
-                    clear_delta_entry(ev.buf)
-                    -- return to last known cursor position; quickfix without lnum automatically puts you at top
-                    local last_pos = vim.api.nvim_buf_get_mark(ev.buf, '"')
-                    if last_pos[1] > 0 then
-                        vim.api.nvim_win_set_cursor(0, last_pos)
-                    end
-                    local bufnr
-                    if entry.user_data.status == 'D' then
-                        -- delta_path works for deleted files, while deltaview_file doesn't because it expects a real file to exist to function off of.
-                        -- slight design discrepancy here; this has the delta.lua header, while the others don't. But I can live with that.
-                        -- alternative is to refactor deltaview_file to no longer assume it is being called from a real file, and take in a path like delta_path does
-                        bufnr = view.delta_path(entry.user_data.ref, require('deltaview.state').default_context, entry.user_data.abs_path)
-                    else
-                        bufnr = view.deltaview_file(entry.user_data.ref)
-                    end
-                    if bufnr ~= nil then
-                        help.register_keybind(bufnr, ']q', 'use quickfix keybind to open next file diff')
-                        help.register_keybind(bufnr, '[q', 'use quickfix keybind to open prev file diff')
-                        help.register_keybind(bufnr, ':DeltaMenu clear', 'Clear items in quickfix list populated by :DeltaMenu. The intention is, if you open a file that is in the DeltaMenu quickfix list, it will automatically open to the :DeltaView view. This behavior is usually desired, but sometimes can get in the way, so use the "clear" command if you have finished your reviewing workflow. The quickfix list will also automatically clear if you open a file that is not in the quickfix list.')
-                    end
-                end)
-                if not success then
-                    vim.notify('An error occured while trying to open DeltaView - ' .. tostring(err),
-                        vim.log.levels.ERROR)
-                    return
-                end
+                restore_delta_entries()
+                clear_delta_entry(ev.buf)
             end)
+            open_deltaview_on_buffer(entry.user_data)
         end,
     })
     _quickfix_autocmd_registered = true
 end
 
+M.setup_quickfix_deltaview_on_entry()
 
---- orchestrator of which picker to use, based on config or default order; see fzf_picker in lua/deltaview/config.lua
---- This function has a dependency on populate_quickfix_deltamenu_items quickfix list populating first.
-M.choose_deltaview_menu = function()
-    if config.options.fzf_picker == 'fzf-lua' then
-        local ok = pcall(require, 'fzf-lua')
-        if not ok then
-            vim.notify('fzf-lua not found. Falling back to the first picker available.', vim.log.levels.WARN)
-            goto default
-        end
-        -- continue using fzf-lua
-        picker.open_deltaview_fzf_lua_menu()
-        return
-    elseif config.options.fzf_picker == 'telescope' then
-        local ok = pcall(require, 'telescope')
-        if not ok then
-            vim.notify('telescope not found. Falling back to the first picker available.', vim.log.levels.WARN)
-            goto default
-        end
-        picker.open_deltaview_telescope_menu()
-        return
-    elseif config.options.fzf_picker == 'quickfix' then
-        vim.cmd('copen')
-        return
-    elseif config.options.fzf_picker == 'ui_select' then
-        picker.open_vim_ui_select()
-        return
-    end
-    ::default::
-    -- try default order - fzf-lua -> quickfix
-    local fzf_lua_ok = pcall(require, 'fzf-lua')
-    if fzf_lua_ok then
-        picker.open_deltaview_fzf_lua_menu()
-        return
-    end
-
-    local telescope_ok = pcall(require, 'telescope')
-    if telescope_ok then
-        picker.open_deltaview_telescope_menu()
-        return
-    end
-
-    -- fallback; just open quickfix menu
-    vim.cmd('copen')
-end
-
+--- key is filepath, values are tables where key is type of change, value is value
+--- for example, change type "changes" has "+23,-16", and change type "status" has "M", or "D", etc.
 --- @alias ChangesData table<string, table<string, string>>
+
+--- @class DeltaMenuItems
+--- @field mods string[] list of changed filepaths
+--- @field changes_data ChangesData list of changes data, where the keys are 1 to 1 with mods
+--- @field ref string
 
 return M

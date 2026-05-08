@@ -5,67 +5,51 @@ local view = require('deltaview.view')
 
 local _buf_name_seq = 0
 
-M.open_vim_ui_select = function()
-    local qf_info = vim.fn.getqflist({ items = 1, size = 1 })
-    if qf_info.size == 0 then
-        return
-    end
-
-    local qf_list = {}
+--- @param deltaview_qf_list DeltaViewQfListEntry[]
+--- @return string[], table<string, DeltaViewQfListEntry>
+local get_qf_map = function(deltaview_qf_list)
+    --- @type table<string, DeltaViewQfListEntry>
+    local qf_map = {}
     local mods = {}
-    for i, entry in ipairs(qf_info.items) do
-        --- @cast entry DeltaViewQfListEntry
+    for _, entry in ipairs(deltaview_qf_list) do
         if entry.user_data and entry.user_data.deltaview then
             table.insert(mods, entry.user_data.bufname)
-            qf_list[entry.user_data.bufname] = {
-                idx = i,
-                title = ' ' .. entry.user_data.status
-                    .. ' ' .. vim.fn.fnamemodify(entry.user_data.bufname, ':t')
-                    .. ' > ' .. entry.user_data.changes .. ' '}
+            qf_map[entry.user_data.bufname] = entry
         end
     end
+    return mods, qf_map
+end
 
+--- @param deltaview_qf_list DeltaViewQfListEntry[]
+--- @param open_dv_func fun(dv_data: DeltaViewQfListEntryUserData): nil
+M.open_vim_ui_select = function(deltaview_qf_list, open_dv_func)
+    local mods, qf_map = get_qf_map(deltaview_qf_list)
     vim.ui.select(mods, {
         prompt = 'DeltaView Menu',
         format_item = function(item)
-            return qf_list[item].title
+            local title = ' ' .. qf_map[item].user_data.status
+                .. ' ' .. vim.fn.fnamemodify(qf_map[item].user_data.bufname, ':t')
+                .. ' > ' .. qf_map[item].user_data.changes .. ' '
+            return title
         end,
     }, function(choice)
         if not choice then return end
-        local idx = qf_list[choice].idx
-        if idx then
-            vim.cmd('cc ' .. idx)
-        end
+        vim.cmd('e ' .. qf_map[choice].filename)
+        open_dv_func(qf_map[choice].user_data)
     end)
 end
 
 --- TODO integration tests to assert that the preview window behaves as expected for when inside git root, not at git root
 --- opens a fzf-lua picker for deltaview entries in the quickfix list with a delta.lua preview window
-M.open_deltaview_fzf_lua_menu = function()
+--- @param deltaview_qf_list DeltaViewQfListEntry[]
+--- @param open_dv_func fun(dv_data: DeltaViewQfListEntryUserData): nil
+M.open_deltaview_fzf_lua_menu = function(deltaview_qf_list, open_dv_func)
     local fzf_lua = require('fzf-lua')
     local builtin = require('fzf-lua.previewer.builtin')
 
     local DeltaviewPreviewer = builtin.base:extend()
 
-    local qf_info = vim.fn.getqflist({ items = 1, size = 1 })
-    if qf_info.size == 0 then
-        return
-    end
-
-    local qf_list = {}
-    local mods = {}
-    for i, entry in ipairs(qf_info.items) do
-        --- @cast entry DeltaViewQfListEntry
-        if entry.user_data and entry.user_data.deltaview then
-            table.insert(mods, entry.user_data.bufname)
-            qf_list[entry.user_data.bufname] = {
-                idx = i,
-                ref = entry.user_data.ref,
-                title = ' ' .. entry.user_data.status
-                    .. ' ' .. vim.fn.fnamemodify(entry.user_data.bufname, ':t')
-                    .. ' > ' .. entry.user_data.changes .. ' '}
-        end
-    end
+    local mods, qf_map = get_qf_map(deltaview_qf_list)
 
     function DeltaviewPreviewer:new(o, opts, fzf_win)
         self.super.new(self, o, opts, fzf_win)
@@ -76,7 +60,7 @@ M.open_deltaview_fzf_lua_menu = function()
     function DeltaviewPreviewer:populate_preview_buf(entry_str)
         if not self.win or not self.win:validate_preview() then return end
         local filepath = utils.git_rel_to_abs(entry_str)
-        local ref = qf_list[entry_str].ref
+        local ref = qf_map[entry_str].user_data.ref
         if filepath == nil then return end
         local preview_winid = self.win.preview_winid
         local old_bufnr = vim.api.nvim_win_get_buf(preview_winid)
@@ -98,7 +82,10 @@ M.open_deltaview_fzf_lua_menu = function()
         self.preview_bufnr = bufnr
         self:set_style_winopts()
         self:safe_buf_delete(old_bufnr)
-        local title = qf_list[entry_str].title
+        local title = ' ' .. qf_map[entry_str].user_data.status
+            .. ' ' .. vim.fn.fnamemodify(qf_map[entry_str].user_data.bufname, ':t')
+            .. ' > ' .. qf_map[entry_str].user_data.changes .. ' '
+
         self.win:update_preview_title(title)
     end
 
@@ -110,18 +97,17 @@ M.open_deltaview_fzf_lua_menu = function()
         previewer = DeltaviewPreviewer,
         actions = {
             ['default'] = function(selected)
-                if selected and selected[1] then
-                    local idx = qf_list[selected[1]].idx
-                    if idx then
-                        vim.cmd('cc ' .. idx)
-                    end
-                end
+                if not selected or not selected[1] then return end
+                vim.cmd('e ' .. qf_map[selected[1]].filename)
+                open_dv_func(qf_map[selected[1]].user_data)
             end
         }
     })
 end
 
-M.open_deltaview_telescope_menu = function()
+--- @param deltaview_qf_list DeltaViewQfListEntry[]
+--- @param open_dv_func fun(dv_data: DeltaViewQfListEntryUserData): nil
+M.open_deltaview_telescope_menu = function(deltaview_qf_list, open_dv_func)
     local pickers = require('telescope.pickers')
     local finders = require('telescope.finders')
     local conf = require('telescope.config').values
@@ -129,25 +115,7 @@ M.open_deltaview_telescope_menu = function()
     local action_state = require('telescope.actions.state')
     local previewers = require('telescope.previewers')
 
-    local qf_info = vim.fn.getqflist({ items = 1, size = 1 })
-    if qf_info.size == 0 then
-        return
-    end
-
-    local qf_list = {}
-    local mods = {}
-    for i, entry in ipairs(qf_info.items) do
-        --- @cast entry DeltaViewQfListEntry
-        if entry.user_data and entry.user_data.deltaview then
-            table.insert(mods, entry.user_data.bufname)
-            qf_list[entry.user_data.bufname] = {
-                idx = i,
-                ref = entry.user_data.ref,
-                title = ' ' .. entry.user_data.status
-                    .. ' ' .. vim.fn.fnamemodify(entry.user_data.bufname, ':t')
-                    .. ' > ' .. entry.user_data.changes .. ' '}
-        end
-    end
+    local mods, qf_map = get_qf_map(deltaview_qf_list)
 
     -- Track buffers we create so we can clean them up on teardown.
     local preview_bufs = {}
@@ -156,7 +124,10 @@ M.open_deltaview_telescope_menu = function()
         title = 'Delta.lua',
         dyn_title = function(_, entry)
             if entry == nil then return 'Delta.lua' end
-            return qf_list[entry.value].title
+            local title = ' ' .. qf_map[entry.value].user_data.status
+                .. ' ' .. vim.fn.fnamemodify(qf_map[entry.value].user_data.bufname, ':t')
+                .. ' > ' .. qf_map[entry.value].user_data.changes .. ' '
+            return title
         end,
         setup = function(_self)
             return {}
@@ -185,7 +156,8 @@ M.open_deltaview_telescope_menu = function()
             _buf_name_seq = _buf_name_seq + 1
             local bufnr = nil
             local success, err = pcall(function()
-                bufnr = view.open_git_diff_buffer_for_path(filepath, qf_list[entry.value].ref, state.default_context, preview_winid,
+                bufnr = view.open_git_diff_buffer_for_path(filepath, qf_map[entry.value].user_data.ref,
+                    state.default_context, preview_winid,
                     tostring(_buf_name_seq))
             end)
             if not success or bufnr == nil then
@@ -208,7 +180,9 @@ M.open_deltaview_telescope_menu = function()
             -- Set the preview border title directly; this works regardless of
             -- the user's dynamic_preview_title config value.
             if status.layout.preview.border then
-                local title = qf_list[entry.value].title
+                local title = ' ' .. qf_map[entry.value].user_data.status
+                    .. ' ' .. vim.fn.fnamemodify(qf_map[entry.value].user_data.bufname, ':t')
+                    .. ' > ' .. qf_map[entry.value].user_data.changes .. ' '
                 status.layout.preview.border:change_title(title)
             end
         end,
@@ -230,11 +204,8 @@ M.open_deltaview_telescope_menu = function()
                 if selection == nil then return end
 
                 local selected = selection.value
-
-                local idx = qf_list[selected].idx
-                if idx then
-                    vim.cmd('cc ' .. idx)
-                end
+                vim.cmd('e ' .. qf_map[selected].filename)
+                open_dv_func(qf_map[selected].user_data)
             end)
             return true
         end,

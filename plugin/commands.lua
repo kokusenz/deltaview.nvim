@@ -17,11 +17,12 @@ local delta_menu = function(command_argument)
     local state = require('deltaview.state')
     local success, err = pcall(function()
         local arg = command_argument.fargs[1]
-        if arg == 'clear' then
-            require('deltaview.utils').undo_deltamenu_qf_list()
+        state.diff_target_ref = arg ~= nil and arg or state.diff_target_ref
+        if command_argument.bang then
+            require('deltaview.menu').populate_quickfix_deltamenu_items()
+            vim.cmd('copen')
             return
         end
-        state.diff_target_ref = arg ~= nil and arg or state.diff_target_ref
         require('deltaview.menu').create_diff_menu_pane(state.diff_target_ref)
     end)
     if not success then
@@ -104,10 +105,11 @@ vim.api.nvim_create_user_command('DeltaView', delta_view, {
 -- :DeltaMenu command
 vim.api.nvim_create_user_command('DeltaMenu', delta_menu,
     {
+        bang = true,
         nargs = '?',
         complete = ref_complete(2, all_branches),
         desc =
-        'Open Diff Menu against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
+        'Open Diff Menu against a git ref (branch, commit, tag, etc). Add ! to also populate the quickfix list and open it (:DeltaMenu! [ref]). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
     })
 
 -- :Delta command
