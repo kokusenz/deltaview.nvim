@@ -227,38 +227,13 @@ end
 --- git commands like `git diff --name-only` and `git ls-files` output paths
 --- relative to the repository root, not cwd, so this must be used over vim.fn.fnamemodify.
 --- @param rel_path string path relative to the git root
---- @return string | nil absolute path, or nil if git root could not be determined
+--- @return string absolute path
 M.git_rel_to_abs = function(rel_path)
     local result = vim.system({ 'git', 'rev-parse', '--show-toplevel' }):wait()
-    if result.code ~= 0 then
-        vim.notify('Failed to get git root.', vim.log.levels.ERROR)
-        return nil
-    end
+    assert(result.code == 0, 'Failed to get git root. ' .. (result.stderr or ''))
     return vim.trim(result.stdout) .. '/' .. rel_path
 end
 
-
---- factory function that creates a label extractor for file paths
---- extracts unique single-character labels from filenames (not full paths)
---- @return function A function that takes a filepath and returns a single-character label
-M.label_filepath_item = function()
-    local used_labels = {}
-    return function(item)
-        -- extract just the filename (everything after the last forward slash)
-        local filename = item:match("([^/]+)$") or item
-        local i = 1
-        while i <= #filename do
-            local char = string.lower(filename:sub(i, i))
-            if used_labels[char] == nil then
-                used_labels[char] = true
-                return char
-            end
-            i = i + 1
-        end
-        -- fallback if all characters are used
-        return tostring(i)
-    end
-end
 
 --- @param sorted_files SortedFile[]
 --- @return table list of file names
@@ -378,6 +353,7 @@ end
 
 M.undo_deltamenu_qf_list = function()
     local qf_info = vim.fn.getqflist({ nr = '$', items = 1 })
+    if #qf_info.items == 0 then return end
     -- if the quickfix list is not a deltaview quickfix list, do not clear. entry returns nil for non deltaview quickfix list
     for _, qf_item in ipairs(qf_info.items) do
         if not qf_item.user_data or not qf_item.user_data.deltaview then
@@ -406,7 +382,3 @@ return M
 --- @field added number
 --- @field removed number
 --- @field status Status
-
---- @class AdjacentFiles
---- @field next string
---- @field prev string

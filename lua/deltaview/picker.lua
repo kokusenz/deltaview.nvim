@@ -61,7 +61,6 @@ M.open_deltaview_fzf_lua_menu = function(deltaview_qf_list, open_dv_func)
         if not self.win or not self.win:validate_preview() then return end
         local filepath = utils.git_rel_to_abs(entry_str)
         local ref = qf_map[entry_str].user_data.ref
-        if filepath == nil then return end
         local preview_winid = self.win.preview_winid
         local old_bufnr = vim.api.nvim_win_get_buf(preview_winid)
         _buf_name_seq = _buf_name_seq + 1
@@ -145,13 +144,6 @@ M.open_deltaview_telescope_menu = function(deltaview_qf_list, open_dv_func)
             if not preview_winid or not vim.api.nvim_win_is_valid(preview_winid) then return end
 
             local filepath = utils.git_rel_to_abs(entry.value)
-            if filepath == nil then
-                local fallback = vim.api.nvim_create_buf(false, true)
-                table.insert(preview_bufs, fallback)
-                vim.api.nvim_buf_set_lines(fallback, 0, -1, false, { 'No diff available for: ' .. entry.value })
-                vim.api.nvim_win_set_buf(preview_winid, fallback)
-                return
-            end
 
             _buf_name_seq = _buf_name_seq + 1
             local bufnr = nil

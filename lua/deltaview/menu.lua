@@ -17,7 +17,6 @@ local get_modified_files = function(ref)
     end
 
     assert(ref)
-    -- we can poc handling of deleted files first with quickfix list, then raise a separate pr for applying that fix for all pickers
     local sorted_files = utils.get_sorted_diffed_files(ref)
     local mods = utils.get_filenames_from_sortedfiles(sorted_files)
 
@@ -65,13 +64,13 @@ local open_deltaview_on_buffer = function(dv_data)
                 -- flagging breaking changes
                 if config.options.keyconfig.next_diff ~= nil and config.options.keyconfig.next_diff ~= '' then
                     vim.keymap.set('n', config.options.keyconfig.next_diff, function()
-                        vim.notify([[Deltaview next_diff keybind has been removed. You can achieve the original function of this keybind by first populating the quickfix list using `:DeltaMenu qfa(dd)`, then using ']q', or `:cnext`. Please read CHANGELOG.txt for v0.3.0 for more details. This warning will be removed in the near future.]], vim.log.levels.WARN)
+                        vim.notify([[Deltaview next_diff keybind has been removed. You can achieve the original function of this keybind by first populating the quickfix list using `:DeltaMenu! [ref]`, then using ']q', or `:cnext`. Please read CHANGELOG.txt for v0.3.0 for more details. This warning will be removed in the near future.]], vim.log.levels.WARN)
                     end)
                 end
 
                 if config.options.keyconfig.prev_diff ~= nil and config.options.keyconfig.prev_diff ~= '' then
                     vim.keymap.set('n', config.options.keyconfig.prev_diff, function()
-                        vim.notify([[Deltaview prev_diff keybind has been removed. You can achieve the original function of this keybind by first populating the quickfix list using `:DeltaMenu qfa(dd)`, then using ']q', or `:cnext`. Please read CHANGELOG.txt for v0.3.0 for more details. This warning will be removed in the near future.]], vim.log.levels.WARN)
+                        vim.notify([[Deltaview prev_diff keybind has been removed. You can achieve the original function of this keybind by first populating the quickfix list using `:DeltaMenu! [ref]`, then using '[q', or `:cprev`. Please read CHANGELOG.txt for v0.3.0 for more details. This warning will be removed in the near future.]], vim.log.levels.WARN)
                     end)
                 end
             end

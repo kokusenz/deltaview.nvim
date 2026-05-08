@@ -53,7 +53,6 @@ end
 M.defaults = {
     use_nerdfonts = true,
     show_verbose_nav = false,
-    quick_select_view = 'hsplit',
     default_context = 3,
     line_numbers = false,
     fzf_picker = nil,
@@ -79,7 +78,10 @@ M.setup = function(opts)
 
     -- flagging breaking changes
     if opts and opts.fzf_threshold then
-        vim.notify([[Support for the Deltaview fzf_threshold configuration option has been removed. If you were using this option to use the quickselect menu, note that the quickselect menu has also been removed, and the new default picker is vim.ui.select. Please read CHANGELOG.txt for v0.3.0 for more details. This warning will be removed in the near future.]], vim.log.levels.WARN)
+        vim.notify([[Support for the Deltaview fzf_threshold configuration option has been removed. If you were using this option to use the quickselect menu, note that the quickselect menu has also been removed, and the new default picker is vim.ui.select. Please remove fzf_threhsold from require('deltaview').setup({...}) to remove this warning. Please read CHANGELOG.txt for v0.3.0 for more details. This warning will be removed in the near future.]], vim.log.levels.WARN)
+    end
+    if opts and opts.quick_select_view then
+        vim.notify([[Support for the Deltaview quick_select_view configuration option has been removed, as the quickselect menu has been replaced by vim.ui.select. Please remove quick_select_view from require('deltaview').setup({...}) to remove this warning. Please read CHANGELOG.txt for v0.3.0 for more details. This warning will be removed in the near future.]], vim.log.levels.WARN)
     end
 end
 
@@ -103,7 +105,6 @@ end
 --- @field use_nerdfonts boolean | nil Defaults to true
 --- @field keyconfig KeyConfig | nil
 --- @field show_verbose_nav boolean | nil Show both prev and next filenames (true) or just position + next (false, default)
---- @field quick_select_view string | nil 'bottom' | 'center' | 'hsplit' - the position of DeltaMenu. Defaults to 'hsplit'
 --- @field default_context number | nil if running deltaview on a directory rather than a file, it will show a typical delta view with limited context. Defaults to 3. Set here, or pass it in as a second param to DeltaView, which will persist as the context for this session
 --- @field line_numbers boolean | nil If this setting is true, will show the delta style line numbers in the statuscolumn.
 --- @field fzf_picker 'fzf-lua' | 'telescope' | 'ui_select' | nil specify which picker to use. If nil, will go through the order and pick the first available. fzf-lua -> telescope -> ui_select. ui_select refers to vim.ui.select, and will respect whichever picker you are using for it; this exists as an option for a picker that doesn't use a previewer. For example, with fzf-lua, you might use require('fzf-lua').register_ui_select() for a fuzzy picker without a previewer, then set this option. Telescope only comes with a vim.ui.select override, at https://github.com/nvim-telescope/telescope-ui-select.nvim.
