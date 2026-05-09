@@ -26,7 +26,7 @@ https://github.com/user-attachments/assets/b4f7cac3-3d96-4a4b-9076-98cd8a33c7d6
 - **Inline diff viewing**: Lay lightweight diffs over your buffers to quickly view and unview changes
 - **Delta.lua highlighting**: Two tier diff highlighting, treesitter syntax highlighting
 - **Cursor maintenance**: Opening a diff keeps your cursor where it was, and exiting a diff keeps your cursor where it was. Easily transition between reading and writing.
-- **Quick Navigation**: Jump to the next hunk with "<Tab>", and jump to the next file with "]f". Integration with popular fuzzy finders to find files that have been modified.
+- **Quick Navigation**: Jump to the next hunk with `<Tab>`. Review all changes in a PR using the quickfix list workflow (`:DeltaMenu!`). Integration with popular fuzzy finders to find files that have been modified.
 - **Smart sorting**: Files opened by the picker are sorted by quantity of changes, allowing you to review the most important files first.
 - **Custom Context**: Choose how many lines of context to see when diffing a path. No folds to interfere with smooth scrolling.
 - **Flexible comparisons**: Compare against any git ref (HEAD, branches, commits, tags)
@@ -59,13 +59,22 @@ Open an inline diff view for the current file. The cursor is placed at the curre
 
 #### `:DeltaMenu [ref]`
 
-Open an picker to preview, select, and view diffs from all modified files.
+Opens a picker to select a file and view its diff. Picker priority: fzf-lua → telescope → vim.ui.select.
 
 ```vim
 :DeltaMenu                  " Show all files changed from HEAD
 :DeltaMenu develop          " Show all files changed from develop branch
 :DeltaMenu develop...HEAD   " Show all files changed from the common ancestor with the develop branch
 ```
+
+#### `:DeltaMenu! [ref]`
+
+Populates the quickfix list with all changed files and opens it. Each entry shows the file status (M/A/D/R/...) and change size. Intended for reviewing all changes in a PR or branch.
+
+Once the list is open:
+- Navigate with `]q` / `[q` (or `:cnext` / `:cprev`) — opening any listed file automatically opens its DeltaView diff
+- Opening a file **not** in the list automatically clears the DeltaMenu quickfix list, ending the review workflow
+- Use `:colder` or `:cex []` to manually restore the previous quickfix list and exit the review workflow
 
 #### `:Delta [path] [context] [ref]`
 
@@ -133,9 +142,15 @@ When viewing a diff (DeltaView or Delta):
 | `<Esc>` or `q` | Return to source file |
 | `<Tab>` | Jump to next hunk |
 | `<Shift-Tab>` | Jump to previous hunk |
-| `]f` | Open next file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
-| `[f` | Open previous file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
 | `d?` | Open the help legend, to view all possible keybinds |
+
+When the DeltaMenu quickfix list is open (`:DeltaMenu!`):
+
+| Key | Action |
+|-----|--------|
+| `]q` | Open next file and view its diff |
+| `[q` | Open previous file and view its diff |
+| `:colder` or `:cex []` | Restore previous quickfix list, exiting the DeltaMenu workflow |
 
 All keybindings are configurable
 
@@ -148,26 +163,15 @@ require('deltaview').setup({
     -- Disable nerd font icons if uninstalled (defaults to true)
     use_nerdfonts = false,
 
-    -- Show both previous and next filenames when navigating
-    -- false: shows "[2/5] -> next.lua"
-    -- true: shows "<- prev.lua [2/5] -> next.lua"
-    show_verbose_nav = false,
-
-    -- Configures the position of the quick select opened by DeltaMenu when under the fzf_threshold
-    -- 'hsplit': horizontal split window
-    -- 'center': centered floating window
-    -- 'bottom': centered at the bottom, floating window
-    quick_select_view = 'hsplit',
-
-    -- Number of files threshold for switching to fzf
-    -- When the number of modified files >= this value, use fzf instead of quickselect
-    fzf_threshold = 0,
-
     -- If this setting is true, will show the delta style line numbers in the statuscolumn.
     line_numbers = false,
 
-    -- 'fzf-lua' | 'telescope' | nil - specify which picker to use. If nil, will go through the order and pick the first available. The order is fzf-lua -> telescope -> deltaview quickselect
-    fzf_picker = nil
+    -- Specify which picker to use for :DeltaMenu. If nil, auto-detects in order:
+    -- fzf-lua -> telescope -> vim.ui.select
+    -- 'ui_select' uses vim.ui.select directly, which respects whatever you have
+    -- registered as your vim.ui.select handler. Useful for a fuzzy picker without
+    -- a preview window (e.g. require('fzf-lua').register_ui_select()).
+    fzf_picker = nil, -- 'fzf-lua' | 'telescope' | 'ui_select' | nil
 
     -- Custom keybindings
     keyconfig = {
@@ -184,10 +188,6 @@ require('deltaview').setup({
         next_hunk = "<Tab>",
         prev_hunk = "<S-Tab>",
 
-        -- Navigate between files (when opened from DeltaMenu)
-        next_diff = "]f",
-        prev_diff = "[f",
-
         -- Open help legend
         help_legend = "d?"
     }
@@ -203,9 +203,7 @@ By default, the UI uses nerd font icons:
 {
     dot = "󰧟", -- nf-md-circle_small, hunk indicator
     circle = "󰧞", -- nf-md-circle_medium, current hunk indicator
-    vs = "", -- nf-seti-git, "versus" symbol in menu header
-    next = "󰁕", -- nf-md-arrow_right_thick, next file indicator
-    prev = "󰁎", -- nf-md-arrow_left_thick, previous file indicator
+    vs = "", -- nf-seti-git, "versus" symbol in menu header
     segment = "󰻋", -- nf-md-segment , hunk count indicator
     file = "󰈔" -- nf-md-file
 }
@@ -215,8 +213,6 @@ By default, the UI uses nerd font icons:
     dot = "·",
     circle = "•",
     vs = "comparing to",
-    next = "->",
-    prev = "<-",
     segment = "≡",
     file = "🗎"
 }

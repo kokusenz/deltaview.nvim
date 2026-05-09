@@ -12,7 +12,6 @@ CONTENTS                                                  *deltaview-contents*
     4. Configuration ....................... |deltaview-config|
     5. Module Functions .................... |deltaview-functions|
     7. Keybindings ......................... |deltaview-keybindings|
-    6. Vim UI Select ....................... |deltaview-ui-select|
 
 ==============================================================================
 INTRODUCTION                                          *deltaview-introduction*
@@ -31,26 +30,15 @@ require('deltaview').setup({
     -- Disable nerd font icons if uninstalled (defaults to true)
     use_nerdfonts = false,
 
-    -- Show both previous and next filenames when navigating
-    -- false: shows "[2/5] -> next.lua"
-    -- true: shows "<- prev.lua [2/5] -> next.lua"
-    show_verbose_nav = false,
-
-    -- Configures the position of the quick select opened by DeltaMenu when under the fzf_threshold
-    -- 'hsplit': horizontal split window
-    -- 'center': centered floating window
-    -- 'bottom': centered at the bottom, floating window
-    quick_select_view = 'hsplit',
-
-    -- Number of files threshold for switching to fzf
-    -- When the number of modified files >= this value, use fzf instead of quickselect
-    fzf_threshold = 0,
-
     -- If this setting is true, will show the delta style line numbers in the statuscolumn.
     line_numbers = false,
 
-    -- 'fzf-lua' | 'telescope' | nil - specify which picker to use. If nil, will go through the order and pick the first available. The order is fzf-lua -> telescope -> deltaview quickselect
-    fzf_picker = nil
+    -- Specify which picker to use for :DeltaMenu. If nil, auto-detects in order:
+    -- fzf-lua -> telescope -> vim.ui.select
+    -- 'ui_select' uses vim.ui.select directly, which respects whatever you have
+    -- registered as your vim.ui.select handler. Useful for a fuzzy picker without
+    -- a preview window (e.g. require('fzf-lua').register_ui_select()).
+    fzf_picker = nil, -- 'fzf-lua' | 'telescope' | 'ui_select' | nil
 
     -- Custom keybindings
     keyconfig = {
@@ -67,10 +55,6 @@ require('deltaview').setup({
         next_hunk = "<Tab>",
         prev_hunk = "<S-Tab>",
 
-        -- Navigate between files (when opened from DeltaMenu)
-        next_diff = "]f",
-        prev_diff = "[f",
-
         -- Open help legend
         help_legend = "d?"
     }
@@ -82,11 +66,19 @@ COMMANDS                                                  *deltaview-commands*
                                                                 *:DeltaView*
 :DeltaView [ref]        Opens the delta diff view on the buffer you are on. Uses the last ref that was used, or HEAD by default if ref is omitted. The cursor is placed at the current location upon entry, and placed at the current location on exit.
 
-                                                                *:DeltaMenu*
-:DeltaMenu [ref]        Opens a picker to preview, select, and view diffs from all modified files. Uses the last ref that was used, or HEAD by default if ref is omitted. Supports three-dot refs (e.g. develop...HEAD).
+                                                                 *:DeltaMenu*
+:DeltaMenu [ref]        Opens a picker to select a file and view its diff. Uses the last ref that was
+                        used, or HEAD by default if ref is omitted. Supports three-dot refs (e.g.
+                        develop...HEAD). Picker priority: fzf-lua -> telescope -> vim.ui.select.
 
-TODO fit the following blurb into the helpdocs somehow to help clarify intent of how the quickfix list should be used. Was originally the d? menu message for describing :colder / :cex []
-Undo the current quickfix list if populated by :DeltaMenu qfa. The reason to use this is, if you open a file that is in the DeltaMenu quickfix list, it will automatically open to the :DeltaView view. This behavior is usually desired, but sometimes can get in the way. Clear the quickfix list to disable the automatic :DeltaView. The quickfix list will also automatically clear if you open a file that is not in the quickfix list.
+:DeltaMenu! [ref]       Populates the quickfix list with all changed files and opens it. Quickfix list functions
+                        as an alternative native picker that stays open. Features enabled by the quickfix list are:
+                        - Opening the next / prev listed file with ]q / [q or :cnext / :cprev
+                        - Opening a file in the quickfix list automatically opens to the DeltaView view
+                        - Opening a file that is NOT in the list clears the DeltaMenu quickfix list
+                          automatically, ending the review workflow.
+                        - Use :colder or :cex [] to manually restore the previous quickfix list and
+                          exit the DeltaMenu review workflow.
 
                                                                 *:Delta*
 :Delta [path] [context] [ref]    Opens the delta diff view with configurable context for a path. Attempts to place the cursor on entry if there is a corresponding line in the diff. Will sync the cursor on exit, same as DeltaView. Uses the last ref that was used, or HEAD by default. Uses the last specified context size, or 3 by default. Uses the current path (use netrw or some other filetree plugin to nav to it), or a specified path.
@@ -99,19 +91,13 @@ The module exposed by require('deltaview') exposes .setup({}) for configuration,
 is_deltaview_buffer(bufnr)  Checks if a buffer is a deltaview diff buffer. Takes in a buffer id, or defaults to current buffer if param is nil. Intended for personal scripting.
 
                                                                 *register_ui_select*
-register_ui_select([select_view])
-    Registers the DeltaView quick picker as your default vim.ui.select.
-    Comes with automatic label extraction, wrapped line height calculation,
-    and expanded configuration options.
-
-    Parameters:
-        select_view  (string, optional)
-            Default window position for all vim.ui.select calls.
-            Valid values: 'center', 'bottom', 'hsplit'
-            Default: 'center'
-
-            Individual vim.ui.select calls can override this default by
-            providing the win_predefined option.
+DEPRECATED: register_ui_select([select_view])
+    Registers the DeltaView custom quick picker as your default vim.ui.select.
+    This function and the custom picker are deprecated and will be removed in a
+    future release. The default fallback picker for :DeltaMenu is now vim.ui.select
+    itself, which respects whatever handler you have registered. If you want to keep 
+    it, you can copy the selector.lua file into your personal configuration before 
+    it is fully removed, and set fzf_picker = 'ui_select' in deltaview configuration.
 
 ==============================================================================
 KEYBINDINGS                                            *deltaview-keybindings*
@@ -130,150 +116,13 @@ When viewing a diff (DeltaView or Delta):
 |-----|--------|
 | `<Tab>` | Next hunk |
 | `<S-Tab>` | Previous hunk |
-| `]f` | Open next file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
-| `[f` | Open previous file in menu (if opened from DeltaMenu, or in Delta with multiple files) |
 | `d?` | Open the help legend, to view all possible keybinds |
 
-==============================================================================
-VIM.UI.SELECT INTERFACE                                   *deltaview-ui-select*
+When the DeltaMenu quickfix list is open (:DeltaMenu!):
 
-DeltaView provides a custom vim.ui.select implementation that extends the
-standard Neovim interface with additional features like automatic label
-extraction, wrapped line height calculation, and configurable window
-positioning. This is used for the default quick select in DeltaMenu, but can be used in other applications.
+| Key | Action |
+|-----|--------|
+| `]q` | Open next file and view its diff |
+| `[q` | Open previous file and view its diff |
+| `:colder` or `:cex []` | Restore previous quickfix list, exiting the DeltaMenu workflow |
 
-To use it as your default picker: >lua
-    -- Use default 'center' window position
-    require('deltaview').register_ui_select()
-
-    -- Or configure a custom default position
-    require('deltaview').register_ui_select('hsplit')
-<
-
-STANDARD OPTIONS                          *deltaview-ui-select-standard-opts*
-
-These options are compatible with standard vim.ui.select:
-
-    prompt           (string, optional)
-        Title displayed in the window border or as buffer name.
-        Default: 'Select item'
-
-    kind             (string, optional)
-        Arbitrary hint string (standard vim.ui.select, currently unused).
-
-    format_item      (function, optional)
-        Function to format items for display.
-        Signature: function(item) -> string
-        Default: tostring
-
-DELTAVIEW EXTENSIONS                     *deltaview-ui-select-extension-opts*
-
-Additional options specific to DeltaView's implementation:
-
-    win_predefined   (string, optional)
-        Window position type for this specific vim.ui.select call.
-        Options:
-        - 'center'  : Centered floating window with border
-        - 'bottom'  : Floating window at bottom of screen with border
-        - 'hsplit'  : Horizontal split below current window
-
-        Default: 'center' (or the default set via register_ui_select())
-
-        Note: This option overrides the configured default on a per-call
-              basis, allowing you to use different window positions for
-              different selection contexts.
-
-    label_item       (function, optional)
-        Factory function that returns a label extractor function.
-        The factory is called twice: once to generate display labels,
-        and once to generate keybinding labels.
-
-        Signature: function() -> function(item) -> string
-
-        The returned function should:
-        - Extract a single-character label from each item
-        - Return unique labels for each item
-        - Labels become single-key shortcuts to select items
-
-        Default: Extracts first unused lowercase character from
-                 formatted item string
-
-    additional_data  (table, optional)
-        Extra data to display alongside items.
-        Format: { [item] = {string, string, ...} }
-
-        Each item can have a list of strings that will be displayed
-        after the item text, separated by ' │ '.
-
-        Example: { ["file.lua"] = {"+10", "-5"} }
-        Displays: "f: file.lua    │    +10 -5"
-
-    win_opts         (table, optional)
-        Custom window options to completely override defaults.
-        Should be a valid nvim_open_win() config table.
-        When provided, win_predefined is ignored.
-
-SELECTION KEYBINDINGS                      *deltaview-ui-select-keybindings*
-
-When the selection window is active:
-
-    <letter>         Select item with that label (auto-generated)
-    j / k            Navigate down / up
-    <CR>             Select item at cursor
-    <Esc>            Cancel selection
-
-    Note: Labels that conflict with navigation keys (j, k, Esc, CR)
-          will not have keybindings set.
-
-EXAMPLES                                       *deltaview-ui-select-examples*
-
-Basic usage with default center window: >lua
-    vim.ui.select({'Option 1', 'Option 2', 'Option 3'}, {
-        prompt = 'Choose an option',
-    }, function(choice, idx)
-        if choice then
-            print('Selected: ' .. choice)
-        end
-    end)
-<
-
-Using hsplit window for file selection: >lua
-    local files = {'init.lua', 'config.lua', 'utils.lua'}
-    vim.ui.select(files, {
-        prompt = 'Select File',
-        win_predefined = 'hsplit',
-    }, function(file, idx)
-        if file then
-            vim.cmd('edit ' .. file)
-        end
-    end)
-<
-
-Advanced: Custom formatting with additional data: >lua
-    local commits = {
-        {hash = 'a1b2c3d', msg = 'Fix bug'},
-        {hash = 'e4f5g6h', msg = 'Add feature'},
-    }
-
-    local additional_data = {}
-    for _, commit in ipairs(commits) do
-        additional_data[commit] = {commit.hash}
-    end
-
-    vim.ui.select(commits, {
-        prompt = 'Select Commit',
-        format_item = function(commit)
-            return commit.msg
-        end,
-        additional_data = additional_data,
-        win_predefined = 'bottom',
-    }, function(commit, idx)
-        if commit then
-            print('Selected: ' .. commit.hash)
-        end
-    end)
-<
-    Display format: >
-        f: Fix bug    │    a1b2c3d
-        a: Add feature    │    e4f5g6h
-<
