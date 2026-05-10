@@ -52,8 +52,6 @@ local T = new_set({
                     open_git_diff_buffer_for_path = function(...) return nil end,
                 }
 
-                -- Default: empty quickfix list so functions return early unless a test overrides this.
-                vim.fn.getqflist = function(_opts) return { size = 0, items = {} } end
                 vim.fn.fnamemodify = function(p, _mod) return p end
 
                 vim.notify = function(msg, _level)
@@ -70,34 +68,100 @@ local T = new_set({
     },
 })
 
--- Shared helper: install a 2-entry deltaview quickfix list.
--- Use as: child.lua(setup_qflist)
-local setup_qflist = [[
-    vim.fn.getqflist = function(_opts)
-        return {
-            size = 2,
-            items = {
-                { user_data = { deltaview = true, bufname = 'a.lua', status = 'M', changes = '10', ref = 'HEAD' } },
-                { user_data = { deltaview = true, bufname = 'b.lua', status = 'A', changes = '5',  ref = 'main' } },
-            },
-        }
-    end
-]]
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- get_qf_map() filtering - property based tests (via open_vim_ui_select)
+--
+-- get_qf_map is private; its filtering behaviour is verified by stubbing vim.ui.select and
+-- inspecting the mods list that open_vim_ui_select passes to it.
 
--- Shared helper: 3-entry list where the middle entry is NOT a deltaview entry.
--- Use as: child.lua(setup_qflist_mixed)
-local setup_qflist_mixed = [[
-    vim.fn.getqflist = function(_opts)
-        return {
-            size = 3,
-            items = {
-                { user_data = { deltaview = true,  bufname = 'a.lua', status = 'M', changes = '10', ref = 'HEAD' } },
-                { user_data = { deltaview = false, bufname = 'ignored.lua' } },
-                { user_data = { deltaview = true,  bufname = 'b.lua', status = 'A', changes = '5',  ref = 'main' } },
+local GetQfMap = {}
+
+-- Seven input shapes covering: empty, single dv, single non-dv, two dv, mixed (dv/non-dv/dv),
+-- all non-dv, and an entry with no user_data field.  Each carries its expected mods list.
+GetQfMap.get_inputs = function()
+    return {
+        -- 1. empty list → nothing to filter
+        { list = {}, expected_mods = {} },
+        -- 2. single deltaview entry
+        {
+            list = {
+                { filename = '/abs/a.lua', user_data = { deltaview = true, bufname = 'a.lua', status = 'M', changes = '1', ref = 'HEAD' } },
             },
-        }
+            expected_mods = { 'a.lua' },
+        },
+        -- 3. single non-deltaview entry
+        {
+            list = {
+                { filename = '/abs/x.lua', user_data = { deltaview = false, bufname = 'x.lua', status = 'M', changes = '1', ref = 'HEAD' } },
+            },
+            expected_mods = {},
+        },
+        -- 4. two deltaview entries → both included in order
+        {
+            list = {
+                { filename = '/abs/a.lua', user_data = { deltaview = true, bufname = 'a.lua', status = 'M', changes = '10', ref = 'HEAD' } },
+                { filename = '/abs/b.lua', user_data = { deltaview = true, bufname = 'b.lua', status = 'A', changes = '5',  ref = 'main' } },
+            },
+            expected_mods = { 'a.lua', 'b.lua' },
+        },
+        -- 5. mixed: deltaview, non-deltaview, deltaview → non-dv entry is excluded
+        {
+            list = {
+                { filename = '/abs/a.lua', user_data = { deltaview = true,  bufname = 'a.lua', status = 'M', changes = '10', ref = 'HEAD' } },
+                { filename = '/abs/x.lua', user_data = { deltaview = false, bufname = 'x.lua', status = 'M', changes = '1',  ref = 'HEAD' } },
+                { filename = '/abs/b.lua', user_data = { deltaview = true,  bufname = 'b.lua', status = 'A', changes = '5',  ref = 'main' } },
+            },
+            expected_mods = { 'a.lua', 'b.lua' },
+        },
+        -- 6. all non-deltaview → mods is empty
+        {
+            list = {
+                { filename = '/abs/x.lua', user_data = { deltaview = false, bufname = 'x.lua' } },
+                { filename = '/abs/y.lua', user_data = { deltaview = false, bufname = 'y.lua' } },
+            },
+            expected_mods = {},
+        },
+        -- 7. entry with no user_data field → treated as non-deltaview
+        {
+            list = { { filename = '/abs/z.lua' } },
+            expected_mods = {},
+        },
+    }
+end
+
+GetQfMap.property_cases = {
+    { name = 'seven input shapes' },
+}
+
+GetQfMap.properties = {}
+
+GetQfMap.properties.only_deltaview_entries_are_included = [[(function()
+    local inputs = _G.fixture.inputs
+    for _, input in ipairs(inputs) do
+        local captured_mods = nil
+        vim.ui.select = function(items, _opts, _on_choice)
+            captured_mods = items
+        end
+        M.open_vim_ui_select(input.list, function() end)
+        local expected = input.expected_mods
+        if #captured_mods ~= #expected then return false end
+        for i, v in ipairs(expected) do
+            if captured_mods[i] ~= v then return false end
+        end
     end
-]]
+    return true
+end)()]]
+
+T['get_qf_map() properties'] = new_set()
+for func_name, func in pairs(GetQfMap.properties) do
+    for _, case in ipairs(GetQfMap.property_cases) do
+        T['get_qf_map() properties'][func_name .. ': ' .. case.name] = function()
+            child.lua([[_G.fixture.inputs = ...]], { GetQfMap.get_inputs() })
+            local result = child.lua_get(func)
+            eq(result, true)
+        end
+    end
+end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
 -- open_vim_ui_select() - example based tests
@@ -106,74 +170,88 @@ T['open_vim_ui_select()'] = new_set({
     hooks = {
         pre_case = function()
             child.lua([[
-                vim.ui = {
-                    select = function(items, opts, on_choice)
-                        _G.fixture.select_items  = items
-                        _G.fixture.select_prompt = opts and opts.prompt
-                        _G.fixture.on_choice     = on_choice
-                    end,
+                _G.dv_list = {
+                    { filename = '/abs/a.lua', user_data = { deltaview = true, bufname = 'a.lua', status = 'M', changes = '10', ref = 'HEAD' } },
+                    { filename = '/abs/b.lua', user_data = { deltaview = true, bufname = 'b.lua', status = 'A', changes = '5',  ref = 'main' } },
                 }
-                vim.cmd = function(cmd) _G.fixture.last_cmd = cmd end
+                vim.cmd = function(cmd) _G.fixture.vim_cmd = cmd end
             ]])
         end,
-    },
+    }
 })
 
-T['open_vim_ui_select()']['returns early when quickfix list is empty'] = function()
-    child.lua([[M.open_vim_ui_select()]])
-
-    eq(child.lua_get('_G.fixture.select_items'), vim.NIL)
-end
-
-T['open_vim_ui_select()']['calls vim.ui.select with mods from quickfix list'] = function()
-    child.lua(setup_qflist)
-    child.lua([[M.open_vim_ui_select()]])
-
-    eq(child.lua_get('_G.fixture.select_items'), { 'a.lua', 'b.lua' })
-end
-
-T['open_vim_ui_select()']['on_choice: does nothing when choice is nil'] = function()
-    child.lua(setup_qflist)
+T['open_vim_ui_select()']['passes deltaview bufnames as items to vim.ui.select'] = function()
     child.lua([[
-        M.open_vim_ui_select()
+        vim.ui.select = function(items, _opts, _on_choice)
+            _G.fixture.select_items = items
+        end
+        M.open_vim_ui_select(_G.dv_list, function() end)
+    ]])
+    local items = child.lua_get([[_G.fixture.select_items]])
+    eq(items, { 'a.lua', 'b.lua' })
+end
+
+T['open_vim_ui_select()']['uses DeltaView Menu as prompt'] = function()
+    child.lua([[
+        vim.ui.select = function(_items, opts, _on_choice)
+            _G.fixture.select_opts = opts
+        end
+        M.open_vim_ui_select(_G.dv_list, function() end)
+    ]])
+    local prompt = child.lua_get([[_G.fixture.select_opts.prompt]])
+    eq(prompt, 'DeltaView Menu')
+end
+
+T['open_vim_ui_select()']['format_item returns status, filename and changes'] = function()
+    child.lua([[
+        vim.ui.select = function(_items, opts, _on_choice)
+            _G.fixture.format_item = opts.format_item
+        end
+        M.open_vim_ui_select(_G.dv_list, function() end)
+    ]])
+    local formatted = child.lua_get([[_G.fixture.format_item('a.lua')]])
+    eq(formatted, ' M a.lua > 10 ')
+end
+
+T['open_vim_ui_select()']['callback with nil choice does not open file or call open_dv_func'] = function()
+    child.lua([[
+        vim.ui.select = function(_items, _opts, on_choice)
+            _G.fixture.on_choice = on_choice
+        end
+        _G.fixture.open_dv_called = false
+        M.open_vim_ui_select(_G.dv_list, function() _G.fixture.open_dv_called = true end)
         _G.fixture.on_choice(nil)
     ]])
-
-    eq(child.lua_get('_G.fixture.last_cmd'), vim.NIL)
+    local cmd = child.lua_get([[_G.fixture.vim_cmd]])
+    local called = child.lua_get([[_G.fixture.open_dv_called]])
+    eq(cmd, vim.NIL)
+    eq(called, false)
 end
 
-T['open_vim_ui_select()']['on_choice: runs cc with correct idx on selection'] = function()
-    child.lua(setup_qflist)
+T['open_vim_ui_select()']['callback with valid choice opens file via vim.cmd e'] = function()
     child.lua([[
-        M.open_vim_ui_select()
-        _G.fixture.on_choice('b.lua')
-    ]])
-
-    eq(child.lua_get('_G.fixture.last_cmd'), 'cc 2')
-end
-
-T['open_vim_ui_select()']['skips non-deltaview entries when building item list'] = function()
-    child.lua(setup_qflist_mixed)
-    child.lua([[M.open_vim_ui_select()]])
-
-    eq(child.lua_get('_G.fixture.select_items'), { 'a.lua', 'b.lua' })
-end
-
-T['open_vim_ui_select()']['format_item: returns title for a known entry'] = function()
-    child.lua(setup_qflist)
-    child.lua([[
-        vim.ui.select = function(items, opts, on_choice)
-            _G.fixture.select_items  = items
-            _G.fixture.format_item   = opts and opts.format_item
-            _G.fixture.on_choice     = on_choice
+        vim.ui.select = function(_items, _opts, on_choice)
+            _G.fixture.on_choice = on_choice
         end
-        M.open_vim_ui_select()
+        M.open_vim_ui_select(_G.dv_list, function() end)
+        _G.fixture.on_choice('a.lua')
     ]])
+    local cmd = child.lua_get([[_G.fixture.vim_cmd]])
+    eq(cmd, 'e /abs/a.lua')
+end
 
-    local title = child.lua_get([[_G.fixture.format_item('a.lua')]])
-    -- title is built from status + fnamemodify(bufname) + changes; just assert it's a non-empty string
-    eq(type(title), 'string')
-    eq(#title > 0, true)
+T['open_vim_ui_select()']['callback with valid choice calls open_dv_func with entry user_data'] = function()
+    child.lua([[
+        vim.ui.select = function(_items, _opts, on_choice)
+            _G.fixture.on_choice = on_choice
+        end
+        _G.fixture.open_dv_userdata = nil
+        M.open_vim_ui_select(_G.dv_list, function(ud) _G.fixture.open_dv_userdata = ud end)
+        _G.fixture.on_choice('a.lua')
+    ]])
+    local ud = child.lua_get([[_G.fixture.open_dv_userdata]])
+    eq(ud.bufname, 'a.lua')
+    eq(ud.status, 'M')
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -183,117 +261,86 @@ T['open_deltaview_fzf_lua_menu()'] = new_set({
     hooks = {
         pre_case = function()
             child.lua([[
-                -- Stub builtin previewer base with a minimal class that supports :extend().
-                local base_stub = {}
-                base_stub.extend = function(self)
-                    local sub = { super = { new = function() end } }
-                    sub.__index = sub
-                    return sub
-                end
-                package.loaded['fzf-lua.previewer.builtin'] = { base = base_stub }
+                _G.dv_list = {
+                    { filename = '/abs/a.lua', user_data = { deltaview = true, bufname = 'a.lua', status = 'M', changes = '10', ref = 'HEAD' } },
+                    { filename = '/abs/b.lua', user_data = { deltaview = true, bufname = 'b.lua', status = 'A', changes = '5',  ref = 'main' } },
+                }
+                vim.cmd = function(cmd) _G.fixture.vim_cmd = cmd end
 
-                -- Stub fzf-lua to capture fzf_exec arguments.
+                -- builtin.base:extend() returns a table the module adds methods to directly;
+                -- super.new is called inside DeltaviewPreviewer:new so it must be a no-op stub.
+                package.loaded['fzf-lua.previewer.builtin'] = {
+                    base = {
+                        extend = function(_self)
+                            return { super = { new = function() end } }
+                        end
+                    }
+                }
                 package.loaded['fzf-lua'] = {
-                    fzf_exec = function(items, opts)
-                        _G.fixture.fzf_exec_items  = items
-                        _G.fixture.fzf_exec_prompt = opts.prompt
-                        _G.fixture.fzf_exec_title  = opts.winopts and opts.winopts.title
-                        _G.fixture.captured_default_action = opts.actions and opts.actions['default']
+                    fzf_exec = function(mods, opts)
+                        _G.fixture.fzf_mods = mods
+                        _G.fixture.fzf_opts = opts
                     end
                 }
-
-                vim.fn.fnameescape = function(p) return p end
-                vim.cmd = function(cmd) _G.fixture.last_cmd = cmd end
             ]])
         end,
-    },
+    }
 })
 
-T['open_deltaview_fzf_lua_menu()']['returns early when quickfix list is empty'] = function()
-    child.lua([[M.open_deltaview_fzf_lua_menu()]])
-
-    eq(child.lua_get('_G.fixture.fzf_exec_items'), vim.NIL)
+T['open_deltaview_fzf_lua_menu()']['passes deltaview bufnames to fzf_exec'] = function()
+    child.lua([[M.open_deltaview_fzf_lua_menu(_G.dv_list, function() end)]])
+    local mods = child.lua_get([[_G.fixture.fzf_mods]])
+    eq(mods, { 'a.lua', 'b.lua' })
 end
 
-T['open_deltaview_fzf_lua_menu()']['calls fzf_exec with mods from quickfix list'] = function()
-    child.lua(setup_qflist)
-    child.lua([[M.open_deltaview_fzf_lua_menu()]])
-
-    eq(child.lua_get('_G.fixture.fzf_exec_items'), { 'a.lua', 'b.lua' })
+T['open_deltaview_fzf_lua_menu()']['winopts title includes diff_target_ref'] = function()
+    child.lua([[M.open_deltaview_fzf_lua_menu(_G.dv_list, function() end)]])
+    local title = child.lua_get([[_G.fixture.fzf_opts.winopts.title]])
+    eq(title, 'comparing to HEAD')
 end
 
-T['open_deltaview_fzf_lua_menu()']['calls fzf_exec with winopts title containing diff_target_ref'] = function()
-    child.lua([[package.loaded['deltaview.state'].diff_target_ref = 'mybranch']])
-    child.lua(setup_qflist)
-    child.lua([[M.open_deltaview_fzf_lua_menu()]])
-
-    local title = child.lua_get('_G.fixture.fzf_exec_title')
-    eq(title:find('mybranch') ~= nil, true)
-end
-
-T['open_deltaview_fzf_lua_menu()']['default action: does nothing when selected is nil'] = function()
-    child.lua(setup_qflist)
+T['open_deltaview_fzf_lua_menu()']['default action with nil selected is a no-op'] = function()
     child.lua([[
-        M.open_deltaview_fzf_lua_menu()
-        _G.fixture.captured_default_action(nil)
+        _G.fixture.open_dv_called = false
+        M.open_deltaview_fzf_lua_menu(_G.dv_list, function() _G.fixture.open_dv_called = true end)
+        _G.fixture.fzf_opts.actions['default'](nil)
     ]])
-
-    eq(child.lua_get('_G.fixture.last_cmd'), vim.NIL)
+    local cmd = child.lua_get([[_G.fixture.vim_cmd]])
+    local called = child.lua_get([[_G.fixture.open_dv_called]])
+    eq(cmd, vim.NIL)
+    eq(called, false)
 end
 
-T['open_deltaview_fzf_lua_menu()']['default action: does nothing when selected is empty'] = function()
-    child.lua(setup_qflist)
+T['open_deltaview_fzf_lua_menu()']['default action with empty selected table is a no-op'] = function()
     child.lua([[
-        M.open_deltaview_fzf_lua_menu()
-        _G.fixture.captured_default_action({})
+        _G.fixture.open_dv_called = false
+        M.open_deltaview_fzf_lua_menu(_G.dv_list, function() _G.fixture.open_dv_called = true end)
+        _G.fixture.fzf_opts.actions['default']({})
     ]])
-
-    eq(child.lua_get('_G.fixture.last_cmd'), vim.NIL)
+    local cmd = child.lua_get([[_G.fixture.vim_cmd]])
+    local called = child.lua_get([[_G.fixture.open_dv_called]])
+    eq(cmd, vim.NIL)
+    eq(called, false)
 end
 
-T['open_deltaview_fzf_lua_menu()']['default action: runs cc with correct idx on selection'] = function()
-    child.lua(setup_qflist)
+T['open_deltaview_fzf_lua_menu()']['default action opens file via vim.cmd e'] = function()
     child.lua([[
-        M.open_deltaview_fzf_lua_menu()
-        _G.fixture.captured_default_action({ 'b.lua' })
+        M.open_deltaview_fzf_lua_menu(_G.dv_list, function() end)
+        _G.fixture.fzf_opts.actions['default']({ 'a.lua' })
     ]])
-
-    eq(child.lua_get('_G.fixture.last_cmd'), 'cc 2')
+    local cmd = child.lua_get([[_G.fixture.vim_cmd]])
+    eq(cmd, 'e /abs/a.lua')
 end
 
-T['open_deltaview_fzf_lua_menu()']['default action: raises when selection not in quickfix list'] = function()
-    child.lua(setup_qflist)
+T['open_deltaview_fzf_lua_menu()']['default action calls open_dv_func with entry user_data'] = function()
     child.lua([[
-        M.open_deltaview_fzf_lua_menu()
-        local ok, _err = pcall(function()
-            _G.fixture.captured_default_action({ 'not_in_list.lua' })
-        end)
-        _G.fixture.assert_failed = not ok
+        _G.fixture.open_dv_userdata = nil
+        M.open_deltaview_fzf_lua_menu(_G.dv_list, function(ud) _G.fixture.open_dv_userdata = ud end)
+        _G.fixture.fzf_opts.actions['default']({ 'b.lua' })
     ]])
-
-    eq(child.lua_get('_G.fixture.assert_failed'), true)
-end
-
-T['open_deltaview_fzf_lua_menu()']['skips non-deltaview entries when building item list'] = function()
-    child.lua(setup_qflist_mixed)
-    child.lua([[M.open_deltaview_fzf_lua_menu()]])
-
-    eq(child.lua_get('_G.fixture.fzf_exec_items'), { 'a.lua', 'b.lua' })
-end
-
-T['open_deltaview_fzf_lua_menu()']['passes a previewer to fzf_exec'] = function()
-    child.lua(setup_qflist)
-    child.lua([[
-        package.loaded['fzf-lua'] = {
-            fzf_exec = function(items, opts)
-                _G.fixture.fzf_exec_items    = items
-                _G.fixture.fzf_has_previewer = opts.previewer ~= nil
-            end
-        }
-        M.open_deltaview_fzf_lua_menu()
-    ]])
-
-    eq(child.lua_get('_G.fixture.fzf_has_previewer'), true)
+    local ud = child.lua_get([[_G.fixture.open_dv_userdata]])
+    eq(ud.bufname, 'b.lua')
+    eq(ud.status, 'A')
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -303,183 +350,110 @@ T['open_deltaview_telescope_menu()'] = new_set({
     hooks = {
         pre_case = function()
             child.lua([[
+                _G.dv_list = {
+                    { filename = '/abs/a.lua', user_data = { deltaview = true, bufname = 'a.lua', status = 'M', changes = '10', ref = 'HEAD' } },
+                    { filename = '/abs/b.lua', user_data = { deltaview = true, bufname = 'b.lua', status = 'A', changes = '5',  ref = 'main' } },
+                }
+                vim.cmd = function(cmd) _G.fixture.vim_cmd = cmd end
+
+                package.loaded['telescope.pickers'] = {
+                    new = function(_opts, picker_opts)
+                        _G.fixture.picker_opts = picker_opts
+                        return { find = function() end }
+                    end
+                }
                 package.loaded['telescope.finders'] = {
                     new_table = function(opts)
-                        return { results = opts.results }
-                    end,
+                        _G.fixture.finder_results = opts.results
+                        return {}
+                    end
                 }
-
                 package.loaded['telescope.config'] = {
-                    values = { generic_sorter = function(_) return {} end },
+                    values = { generic_sorter = function() return {} end }
                 }
-
-                package.loaded['telescope.previewers'] = {
-                    new = function(_opts) return {} end,
-                }
-
+                -- select_default:replace(fn) stores the action; close() is a no-op stub.
                 package.loaded['telescope.actions'] = {
                     select_default = {
-                        replace = function(self, handler)
-                            _G.fixture.captured_select_handler = handler
-                        end,
+                        replace = function(_self, fn)
+                            _G.fixture.select_default_fn = fn
+                        end
                     },
-                    close = function(_bufnr) end,
+                    close = function() end,
                 }
-
+                -- get_selected_entry() returns whatever the test sets in _G.fixture.selected_entry.
                 package.loaded['telescope.actions.state'] = {
                     get_selected_entry = function()
                         return _G.fixture.selected_entry
-                    end,
+                    end
                 }
-
-                -- pickers.new invokes attach_mappings immediately so the handler is captured
-                -- before :find() runs.
-                package.loaded['telescope.pickers'] = {
-                    new = function(_opts, picker_opts)
-                        _G.fixture.results_title  = picker_opts.results_title
-                        _G.fixture.finder_results = picker_opts.finder and picker_opts.finder.results
-                        if picker_opts.attach_mappings then
-                            picker_opts.attach_mappings(0, function() end)
-                        end
-                        return { find = function(self) end }
-                    end,
+                package.loaded['telescope.previewers'] = {
+                    new = function(_opts) return {} end
                 }
-
-                vim.fn.fnameescape = function(p) return p end
-                vim.cmd = function(cmd) _G.fixture.last_cmd = cmd end
             ]])
         end,
-    },
+    }
 })
 
-T['open_deltaview_telescope_menu()']['returns early when quickfix list is empty'] = function()
-    child.lua([[M.open_deltaview_telescope_menu()]])
-
-    eq(child.lua_get('_G.fixture.finder_results'), vim.NIL)
+T['open_deltaview_telescope_menu()']['finder receives deltaview bufnames as results'] = function()
+    child.lua([[M.open_deltaview_telescope_menu(_G.dv_list, function() end)]])
+    local results = child.lua_get([[_G.fixture.finder_results]])
+    eq(results, { 'a.lua', 'b.lua' })
 end
 
-T['open_deltaview_telescope_menu()']['passes mods from quickfix list as finder results'] = function()
-    child.lua(setup_qflist)
-    child.lua([[M.open_deltaview_telescope_menu()]])
-
-    eq(child.lua_get('_G.fixture.finder_results'), { 'a.lua', 'b.lua' })
+T['open_deltaview_telescope_menu()']['prompt_title is DeltaView Menu'] = function()
+    child.lua([[M.open_deltaview_telescope_menu(_G.dv_list, function() end)]])
+    local title = child.lua_get([[_G.fixture.picker_opts.prompt_title]])
+    eq(title, 'DeltaView Menu')
 end
 
-T['open_deltaview_telescope_menu()']['results_title contains diff_target_ref'] = function()
-    child.lua([[package.loaded['deltaview.state'].diff_target_ref = 'mybranch']])
-    child.lua(setup_qflist)
-    child.lua([[M.open_deltaview_telescope_menu()]])
-
-    local title = child.lua_get('_G.fixture.results_title')
-    eq(title:find('mybranch') ~= nil, true)
+T['open_deltaview_telescope_menu()']['results_title includes diff_target_ref'] = function()
+    child.lua([[M.open_deltaview_telescope_menu(_G.dv_list, function() end)]])
+    local title = child.lua_get([[_G.fixture.picker_opts.results_title]])
+    eq(title, 'comparing to HEAD')
 end
 
-T['open_deltaview_telescope_menu()']['select_default: does nothing when get_selected_entry returns nil'] = function()
-    child.lua(setup_qflist)
+T['open_deltaview_telescope_menu()']['attach_mappings returns true'] = function()
+    child.lua([[M.open_deltaview_telescope_menu(_G.dv_list, function() end)]])
+    local result = child.lua_get([[_G.fixture.picker_opts.attach_mappings(nil, nil)]])
+    eq(result, true)
+end
+
+T['open_deltaview_telescope_menu()']['default action with nil selection is a no-op'] = function()
     child.lua([[
+        _G.fixture.open_dv_called = false
         _G.fixture.selected_entry = nil
-        M.open_deltaview_telescope_menu()
-        _G.fixture.captured_select_handler()
+        M.open_deltaview_telescope_menu(_G.dv_list, function() _G.fixture.open_dv_called = true end)
+        _G.fixture.picker_opts.attach_mappings(nil, nil)
+        _G.fixture.select_default_fn()
     ]])
-
-    eq(child.lua_get('_G.fixture.last_cmd'), vim.NIL)
+    local cmd = child.lua_get([[_G.fixture.vim_cmd]])
+    local called = child.lua_get([[_G.fixture.open_dv_called]])
+    eq(cmd, vim.NIL)
+    eq(called, false)
 end
 
-T['open_deltaview_telescope_menu()']['select_default: runs cc with correct idx on selection'] = function()
-    child.lua(setup_qflist)
+T['open_deltaview_telescope_menu()']['default action opens file via vim.cmd e'] = function()
+    child.lua([[
+        _G.fixture.selected_entry = { value = 'a.lua' }
+        M.open_deltaview_telescope_menu(_G.dv_list, function() end)
+        _G.fixture.picker_opts.attach_mappings(nil, nil)
+        _G.fixture.select_default_fn()
+    ]])
+    local cmd = child.lua_get([[_G.fixture.vim_cmd]])
+    eq(cmd, 'e /abs/a.lua')
+end
+
+T['open_deltaview_telescope_menu()']['default action calls open_dv_func with entry user_data'] = function()
     child.lua([[
         _G.fixture.selected_entry = { value = 'b.lua' }
-        M.open_deltaview_telescope_menu()
-        _G.fixture.captured_select_handler()
+        _G.fixture.open_dv_userdata = nil
+        M.open_deltaview_telescope_menu(_G.dv_list, function(ud) _G.fixture.open_dv_userdata = ud end)
+        _G.fixture.picker_opts.attach_mappings(nil, nil)
+        _G.fixture.select_default_fn()
     ]])
-
-    eq(child.lua_get('_G.fixture.last_cmd'), 'cc 2')
-end
-
-T['open_deltaview_telescope_menu()']['select_default: raises when selection not in quickfix list'] = function()
-    child.lua(setup_qflist)
-    child.lua([[
-        _G.fixture.selected_entry = { value = 'not_in_list.lua' }
-        M.open_deltaview_telescope_menu()
-        local ok, _err = pcall(function()
-            _G.fixture.captured_select_handler()
-        end)
-        _G.fixture.assert_failed = not ok
-    ]])
-
-    eq(child.lua_get('_G.fixture.assert_failed'), true)
-end
-
-T['open_deltaview_telescope_menu()']['skips non-deltaview entries when building item list'] = function()
-    child.lua(setup_qflist_mixed)
-    child.lua([[M.open_deltaview_telescope_menu()]])
-
-    eq(child.lua_get('_G.fixture.finder_results'), { 'a.lua', 'b.lua' })
-end
-
-T['open_deltaview_telescope_menu()']['passes a previewer to pickers.new'] = function()
-    child.lua(setup_qflist)
-    child.lua([[
-        package.loaded['telescope.previewers'] = {
-            new = function(_opts)
-                _G.fixture.previewer_created = true
-                return { _stub = true }
-            end,
-        }
-        package.loaded['telescope.pickers'] = {
-            new = function(_opts, picker_opts)
-                _G.fixture.results_title     = picker_opts.results_title
-                _G.fixture.finder_results    = picker_opts.finder and picker_opts.finder.results
-                _G.fixture.has_previewer     = picker_opts.previewer ~= nil
-                if picker_opts.attach_mappings then
-                    picker_opts.attach_mappings(0, function() end)
-                end
-                return { find = function(self) end }
-            end,
-        }
-        M.open_deltaview_telescope_menu()
-    ]])
-
-    eq(child.lua_get('_G.fixture.previewer_created'), true)
-    eq(child.lua_get('_G.fixture.has_previewer'), true)
-end
-
-T['open_deltaview_telescope_menu()']['sets prompt_title to DeltaView Menu'] = function()
-    child.lua(setup_qflist)
-    child.lua([[
-        package.loaded['telescope.pickers'] = {
-            new = function(_opts, picker_opts)
-                _G.fixture.prompt_title   = picker_opts.prompt_title
-                _G.fixture.finder_results = picker_opts.finder and picker_opts.finder.results
-                if picker_opts.attach_mappings then
-                    picker_opts.attach_mappings(0, function() end)
-                end
-                return { find = function(self) end }
-            end,
-        }
-        M.open_deltaview_telescope_menu()
-    ]])
-
-    eq(child.lua_get('_G.fixture.prompt_title'), 'DeltaView Menu')
-end
-
-T['open_deltaview_telescope_menu()']['enables dynamic_preview_title'] = function()
-    child.lua(setup_qflist)
-    child.lua([[
-        package.loaded['telescope.pickers'] = {
-            new = function(_opts, picker_opts)
-                _G.fixture.dynamic_preview_title = picker_opts.dynamic_preview_title
-                _G.fixture.finder_results        = picker_opts.finder and picker_opts.finder.results
-                if picker_opts.attach_mappings then
-                    picker_opts.attach_mappings(0, function() end)
-                end
-                return { find = function(self) end }
-            end,
-        }
-        M.open_deltaview_telescope_menu()
-    ]])
-
-    eq(child.lua_get('_G.fixture.dynamic_preview_title'), true)
+    local ud = child.lua_get([[_G.fixture.open_dv_userdata]])
+    eq(ud.bufname, 'b.lua')
+    eq(ud.status, 'A')
 end
 
 return T

@@ -117,21 +117,6 @@ T['choose_deltaview_menu()']['calls fzf_lua picker when fzf_picker=fzf-lua and f
     eq(child.lua_get('_G.fixture.notified'), vim.NIL)
 end
 
--- fzf_picker = 'fzf-lua', fzf-lua NOT available → warns and falls through to default.
--- In the default path, with neither fzf-lua nor telescope, falls back to vim.cmd('copen').
-T['choose_deltaview_menu()']['warns and falls back to default when fzf_picker=fzf-lua but fzf-lua is missing'] = function()
-    child.lua(block_modules_lua, { 'fzf-lua', 'telescope' })
-    child.lua([[
-        package.loaded['deltaview.config'].options.fzf_picker = 'fzf-lua'
-        _G.fixture.copen_called = false
-        vim.cmd = function(cmd) if cmd == 'copen' then _G.fixture.copen_called = true end end
-        M.choose_deltaview_menu()
-    ]])
-
-    eq(type(child.lua_get('_G.fixture.notified')), 'string')
-    eq(child.lua_get('_G.fixture.copen_called'), true)
-end
-
 -- fzf_picker = 'fzf-lua', fzf-lua NOT available, but telescope IS available in default fallback
 T['choose_deltaview_menu()']['falls back to telescope in default path when fzf-lua missing but telescope available'] = function()
     child.lua(block_modules_lua, { 'fzf-lua' })
@@ -156,21 +141,6 @@ T['choose_deltaview_menu()']['calls telescope picker when fzf_picker=telescope a
     eq(child.lua_get('_G.fixture.notified'), vim.NIL)
 end
 
--- fzf_picker = 'telescope', telescope NOT available → warns and falls through to default.
--- Neither fzf-lua nor telescope available in default, so falls back to vim.cmd('copen').
-T['choose_deltaview_menu()']['warns and falls back to default when fzf_picker=telescope but telescope is missing'] = function()
-    child.lua(block_modules_lua, { 'fzf-lua', 'telescope' })
-    child.lua([[
-        package.loaded['deltaview.config'].options.fzf_picker = 'telescope'
-        _G.fixture.copen_called = false
-        vim.cmd = function(cmd) if cmd == 'copen' then _G.fixture.copen_called = true end end
-        M.choose_deltaview_menu()
-    ]])
-
-    eq(type(child.lua_get('_G.fixture.notified')), 'string')
-    eq(child.lua_get('_G.fixture.copen_called'), true)
-end
-
 -- fzf_picker = 'telescope', telescope NOT available, but fzf-lua IS available in the default fallback
 T['choose_deltaview_menu()']['falls back to fzf_lua in default path when telescope missing but fzf-lua available'] = function()
     child.lua(block_modules_lua, { 'telescope' })
@@ -181,19 +151,6 @@ T['choose_deltaview_menu()']['falls back to fzf_lua in default path when telesco
     ]])
 
     eq(child.lua_get('_G.fixture.called'), 'fzf_lua')
-end
-
--- fzf_picker = 'quickfix' → calls vim.cmd('copen') directly
-T['choose_deltaview_menu()']['calls copen when fzf_picker=quickfix'] = function()
-    child.lua([[
-        package.loaded['deltaview.config'].options.fzf_picker = 'quickfix'
-        _G.fixture.copen_called = false
-        vim.cmd = function(cmd) if cmd == 'copen' then _G.fixture.copen_called = true end end
-        M.choose_deltaview_menu()
-    ]])
-
-    eq(child.lua_get('_G.fixture.copen_called'), true)
-    eq(child.lua_get('_G.fixture.notified'), vim.NIL)
 end
 
 -- fzf_picker = 'ui_select' → calls picker.open_vim_ui_select()
@@ -230,17 +187,56 @@ T['choose_deltaview_menu()']['default path: uses telescope when fzf-lua missing 
     eq(child.lua_get('_G.fixture.called'), 'telescope')
 end
 
--- default path, neither fzf-lua nor telescope available → falls back to vim.cmd('copen')
-T['choose_deltaview_menu()']['default path: falls back to copen when no picker is available'] = function()
+-- default path, both unavailable → falls back to ui_select
+T['choose_deltaview_menu()']['default path: uses ui_select when both fzf-lua and telescope unavailable'] = function()
     child.lua(block_modules_lua, { 'fzf-lua', 'telescope' })
     child.lua([[
         package.loaded['deltaview.config'].options.fzf_picker = nil
-        _G.fixture.copen_called = false
-        vim.cmd = function(cmd) if cmd == 'copen' then _G.fixture.copen_called = true end end
-        M.choose_deltaview_menu()
+        M.choose_deltaview_menu({})
     ]])
 
-    eq(child.lua_get('_G.fixture.copen_called'), true)
+    eq(child.lua_get('_G.fixture.called'), 'ui_select')
+end
+
+-- fzf_picker='fzf-lua', both unavailable → notifies + ui_select
+T['choose_deltaview_menu()']['fzf_picker=fzf-lua: notifies and falls back to ui_select when both unavailable'] = function()
+    child.lua(block_modules_lua, { 'fzf-lua', 'telescope' })
+    child.lua([[
+        package.loaded['deltaview.config'].options.fzf_picker = 'fzf-lua'
+        M.choose_deltaview_menu({})
+    ]])
+
+    eq(child.lua_get('_G.fixture.called'), 'ui_select')
+    eq(type(child.lua_get('_G.fixture.notified')), 'string')
+end
+
+-- fzf_picker='telescope', both unavailable → notifies + ui_select
+T['choose_deltaview_menu()']['fzf_picker=telescope: notifies and falls back to ui_select when both unavailable'] = function()
+    child.lua(block_modules_lua, { 'fzf-lua', 'telescope' })
+    child.lua([[
+        package.loaded['deltaview.config'].options.fzf_picker = 'telescope'
+        M.choose_deltaview_menu({})
+    ]])
+
+    eq(child.lua_get('_G.fixture.called'), 'ui_select')
+    eq(type(child.lua_get('_G.fixture.notified')), 'string')
+end
+
+-- deltaview_qf_list argument is passed through to the selected picker function
+T['choose_deltaview_menu()']['passes deltaview_qf_list to the selected picker function'] = function()
+    child.lua([[
+        package.loaded['deltaview.config'].options.fzf_picker = 'ui_select'
+        package.loaded['deltaview.picker'].open_vim_ui_select = function(dv_list, _fn)
+            _G.fixture.picker_dv_list = dv_list
+            _G.fixture.called = 'ui_select'
+        end
+        local test_list = { { filename = '/a.lua', user_data = { deltaview = true, bufname = 'a.lua' } } }
+        M.choose_deltaview_menu(test_list)
+    ]])
+
+    local list = child.lua_get([[_G.fixture.picker_dv_list]])
+    eq(#list, 1)
+    eq(list[1].filename, '/a.lua')
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -326,18 +322,55 @@ T['create_diff_menu_pane()']['notifies and returns when there are no modified fi
     eq(child.lua_get('_G.fixture.called'), vim.NIL)
 end
 
-T['create_diff_menu_pane()']['calls setup, populate, and choose_menu when there are modified files'] = function()
-    local sorted, names = make_files(3)
+-- choose_deltaview_menu receives an entry with fully-populated user_data for a modified file
+T['create_diff_menu_pane()']['choose_deltaview_menu receives correct entry user_data for a modified file'] = function()
     child.lua([[
-        local sorted, names = ...
-        _G.fixture.sorted_files = sorted
-        _G.fixture.mods = names
+        _G.fixture.sorted_files = { { name = 'a.lua', added = 10, removed = 5, status = 'M' } }
+        _G.fixture.mods = { 'a.lua' }
+        _G.fixture.choose_args = nil
+        M.choose_deltaview_menu = function(dv_list)
+            _G.fixture.called = 'choose_menu'
+            _G.fixture.choose_args = dv_list
+        end
         M.create_diff_menu_pane('HEAD')
-    ]], { sorted, names })
+    ]])
 
-    eq(child.lua_get('_G.fixture.setup_called'), true)
-    eq(child.lua_get('_G.fixture.populate_called'), true)
-    eq(child.lua_get('_G.fixture.called'), 'choose_menu')
+    local args = child.lua_get([[_G.fixture.choose_args]])
+    eq(#args, 1)
+    local ud = args[1].user_data
+    eq(ud.deltaview, true)
+    eq(ud.bufname, 'a.lua')
+    eq(ud.abs_path, '/repo/a.lua')
+    eq(ud.ref, 'HEAD')
+    eq(ud.status, 'M')
+    eq(ud.changes, '+10,-5')
+    eq(ud.show_delta_on_entry, true)
+    eq(args[1].filename, '/repo/a.lua')
+end
+
+-- deleted-file entry carries the /tmp/deltaview://deleted/ sentinel in its filename
+-- so neovim does not try to open the (non-existent) file from disk
+T['create_diff_menu_pane()']['deleted file entry uses /tmp/deltaview://deleted/ prefix in filename'] = function()
+    child.lua([[
+        _G.fixture.sorted_files = { { name = 'old.lua', added = 0, removed = 20, status = 'D' } }
+        _G.fixture.mods = { 'old.lua' }
+        _G.fixture.choose_args = nil
+        M.choose_deltaview_menu = function(dv_list)
+            _G.fixture.called = 'choose_menu'
+            _G.fixture.choose_args = dv_list
+        end
+        M.create_diff_menu_pane('HEAD')
+    ]])
+
+    local args = child.lua_get([[_G.fixture.choose_args]])
+    eq(#args, 1)
+    local entry = args[1]
+    -- filename carries the sentinel prefix so the autocmd callback can recognise deleted files
+    eq(entry.filename, '/tmp/deltaview://deleted//repo/old.lua')
+    -- abs_path is the real path without the prefix, used when opening the diff view
+    eq(entry.user_data.abs_path, '/repo/old.lua')
+    eq(entry.user_data.status, 'D')
+    eq(entry.user_data.changes, '+0,-20')
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -347,197 +380,147 @@ T['populate_quickfix_deltamenu_items()'] = new_set({
     hooks = {
         pre_case = function()
             child.lua([[
-                -- Spy on setqflist; store only msgpack-serializable fields (no Lua functions)
-                -- so child.lua_get can cross the RPC boundary cleanly.
-                -- The quickfixtextfunc is stored separately under _G.fixture.last_qtf.
-                _G.fixture.setqflist_call_count = 0
-                _G.fixture.last_qtf = nil
-                _G.fixture.last_title = nil
-                _G.fixture.last_items = nil
-                vim.fn.setqflist = function(_a, _b, c)
-                    _G.fixture.setqflist_call_count = _G.fixture.setqflist_call_count + 1
-                    if c then
-                        _G.fixture.last_title = c.title
-                        _G.fixture.last_items = c.items
-                        _G.fixture.last_qtf = c.quickfixtextfunc
-                    end
+                -- Happy-path git stub (same pattern as create_diff_menu_pane suite)
+                vim.system = function(_cmd, _opts)
+                    return {
+                        wait = function()
+                            return { code = 0, stdout = '/repo', stderr = '' }
+                        end
+                    }
+                end
+
+                -- diff_target_ref is read via require('deltaview.state') inside the function
+                package.loaded['deltaview.state'].diff_target_ref = 'HEAD'
+
+                package.loaded['deltaview.utils'].get_sorted_diffed_files = function(_ref)
+                    return _G.fixture.sorted_files or {}
+                end
+                package.loaded['deltaview.utils'].get_filenames_from_sortedfiles = function(_sf)
+                    return _G.fixture.mods or {}
                 end
             ]])
         end,
     },
 })
 
-T['populate_quickfix_deltamenu_items()']['raises when ref is nil'] = function()
+T['populate_quickfix_deltamenu_items()']['notifies and returns when there are no modified files'] = function()
     child.lua([[
-        local ok, _ = pcall(function()
-            M.populate_quickfix_deltamenu_items(nil, { 'foo.lua' }, { ['foo.lua'] = { changes = '+1,-0', status = 'M' } })
-        end)
-        _G.fixture.assert_failed = not ok
+        _G.fixture.sorted_files = {}
+        _G.fixture.mods = {}
+        M.populate_quickfix_deltamenu_items()
     ]])
-    eq(child.lua_get('_G.fixture.assert_failed'), true)
+
+    eq(type(child.lua_get('_G.fixture.notified')), 'string')
 end
 
-T['populate_quickfix_deltamenu_items()']['raises when mods is nil'] = function()
+-- title format: 'DeltaView Menu  |  <vs> <ref>'
+-- config.viewconfig().vs = '|' (top-level pre_case); state.diff_target_ref = 'HEAD'
+T['populate_quickfix_deltamenu_items()']['sets qflist title including ref and viewconfig separator'] = function()
     child.lua([[
-        local ok, _ = pcall(function()
-            M.populate_quickfix_deltamenu_items('HEAD', nil, {})
-        end)
-        _G.fixture.assert_failed = not ok
+        _G.fixture.sorted_files = { { name = 'a.lua', added = 1, removed = 0, status = 'M' } }
+        _G.fixture.mods = { 'a.lua' }
+        M.populate_quickfix_deltamenu_items()
     ]])
-    eq(child.lua_get('_G.fixture.assert_failed'), true)
+
+    local title = child.lua_get([[vim.fn.getqflist({ title = 1 }).title]])
+    eq(title, 'DeltaView Menu  |  | HEAD')
 end
 
-T['populate_quickfix_deltamenu_items()']['raises when changes_data is nil'] = function()
+T['populate_quickfix_deltamenu_items()']['sets qflist item with correct user_data for a modified file'] = function()
     child.lua([[
-        local ok, _ = pcall(function()
-            M.populate_quickfix_deltamenu_items('HEAD', { 'foo.lua' }, nil)
-        end)
-        _G.fixture.assert_failed = not ok
+        _G.fixture.sorted_files = { { name = 'a.lua', added = 10, removed = 5, status = 'M' } }
+        _G.fixture.mods = { 'a.lua' }
+        M.populate_quickfix_deltamenu_items()
     ]])
-    eq(child.lua_get('_G.fixture.assert_failed'), true)
+
+    local ud = child.lua_get([[vim.fn.getqflist({ items = 1 }).items[1].user_data]])
+    eq(ud.deltaview, true)
+    eq(ud.bufname, 'a.lua')
+    eq(ud.abs_path, '/repo/a.lua')
+    eq(ud.ref, 'HEAD')
+    eq(ud.status, 'M')
+    eq(ud.changes, '+10,-5')
+    eq(ud.show_delta_on_entry, true)
 end
 
-T['populate_quickfix_deltamenu_items()']['calls setqflist exactly once'] = function()
+T['populate_quickfix_deltamenu_items()']['deleted file item has /tmp/deltaview://deleted/ prefix in filename'] = function()
     child.lua([[
-        M.populate_quickfix_deltamenu_items('HEAD', { 'foo.lua' }, {
-            ['foo.lua'] = { changes = '+1,-0', status = 'M' }
-        })
+        _G.fixture.sorted_files = { { name = 'old.lua', added = 0, removed = 20, status = 'D' } }
+        _G.fixture.mods = { 'old.lua' }
+        M.populate_quickfix_deltamenu_items()
+        -- getqflist returns bufnr, not filename; resolve via nvim_buf_get_name
+        local raw = vim.fn.getqflist({ items = 1 }).items[1]
+        _G.fixture.item_filename = vim.api.nvim_buf_get_name(raw.bufnr)
+        _G.fixture.item_ud       = raw.user_data
     ]])
-    eq(child.lua_get('_G.fixture.setqflist_call_count'), 1)
+
+    eq(child.lua_get('_G.fixture.item_filename'), '/tmp/deltaview://deleted//repo/old.lua')
+    eq(child.lua_get('_G.fixture.item_ud.abs_path'), '/repo/old.lua')
+    eq(child.lua_get('_G.fixture.item_ud.status'), 'D')
 end
 
-T['populate_quickfix_deltamenu_items()']['title includes the ref'] = function()
+-- quickfixtextfunc is the function neovim calls to render each quickfix line.
+-- Spy on setqflist to capture it, use the real qflist id for the internal getqflist call.
+T['populate_quickfix_deltamenu_items()']['quickfixtextfunc formats deltaview item as status path changes'] = function()
     child.lua([[
-        M.populate_quickfix_deltamenu_items('my-branch', { 'foo.lua' }, {
-            ['foo.lua'] = { changes = '+1,-0', status = 'M' }
-        })
+        _G.fixture.sorted_files = { { name = 'a.lua', added = 10, removed = 5, status = 'M' } }
+        _G.fixture.mods = { 'a.lua' }
+
+        local captured_qftf = nil
+        local orig_setqflist = vim.fn.setqflist
+        vim.fn.setqflist = function(list, action, opts)
+            if opts and opts.quickfixtextfunc then
+                captured_qftf = opts.quickfixtextfunc
+            end
+            orig_setqflist(list, action, opts)
+        end
+
+        M.populate_quickfix_deltamenu_items()
+
+        -- Call the quickfixtextfunc with the real qflist id so its internal
+        -- vim.fn.getqflist({id=...}) hits the actual populated list.
+        local qf_id = vim.fn.getqflist({ id = 0 }).id
+        _G.fixture.qftf_result = captured_qftf({ id = qf_id, start_idx = 1, end_idx = 1 })
     ]])
-    local title = child.lua_get('_G.fixture.last_title')
-    eq(type(title), 'string')
-    eq(title:find('my-branch', 1, true) ~= nil, true)
+
+    local result = child.lua_get([[_G.fixture.qftf_result]])
+    eq(result, { 'M a.lua > +10,-5' })
 end
 
-T['populate_quickfix_deltamenu_items()']['title includes the viewconfig separator'] = function()
+-- quickfixtextfunc must skip entries that do not have user_data.deltaview = true
+T['populate_quickfix_deltamenu_items()']['quickfixtextfunc skips non-deltaview items'] = function()
     child.lua([[
-        M.populate_quickfix_deltamenu_items('HEAD', { 'foo.lua' }, {
-            ['foo.lua'] = { changes = '+1,-0', status = 'M' }
-        })
-    ]])
-    local title = child.lua_get('_G.fixture.last_title')
-    -- top-level stub returns { vs = '|' }
-    eq(title:find('|') ~= nil, true)
-end
+        _G.fixture.sorted_files = { { name = 'a.lua', added = 2, removed = 0, status = 'M' } }
+        _G.fixture.mods = { 'a.lua' }
 
-T['populate_quickfix_deltamenu_items()']['modified file: filename is git_rel_to_abs path'] = function()
-    child.lua([[
-        M.populate_quickfix_deltamenu_items('HEAD', { 'src/foo.lua' }, {
-            ['src/foo.lua'] = { changes = '+2,-1', status = 'M' }
-        })
-    ]])
-    local filename = child.lua_get('_G.fixture.last_items[1].filename')
-    -- git_rel_to_abs stub returns '/repo/' .. path
-    eq(filename, '/repo/src/foo.lua')
-end
+        local captured_qftf = nil
+        local orig_setqflist = vim.fn.setqflist
+        vim.fn.setqflist = function(list, action, opts)
+            if opts and opts.quickfixtextfunc then
+                captured_qftf = opts.quickfixtextfunc
+            end
+            orig_setqflist(list, action, opts)
+        end
 
-T['populate_quickfix_deltamenu_items()']['deleted file: filename has /tmp/deltaview://deleted/ prefix'] = function()
-    child.lua([[
-        M.populate_quickfix_deltamenu_items('HEAD', { 'old.lua' }, {
-            ['old.lua'] = { changes = '+0,-5', status = 'D' }
-        })
-    ]])
-    local filename = child.lua_get('_G.fixture.last_items[1].filename')
-    eq(filename, '/tmp/deltaview://deleted//repo/old.lua')
-end
+        M.populate_quickfix_deltamenu_items()
 
-T['populate_quickfix_deltamenu_items()']['deleted file: user_data.abs_path is git_rel_to_abs without /tmp prefix'] = function()
-    child.lua([[
-        M.populate_quickfix_deltamenu_items('HEAD', { 'old.lua' }, {
-            ['old.lua'] = { changes = '+0,-5', status = 'D' }
-        })
-    ]])
-    local abs_path = child.lua_get('_G.fixture.last_items[1].user_data.abs_path')
-    -- abs_path must be the real path, not the /tmp sentinel
-    eq(abs_path, '/repo/old.lua')
-end
-
-T['populate_quickfix_deltamenu_items()']['user_data.deltaview is true'] = function()
-    child.lua([[
-        M.populate_quickfix_deltamenu_items('HEAD', { 'foo.lua' }, {
-            ['foo.lua'] = { changes = '+1,-0', status = 'M' }
-        })
-    ]])
-    eq(child.lua_get('_G.fixture.last_items[1].user_data.deltaview'), true)
-end
-
-T['populate_quickfix_deltamenu_items()']['user_data.bufname is the relative path'] = function()
-    child.lua([[
-        M.populate_quickfix_deltamenu_items('HEAD', { 'src/foo.lua' }, {
-            ['src/foo.lua'] = { changes = '+1,-0', status = 'M' }
-        })
-    ]])
-    eq(child.lua_get('_G.fixture.last_items[1].user_data.bufname'), 'src/foo.lua')
-end
-
-T['populate_quickfix_deltamenu_items()']['user_data.show_delta_on_entry is true'] = function()
-    child.lua([[
-        M.populate_quickfix_deltamenu_items('HEAD', { 'foo.lua' }, {
-            ['foo.lua'] = { changes = '+1,-0', status = 'M' }
-        })
-    ]])
-    eq(child.lua_get('_G.fixture.last_items[1].user_data.show_delta_on_entry'), true)
-end
-
-T['populate_quickfix_deltamenu_items()']['user_data.ref matches the given ref'] = function()
-    child.lua([[
-        M.populate_quickfix_deltamenu_items('v1.2.3', { 'foo.lua' }, {
-            ['foo.lua'] = { changes = '+1,-0', status = 'M' }
-        })
-    ]])
-    eq(child.lua_get('_G.fixture.last_items[1].user_data.ref'), 'v1.2.3')
-end
-
-T['populate_quickfix_deltamenu_items()']['user_data.status comes from changes_data'] = function()
-    child.lua([[
-        M.populate_quickfix_deltamenu_items('HEAD', { 'foo.lua' }, {
-            ['foo.lua'] = { changes = '+0,-3', status = 'D' }
-        })
-    ]])
-    eq(child.lua_get('_G.fixture.last_items[1].user_data.status'), 'D')
-end
-
-T['populate_quickfix_deltamenu_items()']['user_data.changes comes from changes_data'] = function()
-    child.lua([[
-        M.populate_quickfix_deltamenu_items('HEAD', { 'foo.lua' }, {
-            ['foo.lua'] = { changes = '+7,-2', status = 'M' }
-        })
-    ]])
-    eq(child.lua_get('_G.fixture.last_items[1].user_data.changes'), '+7,-2')
-end
-
-T['populate_quickfix_deltamenu_items()']['quickfixtextfunc formats deltaview entries as status bufname > changes'] = function()
-    child.lua([[
-        M.populate_quickfix_deltamenu_items('HEAD', { 'foo.lua' }, {
-            ['foo.lua'] = { changes = '+3,-1', status = 'M' }
-        })
-        local qtf = _G.fixture.last_qtf
-
-        -- Mock getqflist so the function has items to format
-        local fake_items = {
-            {
-                user_data = {
-                    deltaview = true,
-                    bufname = 'foo.lua',
-                    status = 'M',
-                    changes = '+3,-1',
+        -- Override getqflist so the quickfixtextfunc sees a mixed list
+        -- (one deltaview entry + one non-deltaview entry).
+        local orig_getqflist = vim.fn.getqflist
+        vim.fn.getqflist = function(_opts)
+            return {
+                items = {
+                    { user_data = { deltaview = true,  status = 'M', bufname = 'a.lua',       changes = '+2,-0' } },
+                    { user_data = { deltaview = false, status = 'M', bufname = 'ignored.lua', changes = '+1,-0' } },
                 }
             }
-        }
-        vim.fn.getqflist = function(_opts) return { items = fake_items } end
-
-        _G.fixture.qtf_result = qtf({ id = 1, start_idx = 1, end_idx = 1 })
+        end
+        _G.fixture.qftf_result = captured_qftf({ id = 1, start_idx = 1, end_idx = 2 })
+        vim.fn.getqflist = orig_getqflist
     ]])
-    local result = child.lua_get('_G.fixture.qtf_result')
-    eq(result, { 'M foo.lua > +3,-1' })
+
+    local result = child.lua_get([[_G.fixture.qftf_result]])
+    eq(result, { 'M a.lua > +2,-0' })
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -601,17 +584,6 @@ T['setup_quickfix_deltaview_on_entry()'] = new_set({
         end,
     },
 })
-
-T['setup_quickfix_deltaview_on_entry()']['registers a BufWinEnter autocmd'] = function()
-    local count_before = child.lua_get([[
-        #vim.api.nvim_get_autocmds({ event = 'BufWinEnter', pattern = '*' })
-    ]])
-    child.lua([[M.setup_quickfix_deltaview_on_entry()]])
-    local count_after = child.lua_get([[
-        #vim.api.nvim_get_autocmds({ event = 'BufWinEnter', pattern = '*' })
-    ]])
-    eq(count_after, count_before + 1)
-end
 
 T['setup_quickfix_deltaview_on_entry()']['is idempotent: second call does not register a second autocmd'] = function()
     child.lua([[M.setup_quickfix_deltaview_on_entry()]])
@@ -727,6 +699,24 @@ T['setup_quickfix_deltaview_on_entry()']['callback: notifies on error from view 
     local notified = child.lua_get('_G.fixture.notified')
     eq(type(notified), 'string')
     eq(notified:find('boom') ~= nil, true)
+end
+
+-- After the first BufWinEnter for a deltaview entry, clear_delta_entry marks that entry's
+-- show_delta_on_entry as false so the diff view is not re-opened on the next visit.
+T['setup_quickfix_deltaview_on_entry()']['callback: clears show_delta_on_entry for the entry after first visit'] = function()
+    child.lua(setup_autocmd_qflist_lua, { '/repo/foo.lua', true, 'M' })
+    child.lua([[
+        M.setup_quickfix_deltaview_on_entry()
+        local buf = vim.api.nvim_create_buf(true, false)
+        vim.api.nvim_buf_set_name(buf, '/repo/foo.lua')
+        vim.api.nvim_exec_autocmds('BufWinEnter', { buffer = buf })
+        -- _G.fixture.done is set by the register_keybind spy after 3 calls,
+        -- which happen after the scheduled clear_delta_entry has already run.
+        vim.wait(300, function() return _G.fixture.done end)
+    ]])
+
+    local show = child.lua_get([[vim.fn.getqflist({ items = 1 }).items[1].user_data.show_delta_on_entry]])
+    eq(show, false)
 end
 
 return T
