@@ -87,6 +87,14 @@ Context can be specified. This can be useful for searching your modified code (e
 :Delta . 10 main...HEAD     " Show all files changed from the common ancestor with the main branch, with 10 lines of context, for everything in the cwd
 ```
 
+**Recommendations**:
+
+Set abbreviations for the common commands, as they can be long. While keybinds for each command exist, commands will often be typed in normal workflow to specify the [ref].
+```lua
+vim.cmd([[cabbrev dm DeltaMenu]])
+vim.cmd([[cabbrev dv DeltaView]])
+```
+
 **Note**: 
 - All commands use the last ref used. If `:DeltaMenu main` was used, future calls to `:DeltaMenu`, `:DeltaView`, and `:Delta` will default to `main` instead of `HEAD`.
 

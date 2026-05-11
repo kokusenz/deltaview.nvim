@@ -81,6 +81,13 @@ COMMANDS                                                  *deltaview-commands*
                                                                 *:Delta*
 :Delta [path] [context] [ref]    Opens the delta diff view with configurable context for a path. Attempts to place the cursor on entry if there is a corresponding line in the diff. Will sync the cursor on exit, same as DeltaView. Uses the last ref that was used, or HEAD by default. Uses the last specified context size, or 3 by default. Uses the current path (use netrw or some other filetree plugin to nav to it), or a specified path.
 
+**Recommendations**:
+
+Set abbreviations for the common commands, as they can be long. While keybinds for each command exist, commands will often be typed in normal workflow to specify the [ref].
+```lua
+vim.cmd([[cabbrev dm DeltaMenu]])
+vim.cmd([[cabbrev dv DeltaView]])
+```
 ==============================================================================
 MODULE FUNCTIONS                                            *deltaview-functions*
 The module exposed by require('deltaview') exposes .setup({}) for configuration, but also exposes two bonus functions.
