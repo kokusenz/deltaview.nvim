@@ -275,12 +275,7 @@ M.setup_quickfix_deltaview_on_entry = function()
             end
 
             local entry, _ = get_delta_entry(ev.buf)
-
-            -- left the deltamenu workflow entirely: restore/clear the quickfix list
-            if entry == nil then
-                utils.undo_deltamenu_qf_list()
-                return
-            end
+            if entry == nil then return end
 
             -- still in the deltamenu workflow but entry should not trigger a diff view
             if not entry.user_data.show_delta_on_entry then

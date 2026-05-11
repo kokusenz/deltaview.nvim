@@ -75,8 +75,6 @@ COMMANDS                                                  *deltaview-commands*
                         as an alternative native picker that stays open. Features enabled by the quickfix list are:
                         - Opening the next / prev listed file with ]q / [q or :cnext / :cprev
                         - Opening a file in the quickfix list automatically opens to the DeltaView view
-                        - Opening a file that is NOT in the list clears the DeltaMenu quickfix list
-                          automatically, ending the review workflow.
                         - Use :colder or :cex [] to manually restore the previous quickfix list and
                           exit the DeltaMenu review workflow.
 

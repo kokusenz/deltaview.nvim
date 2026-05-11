@@ -73,7 +73,6 @@ Populates the quickfix list with all changed files and opens it. Each entry show
 
 Once the list is open:
 - Navigate with `]q` / `[q` (or `:cnext` / `:cprev`) — opening any listed file automatically opens its DeltaView diff
-- Opening a file **not** in the list automatically clears the DeltaMenu quickfix list, ending the review workflow
 - Use `:colder` or `:cex []` to manually restore the previous quickfix list and exit the review workflow
 
 #### `:Delta [path] [context] [ref]`
