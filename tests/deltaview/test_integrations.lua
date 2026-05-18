@@ -806,6 +806,127 @@ T['Delta integration — untracked file']['cwd higher than git root: creates a d
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────
+-- `:DeltaMenu!` integration
+
+-- Shared fixture: 2 tracked files each with a working-tree change, cwd at git root.
+-- file1.lua starts as 'local x = 10' and file2.lua as 'local x = 20' after the initial commit.
+-- The pre_case hook uses setup_tmpdir_git_repo_n_files with n=2 so every case in this set
+-- starts inside a valid git repository with two modified files.
+T['DeltaMenu! integration'] = new_set({
+    hooks = {
+        pre_case = function()
+            child.lua(setup_tmpdir_git_repo_n_files, { 2 })
+        end,
+    },
+})
+
+T['DeltaMenu! integration']['happy path: populates quickfix list with deltaview entries and opens the quickfix window'] = function()
+    child.cmd('DeltaMenu! HEAD')
+    local qf_size   = child.lua_get('vim.fn.getqflist({ size = 1 }).size')
+    local has_qf_window = child.lua_get([[
+        (function()
+            for _, win in ipairs(vim.api.nvim_list_wins()) do
+                if vim.bo[vim.api.nvim_win_get_buf(win)].buftype == 'quickfix' then return true end
+            end
+            return false
+        end)()
+    ]])
+    local first_entry_deltaview = child.lua_get('vim.fn.getqflist()[1].user_data.deltaview == true')
+    eq(qf_size > 0, true)
+    eq(has_qf_window, true)
+    eq(first_entry_deltaview, true)
+end
+
+T['DeltaMenu! integration']['not in a git repo: does not populate the quickfix list'] = function()
+    -- Override cwd to a fresh non-git temp directory so git rev-parse fails.
+    child.lua([[
+        local tmpdir = vim.fn.tempname()
+        vim.fn.mkdir(tmpdir, 'p')
+        vim.cmd('cd ' .. tmpdir)
+        _G.warn_notifications = {}
+        local orig_notify = vim.notify
+        vim.notify = function(msg, level, opts)
+            if level == vim.log.levels.WARN then
+                table.insert(_G.warn_notifications, msg)
+            end
+            orig_notify(msg, level, opts)
+        end
+    ]])
+    child.cmd('DeltaMenu! HEAD')
+    local qf_size = child.lua_get('vim.fn.getqflist({ size = 1 }).size')
+    local warns   = child.lua_get('_G.warn_notifications')
+    eq(qf_size, 0)
+    eq(#warns > 0, true)
+end
+
+T['DeltaMenu! integration'][':cnext: opens a deltaview buffer'] = function()
+    child.cmd('DeltaMenu! HEAD')
+    -- :cnext from the quickfix window jumps to the first entry and opens the file in the
+    -- previous window, triggering BufWinEnter → open_deltaview_on_buffer (via vim.schedule).
+    child.cmd('cnext')
+    -- Poll until the vim.schedule callback fires and the deltaview buffer is open (up to 2s).
+    child.lua([[
+        vim.wait(2000, function()
+            return vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil
+        end, 10)
+    ]])
+    local has_diff_data = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    local buf_name      = child.lua_get('vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())')
+    eq(has_diff_data, true)
+    eq(buf_name:find('deltaview://diff/', 1, true) ~= nil, true)
+end
+
+T['DeltaMenu! integration']['quickfix <enter>: opens a deltaview buffer'] = function()
+    child.cmd('DeltaMenu! HEAD')
+    -- <CR> in the quickfix window opens the first entry in the previous window,
+    -- triggering BufWinEnter → open_deltaview_on_buffer (via vim.schedule).
+    child.type_keys('<CR>')
+    -- Poll until the vim.schedule callback fires and the deltaview buffer is open (up to 2s).
+    child.lua([[
+        vim.wait(2000, function()
+            return vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil
+        end, 10)
+    ]])
+    local has_diff_data = child.lua_get('vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil')
+    local buf_name      = child.lua_get('vim.api.nvim_buf_get_name(vim.api.nvim_get_current_buf())')
+    eq(has_diff_data, true)
+    eq(buf_name:find('deltaview://diff/', 1, true) ~= nil, true)
+end
+
+-- This test asserts the EXPECTED (not yet implemented) behavior:
+-- pressing <Enter> on a second quickfix item should NOT open a new window — it should reuse
+-- the existing non-quickfix window.
+--
+-- Currently this test FAILS because the deltaview buffer opened for the first item has
+-- buftype='nofile', which causes Neovim to create a new split instead of reusing that window
+-- when the second <Enter> is pressed. Once the bug is fixed this test should pass.
+T['DeltaMenu! integration']['quickfix second <enter>: does not open a new window (expected to fail until bug is fixed)'] = function()
+    child.cmd('DeltaMenu! HEAD')
+    -- Open the first quickfix item. Deltaview buffer opens in window 1. Layout: 2 windows.
+    child.type_keys('<CR>')
+    child.lua([[
+        vim.wait(2000, function()
+            return vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil
+        end, 10)
+    ]])
+    local win_count_after_first = child.lua_get('vim.fn.winnr("$")')
+    eq(win_count_after_first, 2)
+    -- Go back to the quickfix window.
+    child.cmd('copen')
+    -- Move to the second item and open it.
+    child.type_keys('j', '<CR>')
+    child.lua([[
+        vim.wait(2000, function()
+            return vim.b[vim.api.nvim_get_current_buf()].delta_diff_data_set ~= nil
+        end, 10)
+    ]])
+    -- Expected: second deltaview buffer replaces the first in window 1 — still 2 windows total.
+    -- Actual (bug): a new split is created, resulting in 3 windows.
+    local win_count_after_second = child.lua_get('vim.fn.winnr("$")')
+    eq(win_count_after_second, 2)
+end
+
+-- ──────────────────────────────────────────────────────────────────────────────────────────────
 -- keybind setup integration
 
 -- Verifies that a user's own keymap for a key is not overwritten when they configure deltaview

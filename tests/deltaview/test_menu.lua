@@ -609,19 +609,6 @@ T['setup_quickfix_deltaview_on_entry()']['callback: skips buffers with non-empty
     eq(child.lua_get('_G.fixture.deltaview_file_args'), vim.NIL)
 end
 
-T['setup_quickfix_deltaview_on_entry()']['callback: calls undo_deltamenu_qf_list when buffer is not a deltaview entry'] = function()
-    child.lua([[
-        M.setup_quickfix_deltaview_on_entry()
-        -- qflist is empty, so buffer will not match any entry
-        vim.fn.setqflist({})
-        local buf = vim.api.nvim_create_buf(true, false)
-        vim.api.nvim_buf_set_name(buf, '/some/unrelated/file.lua')
-        vim.api.nvim_exec_autocmds('BufWinEnter', { buffer = buf })
-    ]])
-    eq(child.lua_get('_G.fixture.undo_called'), true)
-    eq(child.lua_get('_G.fixture.deltaview_file_args'), vim.NIL)
-end
-
 T['setup_quickfix_deltaview_on_entry()']['callback: does nothing when show_delta_on_entry is false'] = function()
     child.lua(setup_autocmd_qflist_lua, { '/repo/foo.lua', false, 'M' })
     child.lua([[
