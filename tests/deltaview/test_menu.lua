@@ -628,6 +628,7 @@ T['setup_quickfix_deltaview_on_entry()']['callback: calls view.deltaview_file fo
         M.setup_quickfix_deltaview_on_entry()
         local buf = vim.api.nvim_create_buf(true, false)
         vim.api.nvim_buf_set_name(buf, '/repo/foo.lua')
+        vim.cmd('noautocmd buffer ' .. buf)
         vim.api.nvim_exec_autocmds('BufWinEnter', { buffer = buf })
         vim.wait(300, function() return _G.fixture.done end)
     ]])
@@ -657,6 +658,7 @@ T['setup_quickfix_deltaview_on_entry()']['callback: registers three help keybind
         M.setup_quickfix_deltaview_on_entry()
         local buf = vim.api.nvim_create_buf(true, false)
         vim.api.nvim_buf_set_name(buf, '/repo/foo.lua')
+        vim.cmd('noautocmd buffer ' .. buf)
         vim.api.nvim_exec_autocmds('BufWinEnter', { buffer = buf })
         vim.wait(300, function() return _G.fixture.done end)
     ]])
@@ -680,6 +682,7 @@ T['setup_quickfix_deltaview_on_entry()']['callback: notifies on error from view 
         M.setup_quickfix_deltaview_on_entry()
         local buf = vim.api.nvim_create_buf(true, false)
         vim.api.nvim_buf_set_name(buf, '/repo/foo.lua')
+        vim.cmd('noautocmd buffer ' .. buf)
         vim.api.nvim_exec_autocmds('BufWinEnter', { buffer = buf })
         vim.wait(300, function() return _G.fixture.done end)
     ]])
@@ -697,6 +700,7 @@ T['setup_quickfix_deltaview_on_entry()']['callback: clears show_delta_on_entry f
         local buf = vim.api.nvim_create_buf(true, false)
         vim.api.nvim_buf_set_name(buf, '/repo/foo.lua')
         vim.api.nvim_exec_autocmds('BufWinEnter', { buffer = buf })
+        vim.api.nvim_set_current_buf(buf)
         -- _G.fixture.done is set by the register_keybind spy after 3 calls,
         -- which happen after the scheduled clear_delta_entry has already run.
         vim.wait(300, function() return _G.fixture.done end)
@@ -704,6 +708,30 @@ T['setup_quickfix_deltaview_on_entry()']['callback: clears show_delta_on_entry f
 
     local show = child.lua_get([[vim.fn.getqflist({ items = 1 }).items[1].user_data.show_delta_on_entry]])
     eq(show, false)
+end
+
+T['setup_quickfix_deltaview_on_entry()']['callback: does not call view.deltaview_file when current buffer differs from abs_path'] = function()
+    child.lua(setup_autocmd_qflist_lua, { '/repo/foo.lua', true, 'M' })
+    child.lua([[
+        M.setup_quickfix_deltaview_on_entry()
+        -- Create the target buffer whose name matches abs_path in the qflist entry.
+        -- This is the buffer the BufWinEnter autocmd fires for.
+        local target_buf = vim.api.nvim_create_buf(true, false)
+        vim.api.nvim_buf_set_name(target_buf, '/repo/foo.lua')
+        -- Make a different buffer the current buffer (buffer 0) before the
+        -- autocmd fires. open_deltaview_on_buffer runs inside vim.schedule,
+        -- so nvim_buf_get_name(0) will return this other buffer's name and
+        -- the validation on line 54 will short-circuit, leaving deltaview_file uncalled.
+        local other_buf = vim.api.nvim_create_buf(true, false)
+        vim.api.nvim_buf_set_name(other_buf, '/repo/other.lua')
+        vim.api.nvim_set_current_buf(other_buf)
+        vim.api.nvim_exec_autocmds('BufWinEnter', { buffer = target_buf })
+        -- Queue a drain sentinel after the autocmd so that vim.wait unblocks only
+        -- once the vim.schedule callback inside open_deltaview_on_buffer has run.
+        vim.schedule(function() _G.fixture.drain = true end)
+        vim.wait(300, function() return _G.fixture.drain == true end)
+    ]])
+    eq(child.lua_get('_G.fixture.deltaview_file_args'), vim.NIL)
 end
 
 return T

@@ -51,6 +51,7 @@ local open_deltaview_on_buffer = function(dv_data)
                 -- alternative solution is to refactor deltaview_file to no longer assume it is being called from a real file, and take in a path like delta_path does
                 dv_bufid = view.delta_path(dv_data.ref, require('deltaview.state').default_context, dv_data.abs_path)
             else
+                if vim.api.nvim_buf_get_name(0) ~= dv_data.abs_path then return end
                 dv_bufid = view.deltaview_file(dv_data.ref)
             end
             if dv_bufid ~= nil then
@@ -64,13 +65,17 @@ local open_deltaview_on_buffer = function(dv_data)
                 -- flagging breaking changes
                 if config.options.keyconfig.next_diff ~= nil and config.options.keyconfig.next_diff ~= '' then
                     vim.keymap.set('n', config.options.keyconfig.next_diff, function()
-                        vim.notify([[Deltaview next_diff keybind has been removed. You can achieve the original function of this keybind by first populating the quickfix list using `:DeltaMenu! [ref]`, then using ']q', or `:cnext`. Please read CHANGELOG.txt for v0.3.0 for more details. This warning will be removed in the near future.]], vim.log.levels.WARN)
+                        vim.notify(
+                        [[Deltaview next_diff keybind has been removed. You can achieve the original function of this keybind by first populating the quickfix list using `:DeltaMenu! [ref]`, then using ']q', or `:cnext`. Please read CHANGELOG.txt for v0.3.0 for more details. This warning will be removed in the near future.]],
+                            vim.log.levels.WARN)
                     end)
                 end
 
                 if config.options.keyconfig.prev_diff ~= nil and config.options.keyconfig.prev_diff ~= '' then
                     vim.keymap.set('n', config.options.keyconfig.prev_diff, function()
-                        vim.notify([[Deltaview prev_diff keybind has been removed. You can achieve the original function of this keybind by first populating the quickfix list using `:DeltaMenu! [ref]`, then using '[q', or `:cprev`. Please read CHANGELOG.txt for v0.3.0 for more details. This warning will be removed in the near future.]], vim.log.levels.WARN)
+                        vim.notify(
+                        [[Deltaview prev_diff keybind has been removed. You can achieve the original function of this keybind by first populating the quickfix list using `:DeltaMenu! [ref]`, then using '[q', or `:cprev`. Please read CHANGELOG.txt for v0.3.0 for more details. This warning will be removed in the near future.]],
+                            vim.log.levels.WARN)
                     end)
                 end
             end
