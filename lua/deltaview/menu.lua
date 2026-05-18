@@ -47,8 +47,8 @@ local open_deltaview_on_buffer = function(dv_data)
             local dv_bufid
             if dv_data.status == 'D' then
                 -- delta_path works for deleted files, while deltaview_file doesn't because it expects a real file to exist to function off of.
-                -- slight design discrepancy here; this has the delta.lua header, while the others don't. But I can live with that.
-                -- alternative is to refactor deltaview_file to no longer assume it is being called from a real file, and take in a path like delta_path does
+                -- slight design discrepancy here; this has the delta.lua header, while the non-deleted files don't. But I can live with that.
+                -- alternative solution is to refactor deltaview_file to no longer assume it is being called from a real file, and take in a path like delta_path does
                 dv_bufid = view.delta_path(dv_data.ref, require('deltaview.state').default_context, dv_data.abs_path)
             else
                 dv_bufid = view.deltaview_file(dv_data.ref)
@@ -276,6 +276,22 @@ M.setup_quickfix_deltaview_on_entry = function()
 
             local entry, _ = get_delta_entry(ev.buf)
             if entry == nil then return end
+
+            -- When quickfix opens a file in a new split because the previously-displayed window
+            -- held a deltaview diff buffer (buftype='nofile'), close the old deltaview window
+            -- so the second navigation doesn't leave us with an extra split.
+            local current_win = vim.api.nvim_get_current_win()
+            for _, win in ipairs(vim.api.nvim_list_wins()) do
+                if win ~= current_win then
+                    local wbuf = vim.api.nvim_win_get_buf(win)
+                    local bufname = vim.api.nvim_buf_get_name(wbuf)
+                    if vim.bo[wbuf].buftype == 'nofile'
+                        and bufname:find('deltaview://diff/', 1, true) ~= nil
+                    then
+                        vim.api.nvim_win_close(win, true)
+                    end
+                end
+            end
 
             -- still in the deltamenu workflow but entry should not trigger a diff view
             if not entry.user_data.show_delta_on_entry then
