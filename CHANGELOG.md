@@ -7,14 +7,23 @@ I try to attach a commit to each log, but in the initial pr, I may use the pr in
 
 ## Latest
 
-### [0.3.1] - 2026-05-26 to ongoing
+### [0.3.2] - 2026-06-03 to ongoing
 
-- initial commit - https://github.com/kokusenz/deltaview.nvim/pull/41
+- initial commit - 64663860743c0efbbd24918090b299089f633fd6
+
+#### Added
+- cache fzf-lua :DeltaMenu diff preview buffers and reuse them while scrolling
+- delay fzf-lua preview rendering briefly so fast scrolling does not render every intermediate entry
+- forward precomputed file paths and tracked state into preview rendering to avoid repeated Git lookups
+
+## History
+
+### [0.3.1] - 2026-05-26 to 2026-06-03
+
+- initial commit - e74ab836f65f7467a06a0b5696c984c8b9131c04
 
 #### Fixes
 - `--no-ext-diff` is passed as a flag into all git diff invocations, to avoid crashing with diff.external configuration (such as difftastic).
-
-## History
 
 ### [0.3.0] - 2026-05-20 to 2026-05-26
 
