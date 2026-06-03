@@ -322,10 +322,24 @@ T['create_diff_menu_pane()']['notifies and returns when there are no modified fi
     eq(child.lua_get('_G.fixture.called'), vim.NIL)
 end
 
+T['create_diff_menu_pane()']['forwards git root from initial rev-parse'] = function()
+    child.lua([[
+        _G.fixture.sorted_files = {}
+        _G.fixture.mods = {}
+        package.loaded['deltaview.utils'].get_sorted_diffed_files = function(_ref, git_root)
+            _G.fixture.git_root = git_root
+            return {}
+        end
+        M.create_diff_menu_pane('HEAD')
+    ]])
+
+    eq(child.lua_get('_G.fixture.git_root'), '/repo')
+end
+
 -- choose_deltaview_menu receives an entry with fully-populated user_data for a modified file
 T['create_diff_menu_pane()']['choose_deltaview_menu receives correct entry user_data for a modified file'] = function()
     child.lua([[
-        _G.fixture.sorted_files = { { name = 'a.lua', added = 10, removed = 5, status = 'M' } }
+        _G.fixture.sorted_files = { { name = 'a.lua', added = 10, removed = 5, status = 'M', is_untracked = false } }
         _G.fixture.mods = { 'a.lua' }
         _G.fixture.choose_args = nil
         M.choose_deltaview_menu = function(dv_list)
@@ -343,6 +357,7 @@ T['create_diff_menu_pane()']['choose_deltaview_menu receives correct entry user_
     eq(ud.abs_path, '/repo/a.lua')
     eq(ud.ref, 'HEAD')
     eq(ud.status, 'M')
+    eq(ud.is_untracked, false)
     eq(ud.changes, '+10,-5')
     eq(ud.show_delta_on_entry, true)
     eq(args[1].filename, '/repo/a.lua')

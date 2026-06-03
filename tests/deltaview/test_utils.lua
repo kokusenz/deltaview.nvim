@@ -813,6 +813,20 @@ T['get_sorted_diffed_files()']['single tracked file returns correct name, added,
     eq(result[1].added,   10)
     eq(result[1].removed, 3)
     eq(result[1].status,  'M')
+    eq(result[1].is_untracked, false)
+end
+
+T['get_sorted_diffed_files()']['tracked filename with spaces is not marked untracked when name-status parsing falls back'] = function()
+    child.lua([[
+        _G.fixture.files_map       = { ['lua/file with spaces.lua'] = true }
+        _G.fixture.dirstat_out     = '  100.0% lua/\n'
+        _G.fixture.name_status_out = 'M\tlua/file with spaces.lua\n'
+        _G.fixture.numstat_map     = { ['/repo/lua/file with spaces.lua'] = '10\t3\tlua/file with spaces.lua\n' }
+    ]])
+    local result = child.lua_get([[M.get_sorted_diffed_files('HEAD')]])
+    eq(#result, 1)
+    eq(result[1].status, '?')
+    eq(result[1].is_untracked, false)
 end
 
 T['get_sorted_diffed_files()']['files sorted by directory dirstat weight descending'] = function()
@@ -883,6 +897,7 @@ T['get_sorted_diffed_files()']['single untracked file returns correct added coun
     eq(result[1].name,    'new_file.lua')
     eq(result[1].added,   7)
     eq(result[1].removed, 0)
+    eq(result[1].is_untracked, true)
 end
 
 T['get_sorted_diffed_files()']['binary untracked file shows 0 added and 0 removed'] = function()
@@ -943,6 +958,16 @@ T['git_rel_to_abs()']['throws error when git rev-parse fails'] = function()
     ]])
     local ok = child.lua_get([[pcall(M.git_rel_to_abs, 'any.lua')]])
     eq(ok, false)
+end
+
+T['git_rel_to_abs()']['uses provided git root without running git rev-parse'] = function()
+    child.lua([[
+        vim.system = function()
+            error('vim.system should not be called when git_root is provided')
+        end
+    ]])
+    local result = child.lua_get([[M.git_rel_to_abs('lua/foo.lua', '/known/repo')]])
+    eq(result, '/known/repo/lua/foo.lua')
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────────────────────

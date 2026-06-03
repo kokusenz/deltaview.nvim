@@ -84,8 +84,9 @@ end
 
 --- gets the number of added lines and deleted lines in the diff, and sorts it
 --- @param ref string target ref
+--- @param git_root string | nil absolute git root, if already known
 --- @return SortedFile[] sorted files
-M.get_sorted_diffed_files = function(ref)
+M.get_sorted_diffed_files = function(ref, git_root)
     assert(ref ~= nil)
     local files = M.get_diffed_and_untracked_files(ref)
     local dirstat_result = vim.system({'git', 'diff', '--no-ext-diff', ref, '-X', '--dirstat=lines,0'}):wait()
@@ -124,9 +125,9 @@ M.get_sorted_diffed_files = function(ref)
 
         if tracked == false then
             -- untracked files have no git history; count all lines as added
-            numstat_result = vim.system({'git', 'diff', '--no-ext-diff', '--numstat', '--no-index', '--', '/dev/null', M.git_rel_to_abs(file)}):wait()
+            numstat_result = vim.system({'git', 'diff', '--no-ext-diff', '--numstat', '--no-index', '--', '/dev/null', M.git_rel_to_abs(file, git_root)}):wait()
         else
-            numstat_result = vim.system({'git', 'diff', '--no-ext-diff', '--numstat', ref, '--', M.git_rel_to_abs(file)}):wait()
+            numstat_result = vim.system({'git', 'diff', '--no-ext-diff', '--numstat', ref, '--', M.git_rel_to_abs(file, git_root)}):wait()
         end
         assert(numstat_result.code == 0 or numstat_result.code == 1)
         -- git diff --numstat outputs "-\t-\t<path>" for binary files; explicitly
@@ -166,13 +167,14 @@ M.get_sorted_diffed_files = function(ref)
 
     --- @type SortedFile[]
     local sorted_files = {}
-    for file, _ in pairs(files) do
+    for file, tracked in pairs(files) do
         local stats = files_w_stats[file]
         table.insert(sorted_files, {
             name = file,
             added = tonumber(stats.added) or 0,
             removed = tonumber(stats.removed) or 0,
             status = file_statuses[file] or '?',
+            is_untracked = tracked == false,
         })
     end
 
@@ -227,11 +229,15 @@ end
 --- git commands like `git diff --name-only` and `git ls-files` output paths
 --- relative to the repository root, not cwd, so this must be used over vim.fn.fnamemodify.
 --- @param rel_path string path relative to the git root
+--- @param git_root string | nil absolute git root, if already known
 --- @return string absolute path
-M.git_rel_to_abs = function(rel_path)
-    local result = vim.system({ 'git', 'rev-parse', '--show-toplevel' }):wait()
-    assert(result.code == 0, 'Failed to get git root. ' .. (result.stderr or ''))
-    return vim.trim(result.stdout) .. '/' .. rel_path
+M.git_rel_to_abs = function(rel_path, git_root)
+    if git_root == nil then
+        local result = vim.system({ 'git', 'rev-parse', '--show-toplevel' }):wait()
+        assert(result.code == 0, 'Failed to get git root. ' .. (result.stderr or ''))
+        git_root = result.stdout
+    end
+    return vim.trim(git_root) .. '/' .. rel_path
 end
 
 
@@ -363,3 +369,4 @@ return M
 --- @field added number
 --- @field removed number
 --- @field status Status
+--- @field is_untracked boolean

@@ -181,15 +181,18 @@ end
 --- @param context number lines of context to show
 --- @param winnr number | nil Optional window number to open on.
 --- @param buf_name string | nil Optional name to assign to the buffer
+--- @param is_untracked boolean | nil Optional untracked status. When provided, skips the git lookup used to determine it.
 --- @return number | nil bufnr buf id of delta.lua buffer
-M.open_git_diff_buffer_for_path = function(path, ref, context, winnr, buf_name)
+M.open_git_diff_buffer_for_path = function(path, ref, context, winnr, buf_name, is_untracked)
     assert(path ~= nil)
     assert(ref ~= nil)
     assert(context ~= nil)
     local ok, delta = pcall(require, 'delta')
     assert(ok, 'Delta.lua module not found. Please verify delta.lua is installed to deltaview.nvim. `:checkhealth deltaview`')
-    local git_root = utils.get_git_root(path)
-    local is_untracked = utils.is_untracked_file(path, git_root)
+    if is_untracked == nil then
+        local git_root = utils.get_git_root(path)
+        is_untracked = utils.is_untracked_file(path, git_root)
+    end
 
     --- @type DeltaOpts
     local opts = { context = context, new_file = is_untracked }

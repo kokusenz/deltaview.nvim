@@ -11,13 +11,14 @@ local help = require('deltaview.help')
 --- @return DeltaMenuItems | nil returns nil if it needs to notify that there is an error
 local get_modified_files = function(ref)
     local rev_parse_result = vim.system({ 'git', 'rev-parse', '--show-toplevel' }):wait()
-    if rev_parse_result.code ~= 0 and rev_parse_result.code ~= 1 then
+    if rev_parse_result.code ~= 0 then
         vim.notify('Not in a git repository. Cannot open DeltaView menu for git.', vim.log.levels.WARN)
         return
     end
 
     assert(ref)
-    local sorted_files = utils.get_sorted_diffed_files(ref)
+    local git_root = vim.trim(rev_parse_result.stdout)
+    local sorted_files = utils.get_sorted_diffed_files(ref, git_root)
     local mods = utils.get_filenames_from_sortedfiles(sorted_files)
 
     if #mods == 0 then
@@ -28,9 +29,13 @@ local get_modified_files = function(ref)
     --- @type ChangesData
     local changes_data = {}
     for _, value in ipairs(sorted_files) do
-        changes_data[value.name] = { changes = '+' .. value.added .. ',-' .. value.removed, status = value.status }
+        changes_data[value.name] = {
+            changes = '+' .. value.added .. ',-' .. value.removed,
+            status = value.status,
+            is_untracked = value.is_untracked,
+        }
     end
-    return { mods = mods, changes_data = changes_data, ref = ref }
+    return { mods = mods, changes_data = changes_data, ref = ref, git_root = git_root }
 end
 
 --- @type fun(dv_data: DeltaViewQfListEntryUserData): nil
@@ -94,18 +99,20 @@ local get_deltaview_qf_list_entries = function(deltamenu_items)
     assert(deltamenu_items.ref ~= nil)
     assert(deltamenu_items.mods ~= nil)
     assert(deltamenu_items.changes_data ~= nil)
+    assert(deltamenu_items.git_root ~= nil)
 
     local qflist = {}
     for _, path in ipairs(deltamenu_items.mods) do
         local text = path
         local status = deltamenu_items.changes_data[path].status
         --- @cast status Status
+        local abs_path = utils.git_rel_to_abs(path, deltamenu_items.git_root)
         local filepath
         if status == 'D' then
             -- need /tmp because this isn't a scratch buffer neovim controls the deletion of
-            filepath = '/tmp/deltaview://deleted/' .. utils.git_rel_to_abs(path)
+            filepath = '/tmp/deltaview://deleted/' .. abs_path
         else
-            filepath = utils.git_rel_to_abs(path)
+            filepath = abs_path
         end
         --- @class DeltaViewQfListEntry
         local qflist_entry = {
@@ -115,10 +122,11 @@ local get_deltaview_qf_list_entries = function(deltamenu_items)
             user_data = {
                 deltaview = true,                      -- identifier, allows us to confidently use @cast DeltaViewQfListEntry
                 bufname = path,
-                abs_path = utils.git_rel_to_abs(path), -- note that this is different from filename; is the same most of the time, but for deleted files, can be different
+                abs_path = abs_path, -- note that this is different from filename; is the same most of the time, but for deleted files, can be different
                 show_delta_on_entry = true,
                 ref = deltamenu_items.ref,
                 status = status,
+                is_untracked = deltamenu_items.changes_data[path].is_untracked,
                 changes = deltamenu_items.changes_data[path].changes,
             }
         }
@@ -364,11 +372,12 @@ M.setup_quickfix_deltaview_on_entry()
 
 --- key is filepath, values are tables where key is type of change, value is value
 --- for example, change type "changes" has "+23,-16", and change type "status" has "M", or "D", etc.
---- @alias ChangesData table<string, table<string, string>>
+--- @alias ChangesData table<string, { changes: string, status: Status, is_untracked: boolean }>
 
 --- @class DeltaMenuItems
 --- @field mods string[] list of changed filepaths
 --- @field changes_data ChangesData list of changes data, where the keys are 1 to 1 with mods
 --- @field ref string
+--- @field git_root string
 
 return M

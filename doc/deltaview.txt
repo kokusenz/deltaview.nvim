@@ -130,4 +130,3 @@ When the DeltaMenu quickfix list is open (:DeltaMenu!):
 | `]q` | Open next file and view its diff |
 | `[q` | Open previous file and view its diff |
 | `:colder` or `:cex []` | Restore previous quickfix list, exiting the DeltaMenu workflow |
-
