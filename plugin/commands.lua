@@ -57,6 +57,16 @@ local delta = function(command_argument)
     end
 end
 
+local all_branches = {}
+
+vim.schedule(function()
+    -- fetch git branches once at setup time
+    local result = vim.system({'git', 'branch', '--format=%(refname:short)'}):wait()
+    if result.code == 0 and result.stdout ~= '' then
+        all_branches = vim.split(result.stdout, "\n", { trimempty = true })
+    end
+end)
+
 --- Filter git refs based on user input (case insensitive)
 --- @param refs table List of git refs
 --- @param arg_lead string User's partial input
@@ -73,13 +83,12 @@ local filter_refs = function(refs, arg_lead)
 end
 
 --- @param ref_arg_position number position of the ref in the arguments list of the user command
---- @param branches string[] branches to append to the list of items available in the autocomplete of the user command
-local ref_complete = function(ref_arg_position, branches)
+local ref_complete = function(ref_arg_position)
     return function(arg_lead, cmd_line, _)
         local args = vim.split(cmd_line, '%s+')
         if #args == ref_arg_position then
             local refs = { 'HEAD' }
-            for _, branch in ipairs(branches) do
+            for _, branch in ipairs(all_branches) do
                 table.insert(refs, branch)
             end
             return filter_refs(refs, arg_lead)
@@ -88,16 +97,9 @@ local ref_complete = function(ref_arg_position, branches)
     end
 end
 
--- fetch git branches once at setup time
-local result = vim.system({'git', 'branch', '--format=%(refname:short)'}):wait()
-local all_branches = {}
-if result.code == 0 and result.stdout ~= '' then
-    all_branches = vim.split(result.stdout, "\n", { trimempty = true })
-end
-
 vim.api.nvim_create_user_command('DeltaView', delta_view, {
     nargs = '?',
-    complete = ref_complete(2, all_branches),
+    complete = ref_complete(2),
     desc =
     'Open Diff View against a git ref (branch, commit, tag, etc). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
 })
@@ -107,7 +109,7 @@ vim.api.nvim_create_user_command('DeltaMenu', delta_menu,
     {
         bang = true,
         nargs = '?',
-        complete = ref_complete(2, all_branches),
+        complete = ref_complete(2),
         desc =
         'Open Diff Menu against a git ref (branch, commit, tag, etc). Add ! to also populate the quickfix list and open it (:DeltaMenu! [ref]). Using it with no arguments runs it against the last argument used, or defaults to HEAD.'
     })
@@ -124,7 +126,7 @@ vim.api.nvim_create_user_command('Delta', delta, {
             return { '0', '1', '2', '3' }
         end
         if #args == 4 then
-            return ref_complete(4, all_branches)(arg_lead, cmd_line, _)
+            return ref_complete(4)(arg_lead, cmd_line, _)
         end
         return {}
     end,
