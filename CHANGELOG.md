@@ -7,7 +7,16 @@ I try to attach a commit to each log, but in the initial pr, I may use the pr in
 
 ## Latest
 
-### [0.3.2] - 2026-06-03 to ongoing
+### [0.3.3] - 2026-06-05 to ongoing
+
+- initial commit - https://github.com/kokusenz/deltaview.nvim/pull/47
+
+#### Added
+- `:DeltaView`, `:Delta`, and `:DeltaMenu` argument completion list for refs is wrapped in vim.schedule, improving nvim startup time
+
+## History
+
+### [0.3.2] - 2026-06-03 to 2026-06-05
 
 - initial commit - 64663860743c0efbbd24918090b299089f633fd6
 
@@ -15,8 +24,6 @@ I try to attach a commit to each log, but in the initial pr, I may use the pr in
 - cache fzf-lua :DeltaMenu diff preview buffers and reuse them while scrolling
 - delay fzf-lua preview rendering briefly so fast scrolling does not render every intermediate entry
 - forward precomputed file paths and tracked state into preview rendering to avoid repeated Git lookups
-
-## History
 
 ### [0.3.1] - 2026-05-26 to 2026-06-03
 
