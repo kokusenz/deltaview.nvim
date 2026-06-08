@@ -40,7 +40,8 @@ https://github.com/user-attachments/assets/4035f361-e890-41c4-8b82-f57f5491b665
     - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
     - [telescope](https://github.com/nvim-telescope/telescope.nvim)
 
-Note that this plugin does not use [delta](https://github.com/dandavison/delta), and it is not a dependency
+**Note**
+- This plugin does not use [delta](https://github.com/dandavison/delta), and it is not a dependency
 
 ## Usage
 
@@ -98,6 +99,10 @@ vim.cmd([[cabbrev dv DeltaView]])
 **Note**: 
 - All commands use the last ref used. If `:DeltaMenu main` was used, future calls to `:DeltaMenu`, `:DeltaView`, and `:Delta` will default to `main` instead of `HEAD`.
 
+### Keybinds
+
+This plugin comes prepackaged with default keybinds, which are viewable by using the `d?` keybind when on a a buffer created by `:Delta` or `:DeltaView`.
+
 ## Installation
 
 [vim.pack](https://github.com/neovim/neovim/pull/34009)
@@ -150,6 +155,10 @@ When viewing a diff (DeltaView or Delta):
 | `<Tab>` | Jump to next hunk |
 | `<Shift-Tab>` | Jump to previous hunk |
 | `d?` | Open the help legend, to view all possible keybinds |
+
+**Note**
+- `<Tab>` and `<Shift-Tab>` deviate from the original neovim diff motions of `]c` and `[c`. These keys behave differently; no count support for deltaview's next hunk (meaning no equivalent to 3]c for "jump 3 hunks down"), and deltaview's next hunk will cycle, meaning that if you are on the last hunk, you jump to the first hunk with the next `<Tab>` . Furthermore, I just prefer the tabindex like motions, which require only one hand. If you prefer the original neovim motions, please overwrite `keyconfig.next_hunk` and `keyconfig.prev_hunk` in configuration (see "Configuration" in README or `:h deltaview-configuration`).
+- `<Tab>` overwrites the default vim motion `<Tab>` (see `:h <Tab>`), which is just an alternative for `CTRL-I`. If this is an issue for your workflow, please overwrite the configuration. I find having a jump list in the deltaview buffer to be infrequent.
 
 When the DeltaMenu quickfix list is open (`:DeltaMenu!`):
 
