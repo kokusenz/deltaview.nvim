@@ -34,6 +34,7 @@ https://github.com/user-attachments/assets/4035f361-e890-41c4-8b82-f57f5491b665
 ## Requirements
 
 - Neovim >= 0.10
+<<<<<<< HEAD
 - Git
 - [delta.lua](https://github.com/kokusenz/delta.lua). Install this separately into your neovim config using the plugin manager of your choice.
 - (Optional) An fzf picker of your choice. Currently supports

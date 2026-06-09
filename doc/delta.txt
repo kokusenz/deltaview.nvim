@@ -1,0 +1,310 @@
+*delta.txt*  delta diff inside neovim as an inline diff view
+
+Author: kokusenz
+License: MIT
+
+==============================================================================
+CONTENTS                                                      *delta-contents*
+
+    1. Introduction ........................ |delta-introduction|
+    2. Requirements ........................ |delta-requirements|
+    3. Setup ............................... |delta-setup|
+    4. Functions ........................... |delta-functions|
+        4.1 Buffer Creation ................ |delta-buffer-creation|
+        4.2 Highlighting ................... |delta-highlighting|
+        4.3 Window Setup ................... |delta-window-setup|
+    5. Troubleshooting ..................... |delta-troubleshooting|
+
+==============================================================================
+INTRODUCTION                                              *delta-introduction*
+
+delta.lua brings git-delta style diff viewing to Neovim with treesitter
+syntax highlighting. It is designed as a library for other plugins to
+consume, providing granular control over buffer creation, highlighting,
+and display.
+
+Unlike monolithic diff viewers, delta.lua separates concerns:
+- Creates formatted diff buffers with line number mappings
+- Applies syntax highlighting and two-tier diff highlighting
+- Provides statuscolumn integration for old/new line numbers
+- Leaves display logic (windows, splits, floats) to the consumer
+
+This makes it suitable for integration into plugins like deltaview.nvim,
+codecompanion.nvim, or custom diff workflows.
+
+Features:
+- Three diff input modes: git diff, text diff, and patch/diffstring
+- Two-tier diff highlighting (line-level background + word-level token highlights)
+- Treesitter syntax highlighting on diff content
+- Treesitter two-tier diffing: treesitter tokens used as unit of comparison for
+  word-level diffs, with Lua-pattern splitting as fallback
+- Similarity-based line pairing via Levenshtein distance before word highlighting
+- Light and dark theme support with automatic reapplication on colorscheme change
+- Customisable highlight groups per background type
+- Delta-style statuscolumn with old/new line numbers, coloured by line type
+- Granular composable API: each step is a separate function
+- Parsed diff data stored as buffer variables for downstream consumers
+
+==============================================================================
+REQUIREMENTS                                              *delta-requirements*
+
+- Neovim >= 0.10
+- Treesitter (built into Neovim; required for syntax and word-level highlighting)
+- Git (optional, but recommended; only required for |delta.git_diff|)
+
+Run |:checkhealth| delta to verify your environment.
+
+==============================================================================
+SETUP/CONFIGURATION                                *delta-setup* *delta-config*
+
+Minimal setup (uses defaults):
+>lua
+    require('delta').setup({})
+<
+
+With configuration:
+>lua
+    require('delta').setup({
+        -- Lines of context around each hunk.
+        -- Default: 3
+        context = 3,
+
+        highlighting = {
+            -- Minimum Levenshtein similarity (0.0-1.0) for two lines to be
+            -- paired for word-level highlighting. Lines below this threshold
+            -- get only line-level highlighting.
+            -- Matches delta's --max-line-distance option.
+            -- Default: 0.6
+            max_similarity_threshold = 0.6,
+        },
+
+        -- Highlight group definitions, separated by background type.
+        -- Each group also accepts `default` (boolean). The built-in groups all have
+        -- `default = true`, which means they will not override a group already defined
+        -- by another source (e.g. a colorscheme). If you are using a plugin manager
+        -- with deferred/lazy loading and your custom colors are not taking effect,
+        -- explicitly set `default = false` in each group you override to force the
+        -- value to be applied regardless of load order.
+        highlight_groups = {
+            dark = {
+                DeltaDiffAddedLine   = { bg = '#002800' },
+                DeltaDiffRemovedLine = { bg = '#3f0001' },
+                DeltaDiffAddedWord   = { bg = '#006000' },
+                DeltaDiffRemovedWord = { bg = '#901011' },
+                DeltaTitle           = { fg = '#24acd4' },
+                DeltaLineNrAdded     = { fg = '#008400' },
+                DeltaLineNrRemoved   = { fg = '#800202' },
+                DeltaLineNrContext   = { fg = '#444444' },
+            },
+            light = {
+                DeltaDiffAddedLine   = { bg = '#cfffd0' },
+                DeltaDiffRemovedLine = { bg = '#ffdee2' },
+                DeltaDiffAddedWord   = { bg = '#9df0a2' },
+                DeltaDiffRemovedWord = { bg = '#ffc1bf' },
+                DeltaTitle           = { fg = '#0088aa' },
+                DeltaLineNrAdded     = { fg = '#008400' },
+                DeltaLineNrRemoved   = { fg = '#800202' },
+                DeltaLineNrContext   = { fg = '#444444' },
+            },
+        },
+    })
+<
+
+Configuration is optional. Defaults are optimized for readability.
+
+==============================================================================
+MODULE FUNCTIONS                                              *delta-functions*
+
+------------------------------------------------------------------------------
+BUFFER CREATION                                       *delta-buffer-creation*
+
+delta.git_diff({ref}, {path}, {opts})                         *delta.git_diff*
+    Create a diff buffer comparing working tree to a git reference.
+
+    Parameters: ~
+        {ref}   (string) Git ref to diff against ("HEAD", "main", "abc123")
+        {path}  (string|nil) Optional file path to limit diff scope
+        {opts}  (DeltaOpts|nil) Optional configuration overrides
+
+    Returns: ~
+        (number|nil) Buffer number, or nil on error
+
+    Example: ~
+>lua
+        local bufnr = require('delta').git_diff('HEAD')
+        local bufnr = require('delta').git_diff('HEAD~1', 'lua/init.lua')
+        local bufnr = require('delta').git_diff('HEAD', nil, { context = 10 })
+        local bufnr = require('delta').git_diff('HEAD', nil, { new_file = true })
+<
+
+delta.text_diff({s1}, {s2}, {language}, {opts})              *delta.text_diff*
+    Create a diff buffer comparing two text strings.
+
+    Parameters: ~
+        {s1}        (string) Original text
+        {s2}        (string) Modified text
+        {language}  (string|nil) Language for syntax highlighting (e.g. 'lua', 'python')
+        {opts}      (DeltaOpts|nil) Optional configuration overrides
+
+    Returns: ~
+        (number|nil) Buffer number, or nil on error
+
+    Example: ~
+>lua
+        local delta = require('delta')
+        local bufnr = delta.text_diff(
+            "local x = 1\nlocal y = 2",
+            "local x = 1\nlocal y = 10",
+            'lua'
+        )
+<
+
+delta.patch_diff({diffstring}, {is_git_diff}, {language}, {opts})  *delta.patch_diff*
+    Create a diff buffer from a unified diff string (e.g., a .patch file).
+
+    Parameters: ~
+        {diffstring}   (string) Unified diff format string
+        {is_git_diff}  (boolean) Whether the string is in git diff format
+                       (with file headers), as opposed to a plain unified diff
+        {language}     (string|nil) Language for syntax highlighting. Ignored
+                       when is_git_diff is true (language inferred from file path)
+        {opts}         (DeltaOpts|nil) Optional configuration overrides
+
+    Returns: ~
+        (number|nil) Buffer number, or nil on error
+
+    Example: ~
+>lua
+        -- Single-file unified diff
+        local patch = io.open('fix.patch'):read('*a')
+        local bufnr = require('delta').patch_diff(patch, false, 'lua')
+
+        -- Multi-file git diff
+        local bufnr = require('delta').patch_diff(patch, true, nil)
+<
+
+------------------------------------------------------------------------------
+HIGHLIGHTING                                             *delta-highlighting*
+
+Buffers are created without highlighting applied. Call these functions after
+creating the buffer to apply desired highlighting.
+
+delta.highlight_delta_artifacts({bufnr})        *delta.highlight_delta_artifacts*
+    Highlight file titles, hunk headers, and separator lines.
+
+    Parameters: ~
+        {bufnr}  (number) Delta buffer number
+
+    Note: Should be called for all buffer types (git/text/patch).
+
+delta.syntax_highlight_git_diff({bufnr})      *delta.syntax_highlight_git_diff*
+    Apply treesitter syntax highlighting using source files from the git repo.
+    Use for git_diff buffers.
+
+    Parameters: ~
+        {bufnr}  (number) Delta buffer number
+
+delta.syntax_highlight_diff_set({bufnr})    *delta.syntax_highlight_diff_set*
+    Apply treesitter syntax highlighting by reconstructing file content from
+    the diff data. Use for text_diff and patch_diff buffers where no source
+    file is available.
+
+    Parameters: ~
+        {bufnr}  (number) Delta buffer number
+
+delta.diff_highlight_diff({bufnr}, {opts})          *delta.diff_highlight_diff*
+    Apply two-tier diff highlighting (line-level and word-level).
+    Works for both single-file and git diffs.
+
+    Parameters: ~
+        {bufnr}  (number) Delta buffer number
+        {opts}   (table|nil) Optional highlighting configuration:
+                 - highlighting.max_similarity_threshold (number)
+
+    Example: ~
+>lua
+        local delta = require('delta')
+        delta.diff_highlight_diff(bufnr, {
+            highlighting = { max_similarity_threshold = 0.4 }
+        })
+<
+
+------------------------------------------------------------------------------
+WINDOW SETUP                                           *delta-window-setup*
+
+delta.setup_delta_statuscolumn({bufnr}, {winid})
+                                              *delta.setup_delta_statuscolumn*
+    Setup statuscolumn to show old/new line numbers.
+
+    Must be called AFTER the buffer is displayed in a window.
+
+    Parameters: ~
+        {bufnr}  (number) Delta buffer number
+        {winid}  (number|nil) Window ID (defaults to current window)
+
+    Behavior: ~
+        - Sets custom statuscolumn showing dual line numbers
+        - Creates autocmd to restore original statuscolumn on BufLeave
+        - Validates buffer is displayed before applying
+
+    Example: ~
+>lua
+        local bufnr = require('delta').git_diff('HEAD')
+        vim.api.nvim_win_set_buf(0, bufnr)  -- Display first
+        require('delta').setup_delta_statuscolumn(bufnr)  -- Then setup
+<
+
+    Error: ~
+        Throws error if buffer is not displayed in specified window.
+
+------------------------------------------------------------------------------
+TYPICAL USAGE                                              *delta-typical-usage*
+
+Git diff workflow:
+>lua
+    local delta = require('delta')
+
+    -- 1. Create buffer
+    local bufnr = delta.git_diff('HEAD')
+
+    -- 2. Display buffer (consumer controls how)
+    vim.api.nvim_win_set_buf(0, bufnr)
+
+    -- 3. Apply highlighting
+    delta.highlight_delta_artifacts(bufnr)
+    delta.syntax_highlight_git_diff(bufnr)
+    delta.diff_highlight_diff(bufnr)
+
+    -- 4. Setup statuscolumn
+    delta.setup_delta_statuscolumn(bufnr)
+<
+
+Text diff workflow:
+>lua
+    local delta = require('delta')
+
+    local bufnr = delta.text_diff(original, modified, 'python')
+
+    vim.api.nvim_win_set_buf(0, bufnr)
+    delta.highlight_delta_artifacts(bufnr)
+    delta.syntax_highlight_diff_set(bufnr)
+    delta.diff_highlight_diff(bufnr)
+    delta.setup_delta_statuscolumn(bufnr)
+<
+
+==============================================================================
+TROUBLESHOOTING                                      *delta-troubleshooting*
+
+Run the built-in health check to diagnose common issues:
+>vim
+    :checkhealth delta
+<
+
+This checks:
+- Neovim version meets the minimum requirement
+- vim.text.diff or vim.diff is available
+- git is on PATH
+- vim.treesitter is available
+- Delta highlight groups are defined
+
+For bugs or questions, open an issue on the repository.
