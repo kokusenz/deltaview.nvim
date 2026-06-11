@@ -1,6 +1,6 @@
 # deltaview.nvim
 
-An inline diff viewer for Neovim using [delta.lua](https://github.com/kokusenz/delta.lua). Delta.lua is a partial recreation of the [delta](https://github.com/dandavison/delta) pager. Delta.lua provides two tier diff highlighting and syntax highlighting, while deltaview.nvim controls the behavior of how the user wants to view these diffs. It is lightweight, designed to be opened and closed quickly. This allows the user to use their lsp while reviewing changes, yank deleted lines of code, and navigate around a pull request naturally, rather than being forced into using a filetree.
+An inline diff viewer for Neovim with two-tier diff highlighting and syntax highlighting, inspired by the [delta](https://github.com/dandavison/delta) pager. It is lightweight, designed to be opened and closed quickly. This allows the user to use their lsp while reviewing changes, yank deleted lines of code, and navigate around a pull request naturally, rather than being forced into using a filetree.
 
 ![DeltaView Screenshot](https://github.com/user-attachments/assets/d4d1e8aa-7fd1-4759-b658-45ca468c18fa)
 
@@ -24,7 +24,7 @@ https://github.com/user-attachments/assets/4035f361-e890-41c4-8b82-f57f5491b665
 ## Features
 
 - **Inline diff viewing**: Lay lightweight diffs over your buffers to quickly view and unview changes
-- **Delta.lua highlighting**: Two tier diff highlighting, treesitter syntax highlighting
+- **Two-tier highlighting**: Two tier diff highlighting, treesitter syntax highlighting
 - **Cursor maintenance**: Opening a diff keeps your cursor where it was, and exiting a diff keeps your cursor where it was. Easily transition between reading and writing.
 - **Quick Navigation**: Jump to the next hunk with `<Tab>`. Review all changes in a PR using the quickfix list workflow (`:DeltaMenu!`). Integration with popular fuzzy finders to find files that have been modified.
 - **Smart sorting**: Files opened by the picker are sorted by quantity of changes, allowing you to review the most important files first.
@@ -34,9 +34,7 @@ https://github.com/user-attachments/assets/4035f361-e890-41c4-8b82-f57f5491b665
 ## Requirements
 
 - Neovim >= 0.10
-<<<<<<< HEAD
 - Git
-- [delta.lua](https://github.com/kokusenz/delta.lua). Install this separately into your neovim config using the plugin manager of your choice.
 - (Optional) An fzf picker of your choice. Currently supports
     - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
     - [telescope](https://github.com/nvim-telescope/telescope.nvim)
@@ -109,21 +107,14 @@ This plugin comes prepackaged with default keybinds, which are viewable by using
 [vim.pack](https://github.com/neovim/neovim/pull/34009)
 
 ```lua
-vim.pack.add({
-    'https://github.com/kokusenz/deltaview.nvim',
-    'https://github.com/kokusenz/delta.lua'
-})
+vim.pack.add('https://github.com/kokusenz/deltaview.nvim')
 ```
-
 
 Or your favorite plugin manager, such as [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
 {
     'kokusenz/deltaview.nvim',
-    dependencies = {
-        "kokusenz/delta.lua",
-    },
 }
 ```
 
@@ -236,15 +227,6 @@ By default, the UI uses nerd font icons:
 ```
 
 ## Troubleshooting
-- :help DeltaView
+- :help deltaview 
 - Reach out via an issue
 - Read the changelog for changes or breaking changes
-
-## Feature Roadmap
-
-- Options for using the pickers in:
-    - [mini.pick](https://github.com/nvim-mini/mini.pick)
-    - [snacks](https://github.com/folke/snacks.nvim)
-- Diff two blocks of text against each other; given a yanked section and a visual selected section, vim.text.diff what's in the register against what's highlighted, and display using delta.lua
-- AI Agent integration such that proposed changes are displayable with delta.lua
-- Allow bundling, such that users can install only deltaview.nvim without having to install delta.lua
