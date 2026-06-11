@@ -40,7 +40,7 @@ M.open_vim_ui_select = function(deltaview_qf_list, open_dv_func)
 end
 
 --- TODO integration tests to assert that the preview window behaves as expected for when inside git root, not at git root
---- opens a fzf-lua picker for deltaview entries in the quickfix list with a delta.lua preview window
+--- opens a fzf-lua picker for deltaview entries in the quickfix list with a preview window
 --- @param deltaview_qf_list DeltaViewQfListEntry[]
 --- @param open_dv_func fun(dv_data: DeltaViewQfListEntryUserData): nil
 M.open_deltaview_fzf_lua_menu = function(deltaview_qf_list, open_dv_func)
@@ -171,9 +171,9 @@ M.open_deltaview_telescope_menu = function(deltaview_qf_list, open_dv_func)
     local preview_bufs = {}
 
     local deltaview_previewer = previewers.new({
-        title = 'Delta.lua',
+        title = 'Delta',
         dyn_title = function(_, entry)
-            if entry == nil then return 'Delta.lua' end
+            if entry == nil then return 'Delta' end
             local title = ' ' .. qf_map[entry.value].user_data.status
                 .. ' ' .. vim.fn.fnamemodify(qf_map[entry.value].user_data.bufname, ':t')
                 .. ' > ' .. qf_map[entry.value].user_data.changes .. ' '

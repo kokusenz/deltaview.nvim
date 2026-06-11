@@ -3,20 +3,6 @@ local M = {}
 M.check = function()
     local config = require('deltaview.config')
 
-    -- ── core dependency ───────────────────────────────────────────────────────
-    vim.health.start('deltaview: core')
-
-    local ok, _ = pcall(require, 'delta')
-    local has_delta_lua = ok
-    if has_delta_lua then
-        vim.health.ok('delta.lua found')
-    else
-        vim.health.error(
-            'delta.lua is not installed',
-            { 'Install delta.lua, https://github.com/kokusenz/delta.lua' }
-        )
-    end
-
     -- ── git ───────────────────────────────────────────────────────────────────
     vim.health.start('deltaview: git')
 
@@ -36,6 +22,62 @@ M.check = function()
         vim.health.error(
             'Neovim 0.10+ is required (vim.system API)',
             { 'Upgrade Neovim to at least 0.10' }
+        )
+    end
+
+    -- ── treesitter ────────────────────────────────────────────────────────────
+    vim.health.start('deltaview: treesitter')
+
+    if vim.treesitter and vim.treesitter.get_string_parser then
+        vim.health.ok('vim.treesitter is available')
+    else
+        vim.health.error(
+            'vim.treesitter is not available',
+            { 'Treesitter is built into Neovim >= 0.10. Ensure you are running a supported version.' }
+        )
+    end
+
+    -- ── diff api ──────────────────────────────────────────────────────────────
+    vim.health.start('deltaview: diff api')
+
+    if vim.text and vim.text.diff then
+        vim.health.ok('vim.text.diff is available')
+    elseif vim.diff then
+        vim.health.ok('vim.diff is available (legacy API)')
+    else
+        vim.health.error(
+            'Neither vim.text.diff nor vim.diff is available',
+            { 'Upgrade Neovim to at least 0.10' }
+        )
+    end
+
+    -- ── highlight groups ──────────────────────────────────────────────────────
+    vim.health.start('deltaview: highlight groups')
+
+    local hl_groups = {
+        'DeltaDiffAddedLine',
+        'DeltaDiffRemovedLine',
+        'DeltaDiffAddedWord',
+        'DeltaDiffRemovedWord',
+        'DeltaTitle',
+        'DeltaLineNrAdded',
+        'DeltaLineNrRemoved',
+        'DeltaLineNrContext',
+    }
+
+    local undefined = {}
+    for _, group in ipairs(hl_groups) do
+        if vim.tbl_isempty(vim.api.nvim_get_hl(0, { name = group, link = false })) then
+            table.insert(undefined, group)
+        end
+    end
+
+    if #undefined == 0 then
+        vim.health.ok('all highlight groups are defined')
+    else
+        vim.health.warn(
+            'undefined highlight groups: ' .. table.concat(undefined, ', '),
+            { "Call require('deltaview').setup() to initialise highlight groups." }
         )
     end
 

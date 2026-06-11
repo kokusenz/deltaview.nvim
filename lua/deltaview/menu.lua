@@ -52,7 +52,7 @@ local open_deltaview_on_buffer = function(dv_data)
             local dv_bufid
             if dv_data.status == 'D' then
                 -- delta_path works for deleted files, while deltaview_file doesn't because it expects a real file to exist to function off of.
-                -- slight design discrepancy here; this has the delta.lua header, while the non-deleted files don't. But I can live with that.
+                -- slight design discrepancy here; this has the delta header, while the non-deleted files don't. But I can live with that.
                 -- alternative solution is to refactor deltaview_file to no longer assume it is being called from a real file, and take in a path like delta_path does
                 dv_bufid = view.delta_path(dv_data.ref, require('deltaview.state').default_context, dv_data.abs_path)
             else

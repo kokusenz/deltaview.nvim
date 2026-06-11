@@ -7,14 +7,22 @@ I try to attach a commit to each log, but in the initial pr, I may use the pr in
 
 ## Latest
 
-### [0.3.3] - 2026-06-05 to ongoing
+### [0.4.0] - 2026-06-10 to ongoing
 
-- initial commit - https://github.com/kokusenz/deltaview.nvim/pull/47
+- initial commit - https://github.com/kokusenz/deltaview.nvim/pull/48
+
+#### Added
+- [delta.lua](https://github.com/kokusenz/delta.lua) codebase was merged into deltaview.nvim. Captured at version 0.1.4.
+
+## History
+
+### [0.3.3] - 2026-06-05 to 2026-06-10
+
+- initial commit - 29789a0ffb67f7664e2a01f6af3033f53c7cf43f
 
 #### Added
 - `:DeltaView`, `:Delta`, and `:DeltaMenu` argument completion list for refs is wrapped in vim.schedule, improving nvim startup time
 
-## History
 
 ### [0.3.2] - 2026-06-03 to 2026-06-05
 
