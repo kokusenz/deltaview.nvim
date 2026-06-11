@@ -540,7 +540,7 @@ end
 --- @return DiffData[]
 M.get_buf_diff_data_set = function(bufnr)
     local delta_files_data = vim.b[bufnr].delta_diff_data_set
-    assert(delta_files_data ~= nil, 'Buffer did not contain expected Delta.lua delta diff data')
+    assert(delta_files_data ~= nil, 'Buffer did not contain expected DeltaView delta diff data')
     return delta_files_data
 end
 
@@ -548,7 +548,7 @@ end
 --- @return string
 M.get_buf_git_root = function(bufnr)
     local git_root = vim.b[bufnr].git_root
-    assert(git_root ~= nil, 'Buffer did not contain expected Delta.lua git root data')
+    assert(git_root ~= nil, 'Buffer did not contain expected DeltaView git root data')
     return git_root
 end
 
@@ -556,7 +556,7 @@ end
 --- @return DeltaArtifact[] | nil
 M.get_delta_artifact_data = function(bufnr)
     local delta_artifacts = vim.b[bufnr].delta_artifacts
-    assert(delta_artifacts ~= nil, 'Buffer did not contain expected Delta.lua delta artifact data')
+    assert(delta_artifacts ~= nil, 'Buffer did not contain expected DeltaView delta artifact data')
     return delta_artifacts
 end
 

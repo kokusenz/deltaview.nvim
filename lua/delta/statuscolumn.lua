@@ -1,6 +1,6 @@
 local M = {}
 
---- render the statuscolumn for a delta.lua diff buffer
+--- render the statuscolumn for a DeltaView diff buffer
 --- shows: old_line ⋮ new_line with color based on line type
 --- @param lnum number The line number (1-indexed)
 --- @return string The formatted statuscolumn content

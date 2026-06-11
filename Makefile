@@ -23,12 +23,6 @@ setup:
 	else \
 		echo "mini.test already installed"; \
 	fi
-	@if [ ! -d "deps/delta" ]; then \
-		echo "Installing delta.lua for integration tests..."; \
-		git clone --filter=blob:none https://github.com/kokusenz/delta.lua deps/delta; \
-	else \
-		echo "delta already installed"; \
-	fi
 	@if [ ! -d "deps/fzf_lua" ]; then \
 		echo "Installing fzf_lua for integration tests..."; \
 		git clone --filter=blob:none https://github.com/ibhagwan/fzf-lua deps/fzf_lua; \
@@ -59,7 +53,6 @@ setup:
 setup-silent:
 	@mkdir -p deps deps/parser
 	@[ -d "deps/mini.test" ] || git clone -q --filter=blob:none https://github.com/nvim-mini/mini.test deps/mini.test
-	@[ -d "deps/delta" ] || git clone -q --filter=blob:none https://github.com/kokusenz/delta.lua deps/delta
 	@[ -d "deps/fzf_lua" ] || git clone -q --filter=blob:none https://github.com/ibhagwan/fzf-lua deps/fzf_lua
 	@[ -d "deps/telescope" ] || git clone -q --filter=blob:none https://github.com/nvim-telescope/telescope.nvim deps/telescope
 	@[ -d "deps/plenary" ] || git clone -q --filter=blob:none https://github.com/nvim-lua/plenary.nvim deps/plenary
@@ -90,7 +83,7 @@ clean:
 
 help:
 	@echo "Available targets:"
-	@echo "  make setup          - Install mini.test and delta.lua and compile treesitter parsers"
+	@echo "  make setup          - Install mini.test and compile treesitter parsers"
 	@echo "  make test           - Run all tests"
 	@echo "  make test-file FILE=<path> - Run a specific test file"
 	@echo "  make clean          - Remove deps/ (next run will reinstall everything)"

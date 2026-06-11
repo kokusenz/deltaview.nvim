@@ -474,7 +474,7 @@ OpenGitDiffBuffer.open_git_diff_buffer__property_cases = {
         },
     },
     {
-        -- delta.text_diff returns nil (delta.lua internal error); function propagates nil.
+        -- delta.text_diff returns nil; function propagates nil.
         name = 'failure: delta.text_diff returns nil',
         setup_lua = open_git_diff_buffer_happy_mocks .. [=[
             package.loaded['delta'].text_diff = function() return nil end

@@ -4,9 +4,9 @@ local config = require('deltaview.config')
 local help = require('deltaview.help')
 local _echo_timer = nil
 
---- deltaview file diff buffer orchestrator, using delta.lua. opens a deltaview diff on top of current window
+--- deltaview file diff buffer orchestrator, opens a deltaview diff on top of current window
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
---- @return number | nil bufnr buf id of delta.lua buffer
+--- @return number | nil bufnr buf id of diff buffer
 M.deltaview_file = function(ref)
     assert(ref ~= nil)
     local filepath = vim.fn.expand('%:p')
@@ -33,11 +33,11 @@ M.deltaview_file = function(ref)
     return diff_bufnr
 end
 
---- delta git diff buffer orchestrator, using delta.lua. opens a delta diff on top of current window
+--- delta git diff buffer orchestrator. opens a delta diff on top of current window
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param context number size of context for the diff
 --- @param path string path we want to diff
---- @return number | nil bufnr buf id of delta.lua buffer
+--- @return number | nil bufnr buf id of diff buffer
 M.delta_path = function(ref, context, path)
     assert(ref ~= nil)
     assert(context ~= nil)
@@ -65,22 +65,21 @@ M.delta_path = function(ref, context, path)
     return diff_bufnr
 end
 
---- opens a delta.lua git diff buffer for the specified file against a git ref, using delta.text_diff
+--- opens a git diff buffer for the specified file against a git ref, using delta.text_diff
 --- this diff has unlimited context, and allows for one file
 --- @param filepath string The file path to diff
 --- @param ref string git ref to compare against. Can be branch, commit, tag, etc.
 --- @param winnr number | nil Optional window number to open on.
---- @return number | nil bufnr buf id of delta.lua buffer
+--- @return number | nil bufnr buf id of diff buffer
 M.open_git_diff_buffer = function(filepath, ref, winnr)
     assert(filepath ~= nil)
     local git_root = utils.get_git_root(filepath)
     if vim.fn.filereadable(filepath) == 0 then
-        vim.notify('Not on a real file. Cannot open git diff delta.lua buffer.', vim.log.levels.WARN)
+        vim.notify('Not on a real file. Cannot open git diff buffer.', vim.log.levels.WARN)
         return
     end
     assert(ref ~= nil)
-    local ok, delta = pcall(require, 'delta')
-    assert(ok, 'Delta.lua module not found. Please verify delta.lua is installed to deltaview.nvim. `:checkhealth deltaview`')
+    local delta = require('delta')
 
     local is_untracked = utils.is_untracked_file(filepath, git_root)
     local git_data
@@ -173,7 +172,7 @@ M.open_git_diff_buffer = function(filepath, ref, winnr)
     return bufnr
 end
 
---- opens a delta.lua git diff buffer for the specified path against a git ref, using delta.git_diff
+--- opens a git diff buffer for the specified path against a git ref, using delta.git_diff
 --- this diff has limited context, and allows for multiple files
 --- when not used on a file, will exclude untracked files. When used explicitly on an untracked file, will work
 --- @param path string The path to diff
@@ -182,13 +181,12 @@ end
 --- @param winnr number | nil Optional window number to open on.
 --- @param buf_name string | nil Optional name to assign to the buffer
 --- @param is_untracked boolean | nil Optional untracked status. When provided, skips the git lookup used to determine it.
---- @return number | nil bufnr buf id of delta.lua buffer
+--- @return number | nil bufnr buf id of diff buffer
 M.open_git_diff_buffer_for_path = function(path, ref, context, winnr, buf_name, is_untracked)
     assert(path ~= nil)
     assert(ref ~= nil)
     assert(context ~= nil)
-    local ok, delta = pcall(require, 'delta')
-    assert(ok, 'Delta.lua module not found. Please verify delta.lua is installed to deltaview.nvim. `:checkhealth deltaview`')
+    local delta = require('delta')
     if is_untracked == nil then
         local git_root = utils.get_git_root(path)
         is_untracked = utils.is_untracked_file(path, git_root)
@@ -255,10 +253,10 @@ M.get_cursor_placement_current_buffer = function()
     return { winnr = winnr, cursor = cursor }
 end
 
---- finds the line in the delta.lua buffer that corresponds to the real file to place the cursor at.
---- @param bufnr number buf_id of delta.lua buffer id
---- @param winnr number win id of delta.lua window id
---- @param cursor_placement CursorPlacement if filepath is not specified, they will try to place the cursor on the first file of the diff. If the delta.lua buffer does not have filepath, but you know the file your cursor was on matches with the delta.lua file, use filepath = nil.
+--- finds the line in the diff buffer that corresponds to the real file to place the cursor at.
+--- @param bufnr number buf_id of diff buffer id
+--- @param winnr number win id of diff window id
+--- @param cursor_placement CursorPlacement if filepath is not specified, they will try to place the cursor on the first file of the diff. If the diff buffer does not have filepath, but you know the file your cursor was on matches with the diff file, use filepath = nil.
 --- @param og_winline number winline of the cursor in the source buffer, used to preserve relative screen position in the diff buffer
 --- @param git_root string
 M.place_cursor_delta_buffer_entry = function(bufnr, winnr, cursor_placement, og_winline, git_root)
@@ -373,7 +371,7 @@ M.setup_cursor_placement_tracking = function(bufnr, winnr)
 end
 
 --- returns a function that, when invoked, opens the file to and places the cursor where the cursor was in the diff buffer. The function can fail if the cursor is not in a valid location.
---- @param bufnr number buf_id of delta.lua buffer id
+--- @param bufnr number buf_id of diff buffer id
 --- @param winnr number win id of the buffer we are exiting to
 --- @param alternative_bufnr number | nil buf_id of the buffer id to exit to. If given, is used.
 --- @return nil | fun(): boolean strategy strategy function returns a boolean when executed if the window succcessfully exited to anotherb uffer and if the cursor was successfully placed. If used on a delta.text_diff or delta.patch_diff buffer, will not redirect to any filepath given by the buffer, so would prefer to have alternative_bufnr. If used on a delta.git_diff buffer where the filepath is displayed, it will navigate to that before placing the cursor
@@ -478,7 +476,7 @@ M.setup_hunk_navigation = function(bufnr)
     help.register_keybind(bufnr, config.options.keyconfig.prev_hunk, 'jump to previous hunk', 'keybind')
 end
 
---- jumps to a hunk when user is on a delta.lua buffer
+--- jumps to a hunk when user is on a diff buffer
 --- jumps to the top of each hunk
 --- when no more hunks are left to go to, it will cycle through. eg. if at the end, go back to top.
 --- @param bufnr number

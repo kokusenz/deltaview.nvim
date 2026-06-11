@@ -1,3 +1,4 @@
+-- delete soon; keeping here for the initial merge pr so the fact that this was deleted is easy to find
 _G.Delta = setmetatable({}, {
     __index = function(proxy, k)
         vim.notify(
