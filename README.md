@@ -1,14 +1,14 @@
 # deltaview.nvim
 
-An inline diff viewer for Neovim with two-tier diff highlighting and syntax highlighting, inspired by the [delta](https://github.com/dandavison/delta) pager. It is lightweight, designed to be opened and closed quickly. This allows the user to use their lsp while reviewing changes, yank deleted lines of code, and navigate around a pull request naturally, rather than being forced into using a filetree.
+An inline git diff viewer for Neovim with two-tier diff highlighting and syntax highlighting inspired by the [delta](https://github.com/dandavison/delta) pager.
 
 ![DeltaView Screenshot](https://github.com/user-attachments/assets/d4d1e8aa-7fd1-4759-b658-45ca468c18fa)
 
 ## Why?
 
-Current inline/unified diff viewers in neovim tend to use virtual lines to display negative changes. Cursors cannot land on virtual lines, which disrupts scrolling, and lacks the ability to copy lines of code that were deleted. With a large block of negative changes that does not fit in the window's viewport, the user cannot even see the full extent of the changes.
+Alternative inline/unified diff viewers in the neovim plugin ecosystem tend to use virtual lines to display negative changes. Cursors cannot land on virtual lines, which disrupts scrolling. You cannot yank lines of code that were deleted. With a large block of negative changes that does not fit in the window's viewport, you cannot see the full extent of the changes.
 
-This plugin's approach is to treat inline diffs as readonly, separate buffers. Separate buffers allows us to display these diffs without virtual lines, with plenty of features that allows these buffers to integrate seamlessly into your coding experience.
+This plugin creates inline diffs as readonly, separate buffers without virtual lines. You are able to use lsp features while reviewing changes, yank deleted lines of code, and navigate around a pull request as you would your normal files.
 
 ## Demos
 
