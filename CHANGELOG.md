@@ -9,7 +9,7 @@ I try to attach a commit to each log, but in the initial pr, I may use the pr in
 
 ### [0.4.0] - 2026-06-10 to ongoing
 
-- initial commit - https://github.com/kokusenz/deltaview.nvim/pull/48
+- initial commit - 47339a62616f89d0facd1ff8020678bab8561908
 
 #### Added
 - [delta.lua](https://github.com/kokusenz/delta.lua) codebase was merged into deltaview.nvim. Captured at version 0.1.4.
