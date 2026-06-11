@@ -5,21 +5,21 @@ M.setup_keybinds = function()
     if M.options.keyconfig.dv_toggle_keybind ~= nil and M.options.keyconfig.dv_toggle_keybind ~= '' then
         vim.keymap.set('n', M.options.keyconfig.dv_toggle_keybind, function()
             vim.cmd('DeltaView')
-        end)
+        end, { desc = "Toggle DeltaView" })
     end
 
     -- :DeltaMenu global keybind
     if M.options.keyconfig.dm_toggle_keybind ~= nil and M.options.keyconfig.dm_toggle_keybind ~= '' then
         vim.keymap.set('n', M.options.keyconfig.dm_toggle_keybind, function()
             vim.cmd('DeltaMenu')
-        end)
+        end, { desc = "Toggle DeltaView Menu" })
     end
 
     -- :Delta global keybind
     if M.options.keyconfig.d_toggle_keybind ~= nil and M.options.keyconfig.d_toggle_keybind ~= '' then
         vim.keymap.set('n', M.options.keyconfig.d_toggle_keybind, function()
             vim.cmd('Delta')
-        end)
+        end, { desc = "Toggle Delta" })
     end
 end
 
