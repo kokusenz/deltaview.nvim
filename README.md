@@ -39,16 +39,20 @@ https://github.com/user-attachments/assets/4035f361-e890-41c4-8b82-f57f5491b665
     - [fzf-lua](https://github.com/ibhagwan/fzf-lua)
     - [telescope](https://github.com/nvim-telescope/telescope.nvim)
 
-**Note**
+*NOTE*
 - This plugin does not use [delta](https://github.com/dandavison/delta), and it is not a dependency
 
 ## Usage
+
+Using deltaview revolves around three user commands. |:DeltaView| brings up the delta diff view on the file you are on, |:Delta| brings up a special delta diff view that more closely resembles the original git-delta, and |:DeltaMenu| brings up a picker that allows you to jump to the diff view of a file in the diff. These commands all come with default keybinds (see |deltaview-keybindings|) as the intended user experience involves bringing the diff view up and closing it frequently.
+
+No `require('deltaview').setup` command is required, though one is made available for configuration. deltaview.nvim is by default, (pseudo) lazy loaded. This means there is little benefit to using a plugin manager like lazy.nvim, but users of vim.pack, vim plug, and non lazy loading plugins will have good startup times. All user commands and keybinds are made available at startup, but the main modules aren't loaded until the initial interaction with deltaview.
 
 ### Commands
 
 #### `:DeltaView [ref]`
 
-Open an inline diff view for the current file. The cursor is placed at the current location upon entry, and placed at the current location on exit
+Opens the delta diff view on the buffer you are on. Uses the last ref that was used (across any `:Delta[View][Menu]` command), or HEAD. Meant to be used when the "after" of the diff matches the current state of your buffer. In other words, this works well when diffing a modified file against HEAD, or diffing a file that hasn't been changed. The cursor is placed at the matching location on entry, and placed at the matching location on exit
 
 ```vim
 :DeltaView                  " Compare current file against HEAD
@@ -57,9 +61,18 @@ Open an inline diff view for the current file. The cursor is placed at the curre
 :DeltaView v1.0.0           " Compare against tag v1.0.0
 ```
 
+#### `:Delta [path] [context] [ref]`
+
+Opens the delta diff view for the current path. Attempts to place the cursor on entry if there is a corresponding line in the diff. Cursor will sync on exit, same as DeltaView. Uses the last ref that was used, or HEAD. Uses the last specified context size, or 3. Uses the current path; can be useful if if you use netrw to be on a path, or just diff a file. Modifiable context can be useful for searching your changed code, such as looking for stray print statements
+
+```vim
+:Delta .                    " Show all files changed from HEAD, with +- 3 lines of context by default
+:Delta . 10 main...HEAD     " Show all files changed from the common ancestor with the main branch, with 10 lines of context, for everything in the cwd
+```
+
 #### `:DeltaMenu [ref]`
 
-Opens a picker to select a file and view its diff. Picker priority: fzf-lua → telescope → vim.ui.select.
+Opens a picker to select among diffed files and view its diff. Uses the last ref that was used, or HEAD. Picker priority: fzf-lua -> telescope -> vim.ui.select
 
 ```vim
 :DeltaMenu                  " Show all files changed from HEAD
@@ -69,38 +82,70 @@ Opens a picker to select a file and view its diff. Picker priority: fzf-lua → 
 
 #### `:DeltaMenu! [ref]`
 
-Populates the quickfix list with all changed files and opens it. Each entry shows the file status (M/A/D/R/...) and change size. Intended for reviewing all changes in a PR or branch.
+Populates the quickfix list with all changed files and opens it. The quickfix list acts as an alternative native picker that stays open. Opening a file on the quickfix list automatically opens to `:DeltaView`.
 
 Once the list is open:
 - Navigate with `]q` / `[q` (or `:cnext` / `:cprev`) — opening any listed file automatically opens its DeltaView diff
 - Use `:colder` or `:cex []` to manually restore the previous quickfix list and exit the review workflow
 
-#### `:Delta [path] [context] [ref]`
-
-Open the inline delta diff view for the current path. This view has a configurable amount of context to show alongside your diff hunks. Attempts to place the cursor on entry if there is a corresponding line in the diff. Will sync the cursor on exit, same as DeltaView.
-This works on both files and directories, by being in a directory path using netrw or some other filetree plugin. This can be useful for if you want to diff specific directories rather than the whole git directory. 
-If you are unable to navigate to a directory because you use something like [oil.nvim](https://github.com/stevearc/oil.nvim), you can pass the path as an argument
-Context can be specified. This can be useful for searching your modified code (eg. looking for stray print statements).
-
 ```vim
-:Delta                      " Show all files changed from HEAD, with +- 3 lines of context by default
-:Delta . 10 main...HEAD     " Show all files changed from the common ancestor with the main branch, with 10 lines of context, for everything in the cwd
+:DeltaMenu! develop...HEAD   " Show all files changed from the common ancestor with the develop branch in the quickfix list
 ```
 
 **Recommendations**:
 
 Set abbreviations for the common commands, as they can be long. While keybinds for each command exist, commands will often be typed in normal workflow to specify the [ref].
+
 ```lua
 vim.cmd([[cabbrev dm DeltaMenu]])
 vim.cmd([[cabbrev dv DeltaView]])
+vim.cmd([[cabbrev da Delta . 3]])
 ```
 
-**Note**: 
+*NOTE*: 
 - All commands use the last ref used. If `:DeltaMenu main` was used, future calls to `:DeltaMenu`, `:DeltaView`, and `:Delta` will default to `main` instead of `HEAD`.
+- All support special git syntaxes (e.g. `develop...HEAD` for the symmetric difference, or "what did this branch introduce")
 
 ### Keybinds
 
-This plugin comes prepackaged with default keybinds, which are viewable by using the `d?` keybind when on a a buffer created by `:Delta` or `:DeltaView`.
+This plugin comes prepackaged with some default keybinds, which are viewable by using the `d?` keybind when on a a buffer created by `:Delta` or `:DeltaView`.
+
+Global keybindings:
+
+| Key           | Action        |
+| ------------- | ---------     |
+| `<leader>dl`  | :DeltaView    |
+| `<leader>dm`  | :DeltaMenu    |
+| `<leader>da`  | :Delta        |
+
+When viewing a diff (DeltaView or Delta):
+
+| Key           | Action                                    |
+| ------------- | ----------------------------------------- |
+| `<Esc>` or `q`| Return to source file                     |
+| `<Tab>`       | Next hunk                                 |
+| `<S-Tab>`     | Previous hunk                             |
+| `d?`          | Open the help legend                      |
+
+*NOTE*
+- `<Tab>` and `<Shift-Tab>` deviate from the original neovim diff motions of 
+`]c` and `[c`. These keys behave differently; no count support for deltaview's
+next hunk (meaning no equivalent to 3]c for "jump 3 hunks"), and deltaview's
+next hunk will cycle: if you are on the last hunk, you jump to the
+first hunk with the next `<Tab>`. Furthermore, I just prefer the tabindex like
+motions, which require one hand. If you prefer the original motions, overwrite
+`keyconfig.next_hunk` and `keyconfig.prev_hunk` in |deltaview-configuration|
+
+- `<Tab` overwrites the default vim motion `<Tab>` (see `:h <Tab>`), which is
+just an alternative for `CTRL-I`. If this is an issue for your workflow, 
+please overwrite the configuration.
+
+When the DeltaMenu quickfix list is open (:DeltaMenu!):
+
+| Key           | Action                                    |
+| ------------- | ----------------------------------------- |
+| `]q`          | Open next file and view its diff          |
+| `[q`          | Open previous file and view its diff      |
 
 ## Installation
 
@@ -113,54 +158,11 @@ vim.pack.add('https://github.com/kokusenz/deltaview.nvim')
 Or your favorite plugin manager, such as [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
+-- note that there is probably no lazy.nvim benefit, as this plugin is lazy loaded by default
 {
     'kokusenz/deltaview.nvim',
 }
 ```
-
-No setup needed by default. You can configure if you want:
-
-```lua
-require('deltaview').setup({
-    -- configuration here
-    -- example:
-    keyconfig = {
-        dv_toggle_keybind = "<leader>dd"
-    },
-    use_nerdfonts = false
-})
-```
-
-### Default Keybindings
-
-| Key | Action |
-|-----|--------|
-| `<leader>dl` | :DeltaView |
-| `<leader>dm` | :DeltaMenu |
-| `<leader>da` | :Delta |
-
-When viewing a diff (DeltaView or Delta):
-
-| Key | Action |
-|-----|--------|
-| `<Esc>` or `q` | Return to source file |
-| `<Tab>` | Jump to next hunk |
-| `<Shift-Tab>` | Jump to previous hunk |
-| `d?` | Open the help legend, to view all possible keybinds |
-
-**Note**
-- `<Tab>` and `<Shift-Tab>` deviate from the original neovim diff motions of `]c` and `[c`. These keys behave differently; no count support for deltaview's next hunk (meaning no equivalent to 3]c for "jump 3 hunks down"), and deltaview's next hunk will cycle, meaning that if you are on the last hunk, you jump to the first hunk with the next `<Tab>` . Furthermore, I just prefer the tabindex like motions, which require only one hand. If you prefer the original neovim motions, please overwrite `keyconfig.next_hunk` and `keyconfig.prev_hunk` in configuration (see "Configuration" in README or `:h deltaview-configuration`).
-- `<Tab>` overwrites the default vim motion `<Tab>` (see `:h <Tab>`), which is just an alternative for `CTRL-I`. If this is an issue for your workflow, please overwrite the configuration. I find having a jump list in the deltaview buffer to be infrequent.
-
-When the DeltaMenu quickfix list is open (`:DeltaMenu!`):
-
-| Key | Action |
-|-----|--------|
-| `]q` | Open next file and view its diff |
-| `[q` | Open previous file and view its diff |
-| `:colder` or `:cex []` | Restore previous quickfix list, exiting the DeltaMenu workflow |
-
-All keybindings are configurable
 
 ## Configuration
 
@@ -168,65 +170,128 @@ All keybindings are configurable
 
 ```lua
 require('deltaview').setup({
-    -- Disable nerd font icons if uninstalled (defaults to true)
+    -- disable nerd font icons if uninstalled (defaults to true)
     use_nerdfonts = false,
 
-    -- If this setting is true, will show the delta style line numbers in the statuscolumn.
+    -- will show the delta style line numbers in the statuscolumn.
     line_numbers = false,
 
-    -- Specify which picker to use for :DeltaMenu. If nil, auto-detects in order:
+    -- override the picker for :DeltaMenu. If nil, auto-detects in order:
     -- fzf-lua -> telescope -> vim.ui.select
-    -- 'ui_select' uses vim.ui.select directly, which respects whatever you have
-    -- registered as your vim.ui.select handler. Useful for a fuzzy picker without
-    -- a preview window (e.g. require('fzf-lua').register_ui_select()).
     fzf_picker = nil, -- 'fzf-lua' | 'telescope' | 'ui_select' | nil
 
-    -- Custom keybindings
+    -- custom keybindings
     keyconfig = {
-        -- Global keybind to toggle DeltaMenu
+        -- global keybind to toggle DeltaMenu
         dm_toggle_keybind = "<leader>dm",
 
-        -- Global keybind to toggle DeltaView (and exit diff if open)
+        -- global keybind to toggle DeltaView (and exit diff if open)
         dv_toggle_keybind = "<leader>dl",
 
-        -- Global keybind to toggle Delta (and exit diff if open)
+        -- global keybind to toggle Delta (and exit diff if open)
         d_toggle_keybind = "<leader>da",
 
-        -- Navigate between hunks in a diff
+        -- navigate between hunks in a diff
         next_hunk = "<Tab>",
         prev_hunk = "<S-Tab>",
 
-        -- Open help legend
+        -- open help legend
         help_legend = "d?"
     }
 })
-```
 
-### View Configuration
+-- for configuration of how the diff buffers look
+require('delta').setup({
+    -- default lines of context around each hunk.
+    context = 3,
 
-By default, the UI uses nerd font icons:
+    highlighting = {
+        -- minimum Levenshtein similarity (0.0–1.0) for two lines to be
+        -- paired for word-level highlighting. The lower the number, the
+        -- less similar two lines have to be to get word level
+        -- highlighting. Matches delta's --max-line-distance option.
+        max_similarity_threshold = 0.6,
+    },
 
-```lua
--- With nerd fonts (default)
-{
-    dot = "󰧟", -- nf-md-circle_small, hunk indicator
-    circle = "󰧞", -- nf-md-circle_medium, current hunk indicator
-    vs = "", -- nf-seti-git, "versus" symbol in menu header
-    segment = "󰻋", -- nf-md-segment , hunk count indicator
-    file = "󰈔" -- nf-md-file
-}
-
--- Without nerd fonts
-{
-    dot = "·",
-    circle = "•",
-    vs = "comparing to",
-    segment = "≡",
-    file = "🗎"
-}
+    -- Highlight group definitions, separated by background type.
+    -- Each group accepts `fg`, `bg`, and `default` (boolean).
+    -- When `default = true` the group will not override default colors
+    -- To write a custom color, include default = false
+    -- the examples have default = false, but the colors are the defaults
+    highlight_groups = {
+        dark = {
+            DeltaDiffAddedLine = {
+                bg = '#002800',  -- dark green background
+                default = false
+            },
+            DeltaDiffRemovedLine = {
+                bg = '#3f0001',  -- dark red background
+                default = false
+            },
+            DeltaDiffAddedWord = {
+                bg = '#006000',  -- brighter green
+                default = false
+            },
+            DeltaDiffRemovedWord = {
+                bg = '#901011',  -- brighter red
+                default = false
+            },
+            DeltaTitle = {
+                fg = '#24acd4',  -- light blue
+                default = false
+            },
+            DeltaLineNrAdded = {
+                fg = '#008400',  -- darker green for added line numbers
+                default = false
+            },
+            DeltaLineNrRemoved = {
+                fg = '#800202',  -- darker red for removed line numbers
+                default = false
+            },
+            DeltaLineNrContext = {
+                fg = '#444444',  -- darker gray for context line numbers
+                default = false
+            }
+        },
+        light = {
+            DeltaDiffAddedLine = {
+                bg = '#cfffd0',  -- light green background
+                default = false
+            },
+            DeltaDiffRemovedLine = {
+                bg = '#ffdee2',  -- light red background
+                default = false
+            },
+            DeltaDiffAddedWord = {
+                bg = '#9df0a2',  -- darker green (word level)
+                default = false
+            },
+            DeltaDiffRemovedWord = {
+                bg = '#ffc1bf',  -- darker red (word level)
+                default = false
+            },
+            DeltaTitle = {
+                fg = '#0088aa',  -- darker blue for light backgrounds
+                default = false
+            },
+            DeltaLineNrAdded = {
+                fg = '#008400',  -- darker green for added line numbers
+                default = false
+            },
+            DeltaLineNrRemoved = {
+                fg = '#800202',  -- darker red for removed line numbers
+                default = false
+            },
+            DeltaLineNrContext = {
+                fg = '#444444',  -- darker gray for context line numbers
+                default = false
+            }
+        },
+    },
+})
 ```
 
 ## Troubleshooting
-- :help deltaview 
+- `:help deltaview`
 - Reach out via an issue
 - Read the changelog for changes or breaking changes
