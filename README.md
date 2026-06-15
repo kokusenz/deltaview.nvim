@@ -44,7 +44,7 @@ https://github.com/user-attachments/assets/4035f361-e890-41c4-8b82-f57f5491b665
 
 ## Usage
 
-Using deltaview revolves around three user commands. |:DeltaView| brings up the delta diff view on the file you are on, |:Delta| brings up a special delta diff view that more closely resembles the original git-delta, and |:DeltaMenu| brings up a picker that allows you to jump to the diff view of a file in the diff. These commands all come with default keybinds (see |deltaview-keybindings|) as the intended user experience involves bringing the diff view up and closing it frequently.
+Using deltaview revolves around three user commands. `:DeltaView` brings up the delta diff view on the file you are on, `:Delta` brings up a special delta diff view that more closely resembles the original git-delta, and `:DeltaMenu` brings up a picker that allows you to jump to the diff view of a file in the diff. These commands all come with default keybinds (see |deltaview-keybindings|) as the intended user experience involves bringing the diff view up and closing it frequently.
 
 No `require('deltaview').setup` command is required, though one is made available for configuration. deltaview.nvim is by default, (pseudo) lazy loaded. This means there is little benefit to using a plugin manager like lazy.nvim, but users of vim.pack, vim plug, and non lazy loading plugins will have good startup times. All user commands and keybinds are made available at startup, but the main modules aren't loaded until the initial interaction with deltaview.
 
