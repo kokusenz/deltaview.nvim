@@ -8,7 +8,11 @@ An inline git diff viewer for Neovim with two-tier diff highlighting and syntax 
 
 Alternative inline/unified diff viewers in the neovim plugin ecosystem tend to use virtual lines to display negative changes. Cursors cannot land on virtual lines, which disrupts scrolling. You cannot yank lines of code that were deleted. With a large block of negative changes that does not fit in the window's viewport, you cannot see the full extent of the changes.
 
-This plugin creates inline diffs as readonly, separate buffers without virtual lines. You are able to use lsp features while reviewing changes, yank deleted lines of code, and navigate around a pull request as you would your normal files.
+This plugin creates inline diffs as readonly, separate buffers without virtual lines. You are able to use lsp features while reviewing changes, yank deleted lines of code, and navigate around a pull request as you would your normal files. 
+
+The key to what allows this approach to achieve (workflow wise) what other plugins achieve by creating diffs as highlights + virtual lines inside your buffers is the cursor placement, that allows you to jump into (and out of) a diff without losing your spot.
+
+Another notable design difference from other diff viewers is the two tier highlighting. Instead of character level diffing, it is word level diffing, and more precisely, it is token level diffing. Token parsing is achieved using the same Tree-sitter parser used for highlighting, resulting in less noisy second tier highlights.
 
 ## Demos
 
