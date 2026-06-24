@@ -23,6 +23,12 @@ setup:
 	else \
 		echo "mini.test already installed"; \
 	fi
+	@if [ ! -d "deps/lunatest" ]; then \
+		echo "Installing lunatest for testing..."; \
+		git clone --filter=blob:none https://github.com/silentbicycle/lunatest deps/lunatest; \
+	else \
+		echo "mini.test already installed"; \
+	fi
 	@if [ ! -d "deps/fzf_lua" ]; then \
 		echo "Installing fzf_lua for integration tests..."; \
 		git clone --filter=blob:none https://github.com/ibhagwan/fzf-lua deps/fzf_lua; \
@@ -53,6 +59,7 @@ setup:
 setup-silent:
 	@mkdir -p deps deps/parser
 	@[ -d "deps/mini.test" ] || git clone -q --filter=blob:none https://github.com/nvim-mini/mini.test deps/mini.test
+	@[ -d "deps/lunatest" ] || git clone -q --filter=blob:none https://github.com/silentbicycle/lunatest deps/lunatest;
 	@[ -d "deps/fzf_lua" ] || git clone -q --filter=blob:none https://github.com/ibhagwan/fzf-lua deps/fzf_lua
 	@[ -d "deps/telescope" ] || git clone -q --filter=blob:none https://github.com/nvim-telescope/telescope.nvim deps/telescope
 	@[ -d "deps/plenary" ] || git clone -q --filter=blob:none https://github.com/nvim-lua/plenary.nvim deps/plenary
@@ -65,12 +72,13 @@ setup-silent:
 # Run all tests
 test: setup-silent
 	nvim --headless --noplugin -u scripts/minimal_init.lua -c "luafile scripts/test.lua"
+	nvim --headless --noplugin -u scripts/minimal_init.lua -c "luafile scripts/test.lua"
 
 # Run a specific test file
-# Usage: make test-file FILE=tests/deltaview/test_parsing.lua
+# Usage: make test-file FILE=test/deltaview/minitest_example.lua
 test-file: setup-silent
 	@if [ -z "$(FILE)" ]; then \
-		echo "Error: FILE is not set. Usage: make test-file FILE=tests/deltaview/test_parsing.lua"; \
+		echo "Error: FILE is not set. Usage: make test-file FILE=test/deltaview/minitest_example.lua"; \
 		exit 1; \
 	fi
 	nvim --headless --noplugin -u scripts/minimal_init.lua -c "lua MiniTest.run_file('$(FILE)')" -c "quit"
@@ -90,4 +98,4 @@ help:
 	@echo ""
 	@echo "Examples:"
 	@echo "  make test"
-	@echo "  make test-file FILE=tests/deltaview/test_view.lua"
+	@echo "  make test-file FILE=test/deltaview/test_example.lua"
