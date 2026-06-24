@@ -171,7 +171,7 @@ local setup_tmpdir_new_file_repo = [[
 local T = new_set({
     hooks = {
         pre_case = function()
-            child.restart({ '-u', 'scripts/minimal_init.lua' })
+            child.restart({ '-u', 'scripts/minitest_minimal_init.lua' })
             child.lua([[
                 M = require('delta')
                 M.setup({})

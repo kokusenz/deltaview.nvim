@@ -39,7 +39,7 @@ end
 local T = new_set({
     hooks = {
         pre_case = function()
-            child.restart({ '-u', 'scripts/minimal_init.lua' })
+            child.restart({ '-u', 'scripts/minitest_minimal_init.lua' })
             child.lua([[
                 -- Stub delta.utils_treesitter before require so M sees the stub
                 package.loaded['delta.utils_treesitter'] = {

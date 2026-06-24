@@ -71,8 +71,10 @@ setup-silent:
 
 # Run all tests
 test: setup-silent
-	nvim --headless --noplugin -u scripts/minimal_init.lua -c "luafile scripts/test.lua"
-	nvim --headless --noplugin -u scripts/minimal_init.lua -c "luafile scripts/test.lua"
+	nvim --headless --noplugin -u scripts/minitest_minimal_init.lua -c "luafile scripts/minitest_start.lua"
+	# nvim --headless --noplugin -u scripts/minitest_minimal_init.lua -c "luafile scripts/minitest_start.lua"
+	# LUA_PATH = deps/?.lua
+	# export LUA_PATH
 
 # Run a specific test file
 # Usage: make test-file FILE=test/deltaview/minitest_example.lua
@@ -81,7 +83,14 @@ test-file: setup-silent
 		echo "Error: FILE is not set. Usage: make test-file FILE=test/deltaview/minitest_example.lua"; \
 		exit 1; \
 	fi
-	nvim --headless --noplugin -u scripts/minimal_init.lua -c "lua MiniTest.run_file('$(FILE)')" -c "quit"
+	@if [[ "$(FILE)" == *minitest_*.lua ]]; then \
+		nvim --headless --noplugin -u scripts/minitest_minimal_init.lua -c "lua MiniTest.run_file('$(FILE)')" -c "quit"; \
+	elif [[ "$(FILE)" == *lunatest_*.lua ]]; then \
+		lua $(FILE); \
+	else \
+		echo "Error: FILE must match minitest_*.lua or lunatest_*.lua in order to determine execution"; \
+		exit 1; \
+	fi
 
 # Clean generated files and deps (next make test will reinstall everything)
 clean:

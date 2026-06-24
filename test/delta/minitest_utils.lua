@@ -39,7 +39,7 @@ end
 local T = new_set({
     hooks = {
         pre_case = function()
-            child.restart({ '-u', 'scripts/minimal_init.lua' })
+            child.restart({ '-u', 'scripts/minitest_minimal_init.lua' })
             child.lua([[M = require('delta.utils')]])
             child.lua([[_G.fixture = {}]])
             child.lua(test_logging)

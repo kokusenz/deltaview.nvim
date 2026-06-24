@@ -54,7 +54,7 @@ local block_modules_lua = [[
 local T = new_set({
     hooks = {
         pre_case = function()
-            child.restart({ '-u', 'scripts/minimal_init.lua' })
+            child.restart({ '-u', 'scripts/minitest_minimal_init.lua' })
             child.lua([[
                 package.loaded['deltaview.config'] = {
                     options = { fzf_picker = nil },

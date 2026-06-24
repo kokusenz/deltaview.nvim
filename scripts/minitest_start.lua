@@ -3,10 +3,9 @@
 
 -- Collect all test files
 local minitest_files = vim.fn.glob('test/**/minitest_*.lua', false, true)
-local lunatest_files = vim.fn.glob('test/**/lunatest_*.lua', false, true)
 
 if #minitest_files == 0 then
-  print('No test files found')
+  print('No minitest files found')
   vim.cmd('cquit 1')
 end
 
@@ -14,11 +13,6 @@ end
 for _, file in ipairs(minitest_files) do
   print(string.format('\n=== Running %s ===\n', file))
   MiniTest.run_file(file)
-end
-
-for _, file in ipairs(lunatest_files) do
-  print(string.format('\n=== Running %s ===\n', file))
-  require('lunatest').run_file(file)
 end
 
 vim.cmd('quit')

@@ -8,9 +8,6 @@ if #vim.api.nvim_list_uis() == 0 then
   -- mini.test
   vim.cmd('set rtp+=' .. project_root .. '/deps/mini.test')
 
-  -- lunatest
-  vim.cmd('set rtp+=' .. project_root .. '/deps/lunatest')
-
   -- Add deps/ so treesitter finds compiled parsers in deps/parser/
   vim.cmd('set rtp+=' .. project_root .. '/deps')
 

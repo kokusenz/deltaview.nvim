@@ -229,7 +229,7 @@ local git_diff_artifacts_in_content_git_diff_added = table.concat({
 local T = new_set({
     hooks = {
         pre_case = function()
-            child.restart({ '-u', 'scripts/minimal_init.lua' })
+            child.restart({ '-u', 'scripts/minitest_minimal_init.lua' })
             child.lua([[
                 -- Stub module-level dependencies before require so M sees the stubs
                 package.loaded['delta.config'] = {
