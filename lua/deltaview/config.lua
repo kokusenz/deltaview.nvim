@@ -64,7 +64,8 @@ M.defaults = {
         next_diff = "]f",
         prev_diff = "[f",
         help_legend = "d?",
-    }
+    },
+    custom_picker = nil,
 }
 
 -- Current options (merged config)
@@ -109,5 +110,6 @@ end
 --- @field default_context number | nil if running deltaview on a directory rather than a file, it will show a typical delta view with limited context. Defaults to 3. Set here, or pass it in as a second param to DeltaView, which will persist as the context for this session
 --- @field line_numbers boolean | nil If this setting is true, will show the delta style line numbers in the statuscolumn.
 --- @field fzf_picker 'fzf-lua' | 'telescope' | 'ui_select' | nil specify which picker to use. If nil, will go through the order and pick the first available. fzf-lua -> telescope -> ui_select. ui_select refers to vim.ui.select, and will respect whichever picker you are using for it; this exists as an option for a picker that doesn't use a previewer. For example, with fzf-lua, you might use require('fzf-lua').register_ui_select() for a fuzzy picker without a previewer, then set this option. Telescope only comes with a vim.ui.select override, at https://github.com/nvim-telescope/telescope-ui-select.nvim.
+--- @field custom_picker (fun(items: string[], opts: vim.ui.select.Opts, on_choice: fun(item: string | nil, idx: number|nil)): nil) | nil If this setting is true, will show the delta style line numbers in the statuscolumn.
 
 return M
