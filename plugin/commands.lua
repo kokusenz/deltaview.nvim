@@ -57,15 +57,12 @@ local delta = function(command_argument)
     end
 end
 
-local all_branches = {}
-
-vim.schedule(function()
-    -- fetch git branches once at setup time
+--- @return table List of local branch names
+local get_branches = function()
     local result = vim.system({'git', 'branch', '--format=%(refname:short)'}):wait()
-    if result.code == 0 and result.stdout ~= '' then
-        all_branches = vim.split(result.stdout, "\n", { trimempty = true })
-    end
-end)
+    if result.code ~= 0 then return {} end
+    return vim.split(result.stdout, "\n", { trimempty = true })
+end
 
 --- Filter git refs based on user input (case insensitive)
 --- @param refs table List of git refs
@@ -88,7 +85,7 @@ local ref_complete = function(ref_arg_position)
         local args = vim.split(cmd_line, '%s+')
         if #args == ref_arg_position then
             local refs = { 'HEAD' }
-            for _, branch in ipairs(all_branches) do
+            for _, branch in ipairs(get_branches()) do
                 table.insert(refs, branch)
             end
             return filter_refs(refs, arg_lead)
